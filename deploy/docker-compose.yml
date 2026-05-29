@@ -28,6 +28,11 @@ services:
       DB_NAME: chatsift
       JWT_SECRET: chatsift-v1-local-0b7b3c7a88d84d8b9c8d3e2c0f4a6b91
       JWT_EXPIRES_IN: 7d
+      ANALYZER_ENABLED: "true"
+      ANALYZER_POLL_INTERVAL: 1000
+      ANALYZER_BATCH_SIZE: 20
+      ANALYZER_MAX_ATTEMPTS: 3
+      INTENT_CONTEXT_SIZE: 5
 
 volumes:
   chatsift-db:
