@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>多平台AI客服助手</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <!-- SVG 图标库 -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 6 6 18M6 6l12 12"/>
+      </symbol>
+      <symbol id="i-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m6 9 6 6 6-6"/>
+      </symbol>
+      <symbol id="i-message" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        <path d="M8 9h8M8 13h6"/>
+      </symbol>
+      <symbol id="i-sparkles" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9.5 3 11 7l4 1.5L11 10l-1.5 4L8 10 4 8.5 8 7z"/>
+        <path d="M18 14l.9 2.4L21 17l-2.1.6L18 20l-.9-2.4L15 17l2.1-.6z"/>
+        <path d="M18 3l.5 1.5L20 5l-1.5.5L18 7l-.5-1.5L16 5l1.5-.5z"/>
+      </symbol>
+      <symbol id="i-file-text" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="8" y1="13" x2="16" y2="13"/>
+        <line x1="8" y1="17" x2="14" y2="17"/>
+      </symbol>
+      <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
+      </symbol>
+      <symbol id="i-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="3 6 5 6 21 6"/>
+        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+        <path d="M10 11v6M14 11v6"/>
+        <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+      </symbol>
+      <symbol id="i-play" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M8 5v14l11-7z"/>
+      </symbol>
+      <symbol id="i-stop" viewBox="0 0 24 24" fill="currentColor">
+        <rect x="6" y="6" width="12" height="12" rx="1.5"/>
+      </symbol>
+      <symbol id="i-logout" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+        <polyline points="16 17 21 12 16 7"/>
+        <line x1="21" y1="12" x2="9" y2="12"/>
+      </symbol>
+      <symbol id="i-minus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <line x1="5" y1="12" x2="19" y2="12"/>
+      </symbol>
+      <symbol id="i-server" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="6" rx="1.5"/>
+        <rect x="3" y="15" width="18" height="6" rx="1.5"/>
+        <circle cx="7" cy="6" r="1" fill="currentColor"/>
+        <circle cx="7" cy="18" r="1" fill="currentColor"/>
+      </symbol>
+    </defs>
+  </svg>
+
+  <div id="loginShell" class="login-shell">
+    <div class="login-card">
+      <div class="login-head">
+        <div class="login-title">插件登录</div>
+        <button class="login-close" id="btnLoginClose" aria-label="关闭">
+          <svg class="icon-16"><use href="#i-close"/></svg>
+        </button>
+      </div>
+      <div class="login-body">
+        <div class="login-brand">
+          <img src="../icons/icon128.png" class="login-brand-logo" alt="logo">
+          <div class="login-welcome">欢迎使用 多平台AI客服助手</div>
+          <div class="login-sub" id="loginVersion">v1.2</div>
+        </div>
+        <input id="loginUsername" class="login-input" type="text" placeholder="账号" autocomplete="username">
+        <input id="loginPassword" class="login-input" type="password" placeholder="密码">
+        <button id="btnLogin" class="login-btn">登 录</button>
+        <div id="loginError" class="login-error"></div>
+        <div class="login-helper">登录后请刷新页面再启动插件</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="appShell" class="app-shell app-hidden">
+    <div class="brand">
+      <div class="brand-left">
+        <img src="../icons/icon128.png" class="brand-logo" alt="logo">
+        <div>
+          <div class="brand-title">多平台AI客服助手</div>
+          <div class="brand-sub" id="brandVersionSub">v1.2</div>
+        </div>
+      </div>
+      <div class="brand-right">
+        <div class="brand-status" id="brandStatus">
+          <span id="brandStatusText">AI客服离线</span>
+        </div>
+        <button class="brand-btn start" id="btnStart">
+          <svg class="icon-14"><use href="#i-play"/></svg>
+          <span>启动</span>
+        </button>
+        <button class="brand-btn stop hidden" id="btnStop">
+          <svg class="icon-14"><use href="#i-stop"/></svg>
+          <span>停止</span>
+        </button>
+      </div>
+    </div>
+
+    <aside class="sidebar">
+      <button class="nav-item  active" data-page="page-platform">
+        <svg class="nav-icon"><use href="#i-server"/></svg>
+        <div>平台</div>
+      </button>
+      <button class="nav-item" data-page="page-kefu">
+        <svg class="nav-icon"><use href="#i-message"/></svg>
+        <div>客服配置</div>
+      </button>
+
+      <button class="nav-item" data-page="page-ai">
+        <svg class="nav-icon"><use href="#i-sparkles"/></svg>
+        <div>AI 配置</div>
+      </button>
+      <button class="nav-item" data-page="page-kb">
+        <svg class="nav-icon"><use href="#i-upload"/></svg>
+        <div>知识库</div>
+      </button>
+      <button class="nav-item" data-page="page-logs">
+        <svg class="nav-icon"><use href="#i-file-text"/></svg>
+        <div>日志</div>
+      </button>
+      <button class="nav-item" data-page="page-account">
+        <svg class="nav-icon"><use href="#i-user"/></svg>
+        <div>账号</div>
+      </button>
+    </aside>
+
+    <main class="main">
+      <section id="page-kefu" class="page">
+        <div class="panel" id="panel-auto">
+          <div class="panel-head" data-toggle="panel-auto">
+            <div class="panel-title">自动化设置</div>
+            <svg class="panel-caret"><use href="#i-chevron-down"/></svg>
+          </div>
+          <div class="panel-body">
+            <div class="field-block">
+              <div class="field-title">自启动</div>
+              <div class="toggle-bar">
+                <span>打开页面后自动启动客服</span>
+                <label class="switch">
+                  <input type="checkbox" id="autoReplySwitch">
+                  <span class="slider"></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="row-2">
+              <div class="field-block">
+                <div class="field-title">客服轮询间隔（秒）</div>
+                <input class="big-input" id="kefuBreak" type="text" value="10">
+              </div>
+              <div class="field-block">
+                <div class="field-title">发送延迟（秒）</div>
+                <input class="big-input" id="sendDelay" type="text" value="3">
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="panel" id="panel-keywords">
+          <div class="panel-head" data-toggle="panel-keywords">
+            <div class="panel-title">关键词话术</div>
+            <svg class="panel-caret"><use href="#i-chevron-down"/></svg>
+          </div>
+          <div class="panel-body">
+            <div class="field-block">
+              <div class="field-title">关键词话术（每行一条：关键词1|关键词2#回复A|回复B）</div>
+              <textarea class="big-textarea" id="keywords"></textarea>
+            </div>
+
+            <div class="field-block">
+              <div class="field-title">兜底回复（关键词和 AI 均无结果时发送，支持 {昵称}）</div>
+              <input class="big-input" id="fallback" type="text">
+            </div>
+
+            <div class="field-block">
+              <div class="field-title">转人工关键词（逗号分隔）</div>
+              <input class="big-input" id="transferKeywords" type="text" placeholder="人工,客服,投诉,转人工">
+            </div>
+
+            <div class="field-block">
+              <div class="field-title">黑名单词（含这些词不回复，# 分隔）</div>
+              <input class="big-input" id="blackWords" type="text" placeholder="广告#刷单#加微信">
+            </div>
+          </div>
+        </div>
+
+        <div class="sticky-bar">
+          <div class="sticky-inner">
+            <button class="footer-btn reset" id="btnResetKefu">重置</button>
+            <button class="footer-btn save" id="btnSaveKefu">保存配置</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-platform" class="page active">
+        <div class="panel" id="panel-current">
+          <div class="panel-head" data-toggle="panel-current">
+            <div class="panel-title">平台检测</div>
+            <svg class="panel-caret"><use href="#i-chevron-down"/></svg>
+          </div>
+          <div class="panel-body">
+            <div class="support-list">
+              <div class="support-item">
+                <span id="currentPlatformText">检测中...</span>
+                <span id="platformAction" class="platform-action" style="display:none">刷新页面</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel" id="panel-support">
+          <div class="panel-head" data-toggle="panel-support">
+            <div class="panel-title">已支持的平台</div>
+            <svg class="panel-caret"><use href="#i-chevron-down"/></svg>
+          </div>
+          <div class="panel-body">
+            <div class="support-list" id="supportList"></div>
+          </div>
+        </div>
+
+        <div class="panel" id="panel-upcoming">
+          <div class="panel-head" data-toggle="panel-upcoming">
+            <div class="panel-title">即将上线</div>
+            <svg class="panel-caret"><use href="#i-chevron-down"/></svg>
+          </div>
+          <div class="panel-body">
+            <div class="support-list" id="upcomingList"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-ai" class="page">
+        <div class="priority-card">
+          <div class="priority-title">触发优先级</div>
+          <div class="priority-list">
+            <div><b class="priority-num">1</b><div><span>关键词精确匹配</span>：在客服配置中设置，命中即用</div></div>
+            <div><b class="priority-num">2</b><div><span>AI 智能回复 + 知识库</span>：未命中关键词时生成回复</div></div>
+            <div><b class="priority-num">3</b><div><span>兜底话术</span>：AI 无结果时使用</div></div>
+          </div>
+        </div>
+
+        <div class="panel" id="panel-ai">
+          <div class="panel-head" data-toggle="panel-ai">
+            <div class="panel-title">AI 接口配置</div>
+            <svg class="panel-caret"><use href="#i-chevron-down"/></svg>
+          </div>
+          <div class="panel-body">
+            <div class="field-block">
+              <div class="field-title">接口地址（OpenAI 兼容）</div>
+              <select class="big-input big-select" id="baseURL">
+                <option value="https://api.deepseek.com">DeepSeek — https://api.deepseek.com</option>
+                <option value="__custom__">自定义</option>
+              </select>
+              <input class="big-input" id="baseURLCustom" type="text" placeholder="https://api.deepseek.com" style="display:none">
+            </div>
+
+            <div class="row-2">
+              <div class="field-block">
+                <div class="field-title">API Key</div>
+                <input class="big-input" id="apiKey" type="password">
+              </div>
+              <div class="field-block">
+                <div class="field-title">模型名称</div>
+                <select class="big-input big-select" id="model">
+                  <option value="deepseek-v4-flash">deepseek-v4-flash</option>
+                  <option value="deepseek-v4-pro">deepseek-v4-pro</option>
+                </select>
+                <input class="big-input" id="modelCustom" type="text" placeholder="deepseek-chat" style="display:none">
+              </div>
+            </div>
+
+            <div class="field-block">
+              <div class="field-title">AI 人设（系统提示词）</div>
+              <textarea class="big-textarea big-textarea-lg" id="systemPrompt"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="sticky-bar">
+          <div class="sticky-inner">
+            <button class="footer-btn reset" id="btnResetAi">重置</button>
+            <button class="footer-btn save" id="btnSaveAi">保存配置</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-kb" class="page">
+        <div class="panel" id="panel-kb">
+          <div class="panel-head" data-toggle="panel-kb">
+            <div class="panel-title">知识库管理（依赖AI配置生效）</div>
+            <svg class="panel-caret"><use href="#i-chevron-down"/></svg>
+          </div>
+          <div class="panel-body">
+            <label class="dropzone" for="kbFileInput" id="kbDropzone">
+              <div class="dropzone-icon">
+                <svg class="icon-22"><use href="#i-upload"/></svg>
+              </div>
+              <strong>点击上传或拖拽文件至此</strong>
+              <div>支持 .txt .md 纯文本文件，单文件 ≤ 2MB</div>
+            </label>
+            <input id="kbFileInput" type="file" accept=".txt,.md" multiple class="hidden">
+            <div class="file-list" id="kbList"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-logs" class="page">
+        <div class="log-box">
+          <div class="log-head">
+            <div class="log-title">运行日志</div>
+            <button class="mini-btn" id="btnClearLogs">
+              <svg class="icon-13"><use href="#i-trash"/></svg>
+              <span>清空</span>
+            </button>
+          </div>
+          <div class="log-list" id="logList">等待操作...</div>
+        </div>
+
+      </section>
+
+      <section id="page-account" class="page">
+        <div class="account-card">
+          <div class="account-col-avatar">
+            <div class="account-avatar">
+              <svg class="icon-28"><use href="#i-user"/></svg>
+            </div>
+          </div>
+          <div class="account-col-info">
+            <div class="account-field">
+              <span class="account-key">账  号</span>
+              <span class="account-val" id="accountName">-</span>
+            </div>
+            <div class="account-field">
+              <span class="account-key">状  态</span>
+              <span class="account-val"><span class="badge-success" id="accountStatus">已登录</span></span>
+            </div>
+            <div class="account-field">
+              <span class="account-key">有效期</span>
+              <span class="account-val" id="accountExpire">长期</span>
+            </div>
+          </div>
+          <div class="account-col-action">
+            <button class="logout-btn" id="btnLogout">
+              <svg class="icon-14"><use href="#i-logout"/></svg>
+              <span>退出登录</span>
+            </button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast"></div>
+  <script src="../app-config.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

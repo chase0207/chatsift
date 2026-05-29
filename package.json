@@ -1,0 +1,19 @@
+{
+  "name": "chatsift",
+  "version": "0.0.1",
+  "description": "Conversation Sifting Platform - 多平台会话智能运营系统",
+  "private": true,
+  "workspaces": [
+    "plugin",
+    "server",
+    "admin"
+  ],
+  "scripts": {
+    "dev:server": "cd server && npm run dev",
+    "dev:admin": "cd admin && npm run dev",
+    "build:plugin": "cd plugin && node build.js",
+    "build:admin": "cd admin && npm run build"
+  },
+  "author": "",
+  "license": "UNLICENSED"
+}

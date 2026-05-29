@@ -1,0 +1,70 @@
+name: rpa-prod
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: rpa-mysql
+    restart: unless-stopped
+    command:
+      - --default-authentication-plugin=mysql_native_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+      - ../server/sql/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ../server/sql/migration_v2.sql:/docker-entrypoint-initdb.d/02-migration_v2.sql:ro
+      - ../server/sql/migration_v3.sql:/docker-entrypoint-initdb.d/03-migration_v3.sql:ro
+      - ../server/sql/migration_v4.sql:/docker-entrypoint-initdb.d/04-migration_v4.sql:ro
+      - ../server/sql/migration_v5.sql:/docker-entrypoint-initdb.d/05-migration_v5.sql:ro
+      - ../server/sql/migration_v6.sql:/docker-entrypoint-initdb.d/06-migration_v6.sql:ro
+      - ../server/sql/migration_v7.sql:/docker-entrypoint-initdb.d/07-migration_v7.sql:ro
+      - ../server/sql/migration_v8.sql:/docker-entrypoint-initdb.d/08-migration_v8.sql:ro
+      - ../server/sql/migration_v9.sql:/docker-entrypoint-initdb.d/09-migration_v9.sql:ro
+      - ../server/sql/migration_v10.sql:/docker-entrypoint-initdb.d/10-migration_v10.sql:ro
+      - ../server/sql/migration_v11.sql:/docker-entrypoint-initdb.d/11-migration_v11.sql:ro
+      - ../server/sql/migration_v12.sql:/docker-entrypoint-initdb.d/12-migration_v12.sql:ro
+      - ../server/sql/migration_v13.sql:/docker-entrypoint-initdb.d/13-migration_v13.sql:ro
+      - ../server/sql/migration_v14.sql:/docker-entrypoint-initdb.d/14-migration_v14.sql:ro
+      - ../server/sql/migration_v15.sql:/docker-entrypoint-initdb.d/15-migration_v15.sql:ro
+      - ../server/sql/migration_v16.sql:/docker-entrypoint-initdb.d/16-migration_v16.sql:ro
+      - ../server/sql/migration_v17.sql:/docker-entrypoint-initdb.d/17-migration_v17.sql:ro
+      - ../server/sql/migration_v18.sql:/docker-entrypoint-initdb.d/18-migration_v18.sql:ro
+      - ../server/sql/migration_v19.sql:/docker-entrypoint-initdb.d/19-migration_v19.sql:ro
+      - ./conf/mysql.cnf:/etc/mysql/conf.d/charset.cnf:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  server:
+    build:
+      context: ../server
+    container_name: rpa-server
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      PORT: 3000
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: ${MYSQL_USER}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+      DB_NAME: ${MYSQL_DATABASE}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: 7d
+      JWT_REFRESH_EXPIRES_IN: 30d
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL}
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - ./data/uploads:/app/uploads
+      - ../admin/dist:/app/public:ro

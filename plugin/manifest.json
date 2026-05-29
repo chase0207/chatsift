@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Chatsift · 会话筛选助手",
+  "version": "0.1.0",
+  "description": "多平台会话静默采集，智能筛选高价值线索",
+  "permissions": ["storage", "tabs", "scripting", "activeTab", "alarms"],
+  "host_permissions": ["http://*/*", "https://*/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [{
+    "matches": ["http://*/*", "https://*/*"],
+    "js": ["content.js"],
+    "all_frames": true,
+    "match_about_blank": true,
+    "run_at": "document_end"
+  }],
+  "action": {
+    "default_popup": "popup/popup.html"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
+}

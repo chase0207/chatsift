@@ -1,0 +1,39 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.yarn
+
+# 构建产物
+plugin/dist/
+admin/dist/
+server/public/plugin-downloads/
+server/uploads/
+*.log
+
+# 环境
+.env
+.env.local
+.env.*.local
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# 测试
+coverage/
+.nyc_output/
+
+# 缓存
+.cache/
+.parcel-cache/
+.eslintcache
+
+# Chatsift 临时文件
+tmp/
+*.tmp
