@@ -1,0 +1,33 @@
+services:
+  chatsift-mysql:
+    image: mysql:8.0
+    container_name: chatsift-mysql
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: chatsift_dev_password
+      MYSQL_DATABASE: chatsift
+    volumes:
+      - chatsift-db:/var/lib/mysql
+      - ./conf/init:/docker-entrypoint-initdb.d
+
+  chatsift-server:
+    build: ../server
+    container_name: chatsift-server
+    ports:
+      - "3100:3100"
+    depends_on:
+      - chatsift-mysql
+    environment:
+      NODE_ENV: development
+      PORT: 3100
+      DB_HOST: chatsift-mysql
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: chatsift_dev_password
+      DB_NAME: chatsift
+      JWT_SECRET: chatsift-v1-local-0b7b3c7a88d84d8b9c8d3e2c0f4a6b91
+      JWT_EXPIRES_IN: 7d
+
+volumes:
+  chatsift-db:
