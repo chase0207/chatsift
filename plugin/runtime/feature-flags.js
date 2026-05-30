@@ -58,6 +58,31 @@
     return true
   }
 
+  function _loadStorageFlags() {
+    if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return
+    chrome.storage.local.get(Object.keys(DEFAULTS), function (data) {
+      if (chrome.runtime && chrome.runtime.lastError) return
+      setFlags(data || {})
+    })
+    if (chrome.storage.onChanged && !window.__rpaFeatureFlagsStorageBound) {
+      window.__rpaFeatureFlagsStorageBound = true
+      chrome.storage.onChanged.addListener(function (changes, areaName) {
+        if (areaName !== 'local') return
+        var next = {}
+        var changed = false
+        Object.keys(DEFAULTS).forEach(function (k) {
+          if (changes[k]) {
+            next[k] = changes[k].newValue
+            changed = true
+          }
+        })
+        if (changed) setFlags(next)
+      })
+    }
+  }
+
+  _loadStorageFlags()
+
   window.RpaFeatureFlags = {
     get:              get,
     snapshot:         snapshot,

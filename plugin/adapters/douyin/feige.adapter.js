@@ -1,4 +1,4 @@
-// TODO V2.0 改造: 删除 prepareReply / sendReply，新增 toConversationEvent。见 MIGRATED_FROM_CHAT_RPA.md 第 1.3 节
+// TODO V2.0 改造: W4 新增 toConversationEvent；prepareReply / sendReply 保留到 W5。
 ;(function () {
   'use strict'
 
@@ -39,23 +39,28 @@
       'span[class*="badge"]',
     ],
     incomingBubble: [
+      'div[class*="my-4"]',
       'div[class*="chatd-bubble--other"]',
       'div[class*="chatd-bubble--left"]',
     ],
     selfBubble: [
+      'div[class*="my-4"]',
       'div[class*="chatd-bubble--self"]',
       'div[class*="chatd-bubble--right"]',
     ],
     bubbleText: [
+      'div[class*="px-3"][class*="py-2"][class*="break-all"][class*="whitespace"]',
       '[class*="bubble-main"]',
       '[class*="text-content"]',
     ],
     input: [
+      'textarea[placeholder*="回复内容"]',
       'textarea[placeholder*="输入"]',
       'textarea',
       '[contenteditable="true"]',
     ],
     sendButton: [
+      'button[class*="byted-btn"]:not([disabled])',
       'button[type="submit"]',
       '[class*="send"]:not([disabled])',
     ],
@@ -123,6 +128,30 @@
 
   async function getMessages(session) {
     void session
+    if (/life\.douyin\.com\/cs\/web\/clue_private_message/.test(location.href || '')) {
+      var items = Dom.queryAll('div[class*="my-4"]').filter(Dom.isVisible)
+      var currentDate = ''
+      var list = []
+      items.forEach(function (el) {
+        var text = _extractMessageText(el)
+        if (!text) {
+          var systemText = Dom.getText(el)
+          if (/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}/.test(systemText)) currentDate = systemText
+          return
+        }
+        var direction = _isOutbound(el) ? 'outbound' : 'inbound'
+        list.push({
+          direction: direction,
+          owner: direction === 'outbound' ? 'self' : 'user',
+          message_type: 'user_text',
+          type: 'text',
+          content: text,
+          timestamp: _normalizeOccurredAt(_extractMessageTime(el) || currentDate),
+          raw_payload: { selector: 'life-message-item', rect: Dom.readRect(el) },
+        })
+      })
+      return list
+    }
     var incoming = Dom.queryAll(SELECTORS.incomingBubble).filter(Dom.isVisible)
     var outgoing = Dom.queryAll(SELECTORS.selfBubble).filter(Dom.isVisible)
     var messages = []
@@ -136,8 +165,65 @@
     return messages
   }
 
+  function _extractMessageText(el) {
+    return Dom.getTextByXpath(el, './/div[contains(@class,"px-3") and contains(@class,"py-2")]') ||
+      Dom.getText(Dom.queryFirst(SELECTORS.bubbleText, el))
+  }
+
+  function _extractMessageTime(el) {
+    return Dom.getTextByXpath(el, './/span[contains(@class,"text-xs")]') ||
+      Dom.getTextByXpath(el, './/p[contains(@class,"text")]//span')
+  }
+
+  function _isOutbound(el) {
+    var row = el.querySelector('[class*="px-4"][class*="flex"][class*="relative"]') || el
+    var cls = String(row.className || '')
+    return /rightMsg|flex-row-reverse|self|right/i.test(cls) || !!row.querySelector('p[class*="text-right"]')
+  }
+
+  function _normalizeOccurredAt(value) {
+    if (!value) return new Date().toISOString()
+    var text = String(value).trim()
+    var match = text.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})(?::(\d{2}))?/)
+    if (match) {
+      return new Date(
+        Number(match[1]), Number(match[2]) - 1, Number(match[3]),
+        Number(match[4]), Number(match[5]), Number(match[6] || 0)
+      ).toISOString()
+    }
+    var d = new Date(text)
+    return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString()
+  }
+
   function classifyMessage(raw) { return Helpers.classifyByDirection(raw) }
   async function buildBatch() { return null }
+
+  function toConversationEvent(rawMsg, sessionInfo) {
+    sessionInfo = sessionInfo || {}
+    var normalized = classifyMessage(rawMsg)
+    var direction = (normalized && normalized.direction) || rawMsg.direction || 'inbound'
+    var content = rawMsg.content || rawMsg.text || ''
+    var occurredAt = _normalizeOccurredAt(rawMsg.timestamp || rawMsg.time || rawMsg.occurred_at)
+    var conversationId = sessionInfo.conversationId || sessionInfo.conversation_id || sessionInfo.session_id || 'douyin-feige-' + Dom.simpleHash(sessionInfo.nickname || location.href)
+    return {
+      platform: 'douyin',
+      platform_page: 'feige',
+      conversation_id: conversationId,
+      message_id: Dom.synthMessageId({
+        conversationId: conversationId,
+        direction: direction,
+        text: content,
+        occurredAt: occurredAt,
+      }),
+      direction: direction,
+      sender_nickname: direction === 'inbound' ? (sessionInfo.nickname || '') : (sessionInfo.accountNickname || ''),
+      content_type: rawMsg.type || 'text',
+      content_text: content,
+      content_url: rawMsg.url || null,
+      occurred_at: occurredAt,
+      raw_snapshot: rawMsg.raw_payload || null,
+    }
+  }
 
   async function prepareReply() {
     var input = Dom.queryFirst(SELECTORS.input)
@@ -186,6 +272,7 @@
     confirmActiveSession: confirmActiveSession,
     getMessages:          getMessages,
     classifyMessage:      classifyMessage,
+    toConversationEvent:  toConversationEvent,
     buildBatch:           buildBatch,
     prepareReply:         prepareReply,
     sendReply:            sendReply,

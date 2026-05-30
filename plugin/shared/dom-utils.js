@@ -63,6 +63,64 @@
     return null
   }
 
+  function simpleHash(str) {
+    str = String(str || '')
+    var h = 0x811c9dc5
+    for (var i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i)
+      h = (h * 0x01000193) >>> 0
+    }
+    return h.toString(16).padStart(8, '0')
+  }
+
+  function synthMessageId(args) {
+    args = args || {}
+    var occurredAt = args.occurredAt || args.occurred_at || new Date().toISOString()
+    var d = new Date(occurredAt)
+    var minute = isNaN(d.getTime())
+      ? String(occurredAt).slice(0, 16)
+      : d.toISOString().slice(0, 16)
+    var raw = [
+      args.conversationId || args.conversation_id || '',
+      args.direction || '',
+      args.text || args.content || '',
+      minute,
+    ].join('|')
+    return 'syn_' + simpleHash(raw)
+  }
+
+  function getTextByXpath(contextNode, xpath) {
+    if (!xpath || typeof document === 'undefined' || !document.evaluate) return ''
+    try {
+      var result = document.evaluate(
+        xpath,
+        contextNode || document,
+        null,
+        XPathResult.FIRST_ORDERED_NODE_TYPE,
+        null
+      )
+      return getText(result.singleNodeValue)
+    } catch (_) {
+      return ''
+    }
+  }
+
+  function queryAllByXpath(contextNode, xpath) {
+    if (!xpath || typeof document === 'undefined' || !document.evaluate) return []
+    var out = []
+    try {
+      var result = document.evaluate(
+        xpath,
+        contextNode || document,
+        null,
+        XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
+        null
+      )
+      for (var i = 0; i < result.snapshotLength; i++) out.push(result.snapshotItem(i))
+    } catch (_) {}
+    return out
+  }
+
   // 等待一个谓词为真（用于等待 DOM 变化），返回 Promise<true|false>
   function waitFor(predicate, opts) {
     opts = opts || {}
@@ -125,6 +183,10 @@
     queryAll:        queryAll,
     getText:         getText,
     getAttr:         getAttr,
+    simpleHash:      simpleHash,
+    synthMessageId:  synthMessageId,
+    getTextByXpath:  getTextByXpath,
+    queryAllByXpath: queryAllByXpath,
     waitFor:         waitFor,
     setInputValue:   setInputValue,
     simulateClick:   simulateClick,

@@ -35,6 +35,8 @@ const MODULES = [
   'shared/constants.js',                  // M1: RuntimeState / LK / Stage / Status / FeatureFlagDefaults
   'shared/hash.js',                       // M1: fnv32 / fnv64 / joinAndHash
   'shared/logger.js',                     // M1: console 包装
+  'shared/dom-utils.js',                  // W4: DOM / XPath / 合成 message_id
+  'shared/adapter-helpers.js',            // M3: adapter 辅助方法
 
   // ── V1.9 Runtime 基础（依赖 shared）─────────────────────────
   'runtime/feature-flags.js',             // M1: Feature Flag 中心（必须在 adapter-registry 之前）
@@ -44,6 +46,9 @@ const MODULES = [
   'runtime/adapter-registry.js',          // M2: V1.9 Adapter 注册（含 send-runtime Flag 拦截）
   'runtime/batch-manager.js',             // M2+M4: batch 状态机 + stable_wait
   'runtime/queue-manager.js',             // M2: 调度队列
+  'runtime/event-queue.js',               // W4: 新采集链路事件队列
+  'runtime/event-collector.js',           // W4: 本地去重 + 入队
+  'runtime/event-uploader.js',            // W4: 批量上报 /api/v1/events/batch
   'runtime/watchdog.js',                  // M2: 看门狗
   'runtime/recovery-manager.js',          // M2: reload 恢复
   'runtime/session-identity-resolver.js', // M3: session_id 提取器
@@ -69,6 +74,8 @@ const MODULES = [
   'adapters/xiaohongshu/private-message.adapter.js',
   'adapters/kuaishou/customer-service.adapter.js',
   'adapters/meituan/jingyingbao.adapter.js',
+
+  'runtime/legacy-collector.js',          // W4: flag 切换到只读采集链路
 
   // ── M6 自检脚本（最后注册，便于 DevTools 一行调用） ──────────────
   'runtime/self-check.js',

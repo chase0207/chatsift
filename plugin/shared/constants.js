@@ -130,6 +130,7 @@
     adapter_layer_v19:  false,
     send_confirm_v19:   false,
     watchdog_v19:       false,
+    collector_v1_enabled: false,
   }
 
   // ── 协议常量（V1.9_Runtime_Protocol 关键阈值，便于集中调整） ─────────
