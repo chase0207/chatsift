@@ -1,5 +1,8 @@
 const db = require('../config/db')
 const intentEngine = require('./intent-engine')
+const completenessEngine = require('./completeness-engine')
+const goalEngine = require('./goal-engine')
+const workorderEngine = require('./workorder-engine')
 
 let timer = null
 let isProcessing = false
@@ -10,15 +13,36 @@ const BATCH_SIZE = parseInt(process.env.ANALYZER_BATCH_SIZE, 10) || 20
 const MAX_ATTEMPTS = parseInt(process.env.ANALYZER_MAX_ATTEMPTS, 10) || 3
 const CONTEXT_SIZE = parseInt(process.env.INTENT_CONTEXT_SIZE, 10) || 5
 
-const pipeline = [intentStage]
+const pipeline = [
+  intentStage,
+  completenessStage,
+  goalStage,
+  workorderStage,
+]
 
 async function intentStage(ctx) {
   ctx.intent = await intentEngine.classify(ctx.tenantId, ctx.contextTexts)
 }
 
+async function completenessStage(ctx) {
+  ctx.completeness = await completenessEngine.evaluate(
+    ctx.tenantId,
+    ctx.intent.label,
+    ctx.contextMessages
+  )
+}
+
+async function goalStage(ctx) {
+  ctx.goal = await goalEngine.judge(ctx.intent.label, ctx.completeness)
+}
+
+async function workorderStage(ctx) {
+  ctx.workorder = await workorderEngine.generate(ctx)
+}
+
 async function buildContext(job) {
   const [messages] = await db.query(
-    `SELECT id, tenant_id, conversation_id, direction, content_text
+    `SELECT id, tenant_id, conversation_id, direction, sender_nickname, content_text
      FROM messages
      WHERE id = ? AND tenant_id = ? AND conversation_id = ?
      LIMIT 1`,
@@ -41,12 +65,23 @@ async function buildContext(job) {
   }
 
   const [contextRows] = await db.query(
-    `SELECT content_text
+    `SELECT id, direction, sender_nickname, content_type, content_text, content_url,
+            DATE_FORMAT(occurred_at, '%Y-%m-%d %H:%i:%s') AS occurred_at
      FROM messages
      WHERE tenant_id = ? AND conversation_id = ? AND direction = 'inbound' AND content_text IS NOT NULL
      ORDER BY occurred_at DESC, id DESC
      LIMIT ?`,
     [job.tenant_id, job.conversation_id, CONTEXT_SIZE]
+  )
+  const contextMessages = contextRows.reverse()
+
+  const [conversations] = await db.query(
+    `SELECT id, tenant_id, platform, platform_page, platform_conversation_id,
+            customer_nickname, customer_platform_uid, current_stage, completeness_score
+     FROM conversations
+     WHERE id = ? AND tenant_id = ?
+     LIMIT 1`,
+    [job.conversation_id, job.tenant_id]
   )
 
   return {
@@ -54,7 +89,9 @@ async function buildContext(job) {
     tenantId: job.tenant_id,
     conversationId: job.conversation_id,
     message,
-    contextTexts: contextRows.reverse().map((row) => row.content_text).filter(Boolean),
+    conversation: conversations[0] || {},
+    contextMessages,
+    contextTexts: contextMessages.map((row) => row.content_text).filter(Boolean),
     skip: false,
   }
 }
@@ -66,12 +103,16 @@ async function persist(ctx) {
      SET intent_label = ?,
          intent_confidence = ?,
          intent_source = ?,
+         current_stage = ?,
+         completeness_score = ?,
          analyzed_at = NOW()
      WHERE id = ? AND tenant_id = ?`,
     [
       ctx.intent.label,
       ctx.intent.confidence,
       ctx.intent.source,
+      ctx.goal ? ctx.goal.stage : 'new',
+      ctx.completeness ? ctx.completeness.score : 0,
       ctx.conversationId,
       ctx.tenantId,
     ]
