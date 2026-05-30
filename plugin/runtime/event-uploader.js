@@ -26,7 +26,11 @@
   }
 
   function _normalizeBaseUrl(url) {
-    return String(url || DEFAULT_SERVER_URL).replace(/\/$/, '')
+    var normalized = String(url || DEFAULT_SERVER_URL).replace(/\/$/, '')
+    if (normalized === 'http://127.0.0.1:3000' || normalized === 'http://localhost:3000') {
+      return DEFAULT_SERVER_URL
+    }
+    return normalized
   }
 
   async function _loadAuth() {
