@@ -36,7 +36,6 @@ const MODULES = [
   'shared/hash.js',                       // M1: fnv32 / fnv64 / joinAndHash
   'shared/logger.js',                     // M1: console 包装
   'shared/dom-utils.js',                  // W4: DOM / XPath / 合成 message_id
-  'shared/adapter-helpers.js',            // M3: adapter 辅助方法
 
   // ── V1.9 Runtime 基础（依赖 shared）─────────────────────────
   'runtime/feature-flags.js',             // M1: Feature Flag 中心（必须在 adapter-registry 之前）
@@ -52,6 +51,7 @@ const MODULES = [
   'runtime/watchdog.js',                  // M2: 看门狗
   'runtime/recovery-manager.js',          // M2: reload 恢复
   'runtime/session-identity-resolver.js', // M3: session_id 提取器
+  'shared/adapter-helpers.js',            // M3: adapter 辅助方法（依赖 session-identity-resolver）
 
   // ── Adapter base（被 pre-check 和 adapters/** 共同依赖）──────────
   'adapters/base/dom-utils.js',           // M3
