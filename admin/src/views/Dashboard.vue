@@ -4,7 +4,7 @@
       <div class="welcome-inner">
         <el-icon class="welcome-icon"><House /></el-icon>
         <div>
-          <h2>欢迎使用 RPA 管理后台</h2>
+          <h2>欢迎使用 Chatsift 会话分拣后台</h2>
           <p>当前登录账号：<strong>{{ userInfo?.username }}</strong>（角色：{{ roleLabel }}）</p>
         </div>
       </div>

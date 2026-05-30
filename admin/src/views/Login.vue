@@ -3,8 +3,8 @@
     <el-card class="login-card" shadow="always">
       <div class="login-header">
         <img src="/logo.png" class="logo" alt="logo" />
-        <h2>多平台客服管理后台</h2>
-        <p>Platform RPA Admin</p>
+        <h2>Chatsift 会话分拣</h2>
+        <p>Conversation Sifting Admin</p>
       </div>
 
       <el-form

@@ -4,7 +4,7 @@
     <el-aside :width="isCollapsed ? '64px' : '220px'" class="sidebar">
       <div class="sidebar-logo">
         <img src="/logo.png" class="logo-icon" alt="logo" />
-        <span v-show="!isCollapsed" class="logo-text">管理后台</span>
+        <span v-show="!isCollapsed" class="logo-text">Chatsift</span>
       </div>
 
       <el-menu
@@ -50,7 +50,7 @@
             <Expand v-else />
           </el-icon>
           <el-breadcrumb separator="/">
-            <el-breadcrumb-item>RPA系统</el-breadcrumb-item>
+            <el-breadcrumb-item>Chatsift</el-breadcrumb-item>
             <el-breadcrumb-item>{{ currentTitle }}</el-breadcrumb-item>
           </el-breadcrumb>
         </div>
@@ -85,7 +85,6 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { version as appVersion } from '../../package.json'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import { useUserStore } from '../stores/user'
@@ -93,12 +92,13 @@ import { getMenuTree } from '../api/menus'
 import {
   House, User, Connection, Monitor, Document, Files, Grid, ChatLineSquare, ChatDotRound,
   Fold, Expand, ArrowDown, SwitchButton, Key, Menu as MenuIcon, Reading, Setting,
+  Tickets, UserFilled, TrendCharts,
 } from '@element-plus/icons-vue'
 
 // Element Plus 图标名称 → 组件映射
 var iconMap = {
   House, User, Connection, Monitor, Document, Files, Grid, ChatLineSquare, ChatDotRound,
-  Key, Menu: MenuIcon, Reading, Setting,
+  Key, Menu: MenuIcon, Reading, Setting, Tickets, UserFilled, TrendCharts,
 }
 
 var route = useRoute()
@@ -106,6 +106,7 @@ var router = useRouter()
 var store = useUserStore()
 
 var isCollapsed = ref(false)
+var appVersion = 'v1.0.0'
 var userInfo = computed(function () { return store.userInfo })
 var activeMenu = computed(function () { return route.path })
 var menuTree = ref([])
