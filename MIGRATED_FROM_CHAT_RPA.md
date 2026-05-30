@@ -120,6 +120,12 @@
 ⛔ **不迁移老 migration 文件**。chatsift 用全新的 `v2.0-schema.sql` 一次性建表。
 🟢 复用 `roles` / `menus` / `permissions` 的初始化数据 SQL，作为 chatsift 初始化的一部分。
 
+### 2.5 W4.5 补迁
+
+W4.5 补迁: `server/src/utils/platforms.js` — W0 迁移时只迁了 `normalizePlatformKey`,
+遗漏 `extractDetectHosts` / `getPlatformAliases`,导致 `/api/platforms` 500。
+本次从 `chat_rpa@4fe827e` 整文件补齐。
+
 ---
 
 ## 三、前台迁移清单

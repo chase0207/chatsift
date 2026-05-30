@@ -110,6 +110,7 @@ async function loadPlatformDefinitions() {
 }
 
 function fallbackPlatformDefinitions() {
+  // W4.5 已修复服务端 /api/platforms 500;这里保留为服务端异常时的降级保险。
   return [{
     id: 1,
     platform_name: '抖音系',
