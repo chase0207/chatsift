@@ -109,6 +109,20 @@
 
   function boot() {
     if (_timer) return
+    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+      chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
+        if (!message || !message.action) return
+        if (message.action === 'START_COLLECTOR') {
+          start().then(function () { sendResponse({ ok: true }) })
+          return true
+        }
+        if (message.action === 'STOP_COLLECTOR') {
+          stop()
+          sendResponse({ ok: true })
+          return true
+        }
+      })
+    }
     setTimeout(_syncFlag, 500)
     _timer = setInterval(_syncFlag, 1000)
   }

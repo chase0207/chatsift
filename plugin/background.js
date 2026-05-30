@@ -174,6 +174,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         runningPlatform: message.platform || '',
         collector_v1_enabled: true,
       })
+      if (message.tabId) {
+        try { await chrome.tabs.sendMessage(message.tabId, { action: 'START_COLLECTOR' }) } catch (_) {}
+      }
       await appendLog('W4 采集已启动', 'success')
       return { ok: true }
     }
@@ -182,6 +185,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         runningPlatform: '',
         collector_v1_enabled: false,
       })
+      if (message.tabId) {
+        try { await chrome.tabs.sendMessage(message.tabId, { action: 'STOP_COLLECTOR' }) } catch (_) {}
+      }
       await appendLog('W4 采集已停止', 'info')
       return { ok: true }
     }
