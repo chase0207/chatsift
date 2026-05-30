@@ -20,6 +20,7 @@
 - `build.js` 原清单引用了不存在的 `adapters/base/*`,实际仓库里是 `plugin/shared/dom-utils.js` 和 `plugin/shared/adapter-helpers.js`;本次把真实文件加入清单,旧缺失项仍按原构建逻辑跳过。
 - `event-uploader.js` 兼容读取 `token/authToken/accessToken` 与 `cfg.serverUrl/serverUrl`,避免改登录流程。
 - 本地 `/api/platforms` 暂因服务端历史工具函数缺失返回 500;插件 background 已加抖音平台定义兜底,不改 W1 服务端已验收代码。
+- popup 的启动/停止按钮已接入 `collector_v1_enabled`,真实验收时不再需要页面 Console 直接执行 `chrome.storage.local.set`。
 
 ## 自动化验证
 

@@ -25,7 +25,8 @@ async function appendLog(message, level) {
 }
 
 async function getStatus() {
-  const data = await storageGet(['token', 'refreshToken', 'cfg', 'userInfo', 'logs', 'platformDefinitions'])
+  const data = await storageGet(['token', 'refreshToken', 'cfg', 'userInfo', 'logs', 'platformDefinitions', 'runningPlatform'])
+  const runningPlatform = data.runningPlatform || ''
   return {
     ok: true,
     token: data.token || '',
@@ -34,6 +35,8 @@ async function getStatus() {
     userInfo: data.userInfo || null,
     logs: Array.isArray(data.logs) ? data.logs : [],
     platforms: Array.isArray(data.platformDefinitions) ? data.platformDefinitions.map(item => ({ id: item.id, platform: item.key || item.platform_code || item.platform_key })) : [],
+    currentPlatform: runningPlatform,
+    platformServiceStatus: runningPlatform ? 'online' : 'offline',
   }
 }
 
@@ -167,11 +170,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (action === 'LOAD_CLOUD_CONFIG') return loadCloudConfig(message.platform)
     if (action === 'SAVE_CLOUD_CONFIG') return { ok: true }
     if (action === 'START_PLATFORM') {
-      await storageSet({ runningPlatform: message.platform || '' })
+      await storageSet({
+        runningPlatform: message.platform || '',
+        collector_v1_enabled: true,
+      })
+      await appendLog('W4 采集已启动', 'success')
       return { ok: true }
     }
     if (action === 'STOP_PLATFORM') {
-      await storageSet({ runningPlatform: '' })
+      await storageSet({
+        runningPlatform: '',
+        collector_v1_enabled: false,
+      })
+      await appendLog('W4 采集已停止', 'info')
       return { ok: true }
     }
     if (action === 'APPEND_LOG') {
@@ -180,7 +191,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
     if (action === 'GET_LOGS') {
       const data = await storageGet(['logs'])
-      return { ok: true, logs: Array.isArray(data.logs) ? data.logs : [] }
+      return { ok: true, data: Array.isArray(data.logs) ? data.logs : [] }
     }
     if (action === 'CLEAR_LOGS') {
       await storageSet({ logs: [] })
