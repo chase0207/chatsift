@@ -6,7 +6,7 @@
   //
   // 三个 Flag：
   //   - runtime_v19       一级：V1.9 Runtime 启动总开关
-  //   - send_runtime_v19  二级：发送链路（sendReply / confirmReply / prepareReply / sendInBatch）
+  //   - send_runtime_v19  二级：旧 runtime 状态约束
   //   - watchdog_v19      看门狗启动总开关（保留）
   //
   // 解锁路径只有两条：

@@ -127,7 +127,7 @@
 
   // ── Feature Flag 默认值（在 runtime-config 未返回 experimental 字段时兜底） ─
   // 全部默认 false。解锁路径见 runtime/feature-flags.js。
-  // 二级 send_runtime_v19 锁住整个发送链路（sendReply / confirmReply / prepareReply / sendInBatch）。
+  // 二级 send_runtime_v19 保留为旧 runtime 状态约束开关。
   var FeatureFlagDefaults = {
     runtime_v19:        false,   // V1.9 Runtime 启动总开关
     send_runtime_v19:   false,   // V1.9-M4 发送链路总开关（最高风险）
@@ -135,7 +135,7 @@
     adapter_layer_v19:  false,
     send_confirm_v19:   false,
     watchdog_v19:       false,
-    collector_v1_enabled: false,
+    collector_v1_enabled: true,
   }
 
   // ── 协议常量（V1.9_Runtime_Protocol 关键阈值，便于集中调整） ─────────
@@ -483,7 +483,7 @@
   //
   // 三个 Flag：
   //   - runtime_v19       一级：V1.9 Runtime 启动总开关
-  //   - send_runtime_v19  二级：发送链路（sendReply / confirmReply / prepareReply / sendInBatch）
+  //   - send_runtime_v19  二级：旧 runtime 状态约束
   //   - watchdog_v19      看门狗启动总开关（保留）
   //
   // 解锁路径只有两条：
@@ -847,7 +847,7 @@
   //   - PRAAdapterRuntime（runtime/adapter-runtime.js）服务于 V1.x legacy 的 customer_service / live 场景调度
   //   - RpaAdapterRegistry（本文件）服务于 V1.9 PlatformPageAdapter 接口
   //
-  // V1.9 Adapter 接口（V1.9_Runtime_Protocol § 第五章）：
+  // W5 后 Adapter 只保留采集探针接口：
   //   {
   //     adapterKey:   string           — 唯一键，建议 "platform/pageKey"
   //     platform:     string
@@ -859,20 +859,17 @@
   //     confirmActiveSession(session): Promise<boolean>
   //     getMessages(session): Promise<RawMessage[]>
   //     classifyMessage(rawMessage): NormalizedMessage
-  //     buildBatch(messages, context): Promise<MessageBatch>
-  //     prepareReply(replyText, context): Promise<void>
-  //     sendReply(replyText, context): Promise<SendResult>
-  //     confirmReply(replyText, context): Promise<ConfirmResult>
+  //     toConversationEvent(rawMessage, sessionInfo): ConversationEvent
   //     buildRuntimeContext(): RuntimePageContext
   //   }
   //
-  // 不实现以上方法的实现，注册时仍然允许（接受 partial adapter），
-  // 但 RuntimeManager 调用未实现方法时会记录 LK-ERROR 并跳过。
+  // 发送/自动回复链路已于 W5 移除，registry 只负责页面匹配和采集 adapter 分发。
 
   var Logger = window.RpaLogger
   if (!Logger) throw new Error('[V19] RpaLogger must load before AdapterRegistry')
 
   var REQUIRED_FIELDS = ['adapterKey', 'platform', 'pageKey']
+  var REQUIRED_METHODS = ['getMessages', 'toConversationEvent']
   var OPTIONAL_METHODS = [
     'matchPage',
     'detectSessions',
@@ -881,17 +878,9 @@
     'confirmActiveSession',
     'getMessages',
     'classifyMessage',
-    'buildBatch',
-    'prepareReply',
-    'sendReply',
-    'confirmReply',
+    'toConversationEvent',
     'buildRuntimeContext',
   ]
-
-  // 高危方法：发送链路相关。注册时会被 send_runtime_v19 Flag 拦截，
-  // Flag 关闭时直接返 { ok:false, reason:'send-runtime-v19-locked' }，
-  // 物理阻断 V1.9-M4 发送链路。M1-M3 验证期保持关闭状态。
-  var SEND_RUNTIME_METHODS = ['prepareReply', 'sendReply', 'confirmReply']
 
   var _adapters = []   // 注册顺序，便于 resolve 选择"最先匹配"
 
@@ -901,34 +890,11 @@
       var k = REQUIRED_FIELDS[i]
       if (!adapter[k] || typeof adapter[k] !== 'string') return 'missing field: ' + k
     }
+    for (var j = 0; j < REQUIRED_METHODS.length; j++) {
+      var m = REQUIRED_METHODS[j]
+      if (typeof adapter[m] !== 'function') return 'missing method: ' + m
+    }
     return null
-  }
-
-  function _wrapSendMethods(adapter) {
-    // 不修改原对象（adapter 内部可能引用 this），返回一个包装后的副本。
-    var wrapped = Object.assign({}, adapter)
-    SEND_RUNTIME_METHODS.forEach(function (m) {
-      var orig = adapter[m]
-      if (typeof orig !== 'function') return
-      wrapped[m] = function () {
-        var Flags = window.RpaFeatureFlags
-        if (!Flags || !Flags.get('send_runtime_v19')) {
-          Logger.warn('AdapterRegistry', 'blocked ' + adapter.adapterKey + '.' + m + ' (send_runtime_v19=false)')
-          return Promise.resolve({
-            ok:           false,
-            confirmed:    false,
-            reason:       'send-runtime-v19-locked',
-            confirm_type: 'unknown',
-            timeout:      false,
-            hint:         'V1.9-M4 发送链路默认关闭。开启路径：' +
-                          'RpaFeatureFlags.unlockForTesting("send_runtime_v19") 或 ' +
-                          '后端 runtime-config.experimental.send_runtime_v19=true（仅测试账号）',
-          })
-        }
-        return orig.apply(adapter, arguments)
-      }
-    })
-    return wrapped
   }
 
   function register(adapter) {
@@ -937,12 +903,11 @@
       Logger.error('AdapterRegistry', 'register rejected:', err, adapter)
       throw new Error('[V19] AdapterRegistry.register: ' + err)
     }
-    var wrapped = _wrapSendMethods(adapter)
     // 同 key 覆盖
     _adapters = _adapters.filter(function (a) { return a.adapterKey !== adapter.adapterKey })
-    _adapters.push(wrapped)
-    Logger.info('AdapterRegistry', 'registered', adapter.adapterKey + ' (send methods locked)')
-    return wrapped
+    _adapters.push(adapter)
+    Logger.info('AdapterRegistry', 'registered', adapter.adapterKey)
+    return adapter
   }
 
   function unregister(adapterKey) {
@@ -1003,7 +968,6 @@
     resolve:              resolve,
     hasMethod:            hasMethod,
     OPTIONAL_METHODS:     OPTIONAL_METHODS,
-    SEND_RUNTIME_METHODS: SEND_RUNTIME_METHODS,
   }
 
 })()
@@ -2589,8 +2553,6 @@
   var Recovery = window.RpaRecoveryManager
   var Registry = window.RpaAdapterRegistry
   var Helpers  = window.RpaAdapterHelpers
-  var PreCheck = window.RpaPreCheck
-  var Confirm  = window.RpaSendConfirm
   if (!C || !SM || !Tracer || !Logger || !Hash || !Batch || !Queue || !Watchdog || !Recovery || !Registry) {
     throw new Error('[V19] RuntimeManager dependencies missing')
   }
@@ -2838,172 +2800,6 @@
 
   function isPaused() { return !!(_instance && _instance.paused) }
 
-  // ── M4: 高阶发送链路（供 legacy bootstrap / 控制台调用） ───────────
-  // sendInBatch({ batch, identity, adapter, replyText, decisionSource? })
-  // 完整链路：pre-check → adapter.prepareReply → state.SENDING → adapter.sendReply
-  //         → state.CONFIRMING → SendConfirm.confirm() → state.SYNCING → batch.finalizeRemote
-  //
-  // 若当前 runtime_state 不在 DECIDING / batch 不在 DECIDING，会"快走"前置状态。
-  // 这是高阶 entry 的便利性桥接，M5+ 真实主循环应按场景驱动每一步迁移。
-  function _walkToDeciding() {
-    if (!_instance) return false
-    var path = [S.SCANNING, S.SESSION_SWITCHING, S.READING_MESSAGES,
-                S.WAITING_STABLE, S.BUILDING_BATCH, S.DECIDING]
-    var cur = _instance.sm.current()
-    var startIdx = path.indexOf(cur)
-    var i = startIdx >= 0 ? (startIdx + 1) : 0
-    for (; i < path.length; i++) {
-      var ev = _instance.sm.transition(path[i], { reason: 'walk-to-deciding' })
-      if (!ev.ok) return false
-    }
-    return true
-  }
-
-  // batch 状态机也要走到 DECIDING；否则后续 Batch.transition(SENDING) 会被状态机拒绝
-  function _walkBatchToDeciding(batch_id) {
-    var BS = Batch.BatchStatus
-    var b = Batch.get(batch_id)
-    if (!b) return false
-    if (b.status === BS.DECIDING) return true
-    var path = [BS.COLLECTING, BS.STABLE_WAIT, BS.DECIDING]
-    var startIdx = path.indexOf(b.status)
-    var i = startIdx >= 0 ? (startIdx + 1) : 0
-    for (; i < path.length; i++) {
-      var ev = Batch.transition(batch_id, path[i], { reason: 'walk-batch-to-deciding' })
-      if (!ev.ok) return false
-    }
-    return true
-  }
-
-  function sendInBatch(args) {
-    args = args || {}
-    if (!_instance) return Promise.resolve({ ok: false, reason: 'runtime-not-started' })
-    if (!PreCheck || !Confirm) return Promise.resolve({ ok: false, reason: 'pre-check/confirm-not-loaded' })
-
-    var batch    = args.batch
-    var identity = args.identity
-    var adapter  = args.adapter
-    var replyText = args.replyText
-    var decisionSource = args.decisionSource || 'unknown'
-
-    // ── V1.9-M4 二级 Flag 门禁（adapter-registry 层之外的第二道防线） ──
-    var Flags = window.RpaFeatureFlags
-    if (!Flags || !Flags.get('send_runtime_v19')) {
-      Tracer.log({
-        lk_code:    LK.SEND_PRECHECK,
-        stage:      Stage.SEND,
-        status:     Status.SKIPPED,
-        batchId:    batch && batch.batch_id,
-        session_id: identity && identity.session_id,
-        message:    'sendInBatch blocked: send_runtime_v19=false',
-      })
-      return Promise.resolve({
-        ok:     false,
-        reason: 'send-runtime-v19-locked',
-        hint:   'V1.9-M4 send link is locked by default. ' +
-                'Unlock via RpaFeatureFlags.unlockForTesting("send_runtime_v19") in DevTools, ' +
-                'or set server runtime-config.experimental.send_runtime_v19=true for grey-channel test account.',
-      })
-    }
-
-    var pre = PreCheck.check({ batch: batch, identity: identity, adapter: adapter, replyText: replyText })
-    if (!pre.ok) return Promise.resolve({ ok: false, reason: pre.reason, lk_code: pre.lk_code, detail: pre.detail })
-
-    // 自动走 runtime 状态机到 DECIDING
-    if (_instance.sm.current() !== S.DECIDING) {
-      if (!_walkToDeciding()) {
-        return Promise.resolve({ ok: false, reason: 'cannot-walk-runtime-to-deciding', state: _instance.sm.current() })
-      }
-    }
-
-    // 自动走 batch 状态机到 DECIDING（与 runtime 状态机独立）
-    if (batch && batch.status !== Batch.BatchStatus.DECIDING) {
-      if (!_walkBatchToDeciding(batch.batch_id)) {
-        return Promise.resolve({ ok: false, reason: 'cannot-walk-batch-to-deciding', batchStatus: batch.status })
-      }
-    }
-
-    var lkContext = {
-      batchId:    batch && batch.batch_id,
-      session_id: identity && identity.session_id,
-      platform:   adapter.platform,
-      pageKey:    adapter.pageKey,
-    }
-
-    return Promise.resolve()
-      .then(function () {
-        return typeof adapter.prepareReply === 'function' ? adapter.prepareReply(replyText, lkContext) : null
-      })
-      .then(function () {
-        Batch.transition(batch.batch_id, Batch.BatchStatus.SENDING, { decision_source: decisionSource })
-        _instance.sm.transition(S.SENDING)
-        return adapter.sendReply(replyText, lkContext)
-      })
-      .then(function (sendResult) {
-        if (!sendResult || !sendResult.ok) {
-          Batch.transition(batch.batch_id, Batch.BatchStatus.FAILED, { send_confirm_status: 'failed' })
-          _instance.sm.transition(S.ERROR)
-          return { ok: false, reason: (sendResult && sendResult.reason) || 'send-failed' }
-        }
-        Batch.transition(batch.batch_id, Batch.BatchStatus.CONFIRMING)
-        _instance.sm.transition(S.CONFIRMING)
-        // 构造 confirm detectors：优先从 adapter.selectors.selfBubble 读取，
-        // 若 adapter 没暴露 selectors，detectors 返回空数组，再 fallback 到 adapter.confirmReply
-        return Confirm.confirm(replyText, {
-          selfBubbleTexts: function () {
-            var Dom = window.RpaDomUtils
-            if (!Dom || !adapter.selectors || !adapter.selectors.selfBubble) return []
-            var els = Dom.queryAll(adapter.selectors.selfBubble)
-            return els.map(function (el) { return Dom.getText(el) })
-          },
-        }, {
-          lkContext:   lkContext,
-          timeoutMs:   args.confirmTimeoutMs || 6000,
-        }).then(function (confirmResult) {
-          // 如果 SendConfirm 通过 detectors 失败（M4 通用接口），fallback 用 adapter.confirmReply
-          if (!confirmResult.confirmed && typeof adapter.confirmReply === 'function') {
-            return adapter.confirmReply(replyText, lkContext).then(function (adapterConfirm) {
-              return {
-                confirmed:    adapterConfirm && adapterConfirm.confirmed,
-                confirm_type: (adapterConfirm && adapterConfirm.confirm_type) || 'unknown',
-                timeout:      adapterConfirm && adapterConfirm.timeout,
-                evidence:     adapterConfirm && adapterConfirm.evidence || {},
-              }
-            })
-          }
-          return confirmResult
-        }).then(function (finalConfirm) {
-          Batch.recordOutbound(batch.batch_id, { content: replyText, ts: Date.now() })
-          Batch.setConfirm(batch.batch_id, finalConfirm.confirmed ? 'confirmed' : (finalConfirm.timeout ? 'timeout' : 'unknown'))
-
-          if (finalConfirm.confirmed) {
-            Batch.transition(batch.batch_id, Batch.BatchStatus.SYNCING)
-            _instance.sm.transition(S.SYNCING)
-          } else {
-            Batch.transition(batch.batch_id, Batch.BatchStatus.FAILED)
-            _instance.sm.transition(S.ERROR)
-          }
-          return Batch.finalizeRemote(batch.batch_id).then(function () {
-            if (finalConfirm.confirmed) {
-              Batch.transition(batch.batch_id, Batch.BatchStatus.DONE)
-              _instance.sm.transition(S.IDLE)
-            }
-            return { ok: !!finalConfirm.confirmed, confirm: finalConfirm }
-          })
-        })
-      })
-      .catch(function (err) {
-        Tracer.log({
-          lk_code: LK.ERR_SEND_FAILED, stage: Stage.SEND, status: Status.FAILED,
-          batchId: batch && batch.batch_id, session_id: identity && identity.session_id,
-          message: 'sendInBatch threw', detail: { error: (err && err.message) || String(err) },
-        })
-        Batch.transition(batch.batch_id, Batch.BatchStatus.FAILED)
-        try { _instance.sm.transition(S.ERROR) } catch (_) {}
-        return { ok: false, reason: 'exception', error: (err && err.message) || String(err) }
-      })
-  }
-
   window.RpaRuntimeManager = {
     start:             start,
     stop:              stop,
@@ -3014,7 +2810,6 @@
     current:           current,
     setActiveBatch:    setActiveBatch,
     setActiveSession:  setActiveSession,
-    sendInBatch:       sendInBatch,
   }
 
 })()
@@ -3332,7 +3127,7 @@
 // MODULE: adapters/douyin/laike-message.adapter.js
 // ============================================================
 
-// TODO V2.0 改造: W4 新增 toConversationEvent；prepareReply / sendReply 保留到 W5。
+// V2.0 采集探针: 仅 getMessages + toConversationEvent,发送方法已于 W5 移除
 ;(function () {
   'use strict'
 
@@ -3661,69 +3456,6 @@
     }
   }
 
-  async function buildBatch(messages, context) {
-    void messages
-    void context
-    // 实际 batch 构造由 RuntimeManager 调 BatchManager.create() 完成；
-    // adapter 只负责"把 NormalizedMessage 喂出来"
-    return null
-  }
-
-  async function prepareReply(replyText, context) {
-    void replyText
-    void context
-    var input = Dom.queryFirst(SELECTORS.input)
-    if (input && typeof input.focus === 'function') input.focus()
-  }
-
-  async function sendReply(replyText, context) {
-    void context
-    var input = Dom.queryFirst(SELECTORS.input)
-    if (!input) {
-      Tracer.log({
-        lk_code: LK.ERR_DOM_MISSING, stage: Stage.SEND, status: Status.FAILED,
-        message: 'douyin-laike input not found',
-      })
-      return { ok: false, reason: 'input-missing' }
-    }
-    Dom.setInputValue(input, replyText)
-    await Dom.waitFor(function () { return (input.value || '').indexOf(replyText) >= 0 }, { timeoutMs: 500 })
-    var btn = Dom.queryFirst(SELECTORS.sendButton)
-    var clickedOk = btn ? Dom.simulateClick(btn) : false
-    if (!btn) {
-      // 兜底回车
-      input.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter', code: 'Enter', keyCode: 13, which: 13 }))
-      clickedOk = true
-    }
-    Tracer.log({
-      lk_code:  LK.SEND_CLICK, stage: Stage.SEND,
-      status:   clickedOk ? Status.SUCCESS : Status.FAILED,
-      message:  'douyin-laike send click',
-      detail:   { hasButton: !!btn },
-    })
-    return { ok: clickedOk, reason: clickedOk ? null : 'send-failed' }
-  }
-
-  async function confirmReply(replyText, context) {
-    void context
-    // 通过等待自己侧气泡出现且包含 replyText 来确认
-    var ok = await Dom.waitFor(function () {
-      var bubbles = Dom.queryAll(SELECTORS.selfBubble)
-      for (var i = bubbles.length - 1; i >= 0; i--) {
-        var text = Dom.getText(bubbles[i])
-        if (text && replyText && text.indexOf(replyText) >= 0) return true
-      }
-      return false
-    }, { timeoutMs: 5000 })
-    Tracer.log({
-      lk_code:  LK.SEND_CONFIRM, stage: Stage.SEND,
-      status:   ok ? Status.SUCCESS : Status.FAILED,
-      message:  'douyin-laike confirm reply',
-      detail:   { confirmType: 'self_bubble' },
-    })
-    return { confirmed: ok, confirm_type: ok ? 'self_bubble' : 'unknown', timeout: !ok }
-  }
-
   function buildRuntimeContext() {
     return {
       platform: 'douyin',
@@ -3746,10 +3478,6 @@
     getMessages:          getMessages,
     classifyMessage:      classifyMessage,
     toConversationEvent:  toConversationEvent,
-    buildBatch:           buildBatch,
-    prepareReply:         prepareReply,
-    sendReply:            sendReply,
-    confirmReply:         confirmReply,
     buildRuntimeContext:  buildRuntimeContext,
   })
 
@@ -3759,7 +3487,7 @@
 // MODULE: adapters/douyin/private-message.adapter.js
 // ============================================================
 
-// TODO V2.0 改造: W4 新增 toConversationEvent；prepareReply / sendReply 保留到 W5。
+// V2.0 采集探针: 仅 getMessages + toConversationEvent,发送方法已于 W5 移除
 ;(function () {
   'use strict'
 
@@ -4014,7 +3742,6 @@
   }
 
   function classifyMessage(raw) { return Helpers.classifyByDirection(raw) }
-  async function buildBatch() { return null }
 
   function toConversationEvent(rawMsg, sessionInfo) {
     sessionInfo = sessionInfo || {}
@@ -4043,54 +3770,6 @@
     }
   }
 
-  async function prepareReply() {
-    var input = Dom.queryFirst(SELECTORS.input)
-    if (input && typeof input.focus === 'function') input.focus()
-  }
-
-  async function sendReply(replyText) {
-    var input = Dom.queryFirst(SELECTORS.input)
-    if (!input) {
-      Tracer.log({
-        lk_code: LK.ERR_DOM_MISSING, stage: Stage.SEND, status: Status.FAILED,
-        message: 'douyin-private input not found',
-      })
-      return { ok: false, reason: 'input-missing' }
-    }
-    Dom.setInputValue(input, replyText)
-    await Dom.waitFor(function () { return (input.value || '').indexOf(replyText) >= 0 }, { timeoutMs: 500 })
-    var btn = Dom.queryFirst(SELECTORS.sendButton)
-    var clicked = false
-    if (btn) clicked = Dom.simulateClick(btn)
-    else {
-      input.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter', code: 'Enter', keyCode: 13, which: 13 }))
-      clicked = true
-    }
-    Tracer.log({
-      lk_code: LK.SEND_CLICK, stage: Stage.SEND,
-      status:  clicked ? Status.SUCCESS : Status.FAILED,
-      message: 'douyin-private send click',
-    })
-    return { ok: clicked, reason: clicked ? null : 'send-failed' }
-  }
-
-  async function confirmReply(replyText) {
-    var ok = await Dom.waitFor(function () {
-      var bubbles = Dom.queryAll(SELECTORS.selfBubble)
-      for (var i = bubbles.length - 1; i >= 0; i--) {
-        var text = Dom.getText(bubbles[i])
-        if (text && replyText && text.indexOf(replyText) >= 0) return true
-      }
-      return false
-    }, { timeoutMs: 5000 })
-    Tracer.log({
-      lk_code: LK.SEND_CONFIRM, stage: Stage.SEND,
-      status:  ok ? Status.SUCCESS : Status.FAILED,
-      message: 'douyin-private confirm reply',
-    })
-    return { confirmed: ok, confirm_type: ok ? 'self_bubble' : 'unknown', timeout: !ok }
-  }
-
   function buildRuntimeContext() {
     return {
       platform: 'douyin',
@@ -4113,10 +3792,6 @@
     getMessages:          getMessages,
     classifyMessage:      classifyMessage,
     toConversationEvent:  toConversationEvent,
-    buildBatch:           buildBatch,
-    prepareReply:         prepareReply,
-    sendReply:            sendReply,
-    confirmReply:         confirmReply,
     buildRuntimeContext:  buildRuntimeContext,
   })
 
@@ -4126,7 +3801,7 @@
 // MODULE: adapters/douyin/feige.adapter.js
 // ============================================================
 
-// TODO V2.0 改造: W4 新增 toConversationEvent；prepareReply / sendReply 保留到 W5。
+// V2.0 采集探针: 仅 getMessages + toConversationEvent,发送方法已于 W5 移除
 ;(function () {
   'use strict'
 
@@ -4324,7 +3999,6 @@
   }
 
   function classifyMessage(raw) { return Helpers.classifyByDirection(raw) }
-  async function buildBatch() { return null }
 
   function toConversationEvent(rawMsg, sessionInfo) {
     sessionInfo = sessionInfo || {}
@@ -4353,33 +4027,6 @@
     }
   }
 
-  async function prepareReply() {
-    var input = Dom.queryFirst(SELECTORS.input)
-    if (input && typeof input.focus === 'function') input.focus()
-  }
-
-  async function sendReply(replyText) {
-    var input = Dom.queryFirst(SELECTORS.input)
-    if (!input) return { ok: false, reason: 'input-missing' }
-    Dom.setInputValue(input, replyText)
-    var btn = Dom.queryFirst(SELECTORS.sendButton)
-    var clicked = false
-    if (btn) clicked = Dom.simulateClick(btn)
-    else { input.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter', code: 'Enter', keyCode: 13, which: 13 })); clicked = true }
-    return { ok: clicked, reason: clicked ? null : 'send-failed' }
-  }
-
-  async function confirmReply(replyText) {
-    var ok = await Dom.waitFor(function () {
-      var bubbles = Dom.queryAll(SELECTORS.selfBubble)
-      for (var i = bubbles.length - 1; i >= 0; i--) {
-        if (Dom.getText(bubbles[i]).indexOf(replyText) >= 0) return true
-      }
-      return false
-    }, { timeoutMs: 5000 })
-    return { confirmed: ok, confirm_type: ok ? 'self_bubble' : 'unknown', timeout: !ok }
-  }
-
   function buildRuntimeContext() {
     return {
       platform: 'douyin',
@@ -4401,10 +4048,6 @@
     getMessages:          getMessages,
     classifyMessage:      classifyMessage,
     toConversationEvent:  toConversationEvent,
-    buildBatch:           buildBatch,
-    prepareReply:         prepareReply,
-    sendReply:            sendReply,
-    confirmReply:         confirmReply,
     buildRuntimeContext:  buildRuntimeContext,
   })
 
@@ -4576,7 +4219,6 @@
   //   6. AdapterRegistry 注册数量 + matchPage 路由
   //   7. SessionIdentityResolver L1/L2/L3 三档
   //   8. RuntimeManager start / stop 生命周期
-  //   9. PreCheck 各拒绝路径
 
   function _expect(actual, expected, label) {
     return { label: label, ok: actual === expected, actual: actual, expected: expected }
@@ -4684,7 +4326,7 @@
     var hasPrivate = !!R.getByKey('douyin/private-message')
     var hasFeige   = !!R.getByKey('douyin/feige')
     return [
-      _expect(list.length >= 6, true, 'registry has ≥6 adapters'),
+      _expect(list.length >= 3, true, 'registry has ≥3 adapters'),
       _expect(hasLaike,   true,  'douyin/laike-message registered'),
       _expect(hasPrivate, true,  'douyin/private-message registered'),
       _expect(hasFeige,   true,  'douyin/feige registered'),
@@ -4750,53 +4392,6 @@
     ]
   }
 
-  function _checkPreCheck() {
-    var P = window.RpaPreCheck
-    if (!P) return [{ label: 'precheck.deps', ok: false }]
-    // 1. unstable session 拒绝
-    var rUnstable = P.check({
-      batch: { batch_id: 'pc1', status: 'DECIDING', outbound_messages: [] },
-      identity: { identity_level: 'L3', unstable: true },
-      adapter:  { adapterKey: 'fake/test', sendReply: function () {} },
-      replyText: 'hello',
-    })
-    // 2. 已发送
-    var rInflight = P.check({
-      batch: { batch_id: 'pc2', status: 'SENDING', outbound_messages: [] },
-      identity: { identity_level: 'L1', unstable: false },
-      adapter:  { adapterKey: 'fake/test', sendReply: function () {} },
-      replyText: 'hello',
-    })
-    // 3. 重复 outbound
-    var rDup = P.check({
-      batch: { batch_id: 'pc3', status: 'DECIDING', outbound_messages: [{ content: 'hello' }] },
-      identity: { identity_level: 'L1', unstable: false },
-      adapter:  { adapterKey: 'fake/test', sendReply: function () {} },
-      replyText: 'hello',
-    })
-    // 4. 无 adapter
-    var rNoAdapter = P.check({
-      batch: { batch_id: 'pc4', status: 'DECIDING', outbound_messages: [] },
-      identity: { identity_level: 'L1', unstable: false },
-      adapter:  null,
-      replyText: 'hello',
-    })
-    // 5. 通过
-    var rOk = P.check({
-      batch: { batch_id: 'pc5', status: 'DECIDING', outbound_messages: [] },
-      identity: { identity_level: 'L1', unstable: false },
-      adapter:  { adapterKey: 'fake/test', sendReply: function () {} },
-      replyText: 'hello',
-    })
-    return [
-      _expect(rUnstable.ok,   false, 'preCheck rejects L3 unstable'),
-      _expect(rInflight.ok,   false, 'preCheck rejects batch in SENDING'),
-      _expect(rDup.ok,        false, 'preCheck rejects duplicate replyText'),
-      _expect(rNoAdapter.ok,  false, 'preCheck rejects null adapter'),
-      _expect(rOk.ok,         true,  'preCheck passes valid'),
-    ]
-  }
-
   function _checkLkTracer() {
     var T = window.RpaLkTracer
     if (!T) return [{ label: 'tracer.deps', ok: false }]
@@ -4807,50 +4402,6 @@
     var afterSnap = T.snapshot()
     return [
       _expect(afterSnap.bufferSize >= beforeSnap.bufferSize + 2, true, 'tracer.log adds to buffer'),
-    ]
-  }
-
-  async function _checkSendLock() {
-    var F = window.RpaFeatureFlags
-    var R = window.RpaAdapterRegistry
-    if (!F || !R) return [{ label: 'sendlock.deps', ok: false }]
-    var adapter = R.getByKey('douyin/laike-message')
-    if (!adapter) return [{ label: 'sendlock.adapter', ok: false }]
-
-    // self-check 不依赖初始 flag 状态（QA chaos 流程可能已 unlock）
-    // 主动测试 lock/unlock 周期 + 各状态下 sendReply 行为
-    var origState = F.get('send_runtime_v19')
-
-    // 1. 强制 lock
-    F.lock('send_runtime_v19')
-    var blockedAfterLock = await adapter.sendReply('self-check-locked')
-
-    // 2. unlock 后能进入真实流程（fail reason 不再是 flag-locked）
-    F.unlockForTesting('send_runtime_v19')
-    var afterUnlock = await adapter.sendReply('self-check-unlocked')
-
-    // 3. 恢复原状态
-    if (origState) F.unlockForTesting('send_runtime_v19')
-    else F.lock('send_runtime_v19')
-
-    return [
-      _expect(blockedAfterLock && blockedAfterLock.ok, false, 'adapter.sendReply blocked when flag locked'),
-      _expect(blockedAfterLock && blockedAfterLock.reason, 'send-runtime-v19-locked',
-              'block reason explicit when locked'),
-      // unlock 后 reason 不应该再是 flag 锁（可能是 input-missing 等真实业务原因）
-      _expect(afterUnlock && afterUnlock.reason !== 'send-runtime-v19-locked', true,
-              'sendReply enters real flow after unlock'),
-    ]
-  }
-
-  function _checkSendConfirmMatch() {
-    var SC = window.RpaSendConfirm
-    if (!SC) return [{ label: 'confirm.deps', ok: false }]
-    return [
-      _expect(SC.lenientMatch('hello world', 'hello world'), true,  'confirm.lenientMatch exact'),
-      _expect(SC.lenientMatch('  hello  world  ', 'hello world'), true,  'confirm.lenientMatch ignores spaces'),
-      _expect(SC.lenientMatch('hello wor', 'hello world'), true,  'confirm.lenientMatch prefix tolerance'),
-      _expect(SC.lenientMatch('totally different', 'hello world'), false, 'confirm.lenientMatch rejects different'),
     ]
   }
 
@@ -4867,7 +4418,7 @@
       'RpaWatchdog', 'RpaRecoveryManager',
       'RpaSessionIdentityResolver',
       'RpaDomUtils', 'RpaAdapterHelpers',
-      'RpaSendConfirm', 'RpaPreCheck', 'RpaRuntimeManager',
+      'RpaRuntimeManager',
     ]
     globals.forEach(function (g) { results.push(_has(g)) })
 
@@ -4881,14 +4432,8 @@
     results = results.concat(_checkRegistry())
     // 6. Identity
     results = results.concat(_checkIdentity())
-    // 7. PreCheck
-    results = results.concat(_checkPreCheck())
-    // 8. LkTracer
+    // 7. LkTracer
     results = results.concat(_checkLkTracer())
-    // 9. SendConfirm
-    results = results.concat(_checkSendConfirmMatch())
-    // 10. Send Runtime Flag 硬锁
-    results = results.concat(await _checkSendLock())
 
     // ── self-check 完成后必须清理自己的副作用 ────────────────
     // _checkBatchManager / _checkQueue 等会往内存 + chrome.storage 写测试数据。

@@ -1,4 +1,4 @@
-// TODO V2.0 改造: W4 新增 toConversationEvent；prepareReply / sendReply 保留到 W5。
+// V2.0 采集探针: 仅 getMessages + toConversationEvent,发送方法已于 W5 移除
 ;(function () {
   'use strict'
 
@@ -327,69 +327,6 @@
     }
   }
 
-  async function buildBatch(messages, context) {
-    void messages
-    void context
-    // 实际 batch 构造由 RuntimeManager 调 BatchManager.create() 完成；
-    // adapter 只负责"把 NormalizedMessage 喂出来"
-    return null
-  }
-
-  async function prepareReply(replyText, context) {
-    void replyText
-    void context
-    var input = Dom.queryFirst(SELECTORS.input)
-    if (input && typeof input.focus === 'function') input.focus()
-  }
-
-  async function sendReply(replyText, context) {
-    void context
-    var input = Dom.queryFirst(SELECTORS.input)
-    if (!input) {
-      Tracer.log({
-        lk_code: LK.ERR_DOM_MISSING, stage: Stage.SEND, status: Status.FAILED,
-        message: 'douyin-laike input not found',
-      })
-      return { ok: false, reason: 'input-missing' }
-    }
-    Dom.setInputValue(input, replyText)
-    await Dom.waitFor(function () { return (input.value || '').indexOf(replyText) >= 0 }, { timeoutMs: 500 })
-    var btn = Dom.queryFirst(SELECTORS.sendButton)
-    var clickedOk = btn ? Dom.simulateClick(btn) : false
-    if (!btn) {
-      // 兜底回车
-      input.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter', code: 'Enter', keyCode: 13, which: 13 }))
-      clickedOk = true
-    }
-    Tracer.log({
-      lk_code:  LK.SEND_CLICK, stage: Stage.SEND,
-      status:   clickedOk ? Status.SUCCESS : Status.FAILED,
-      message:  'douyin-laike send click',
-      detail:   { hasButton: !!btn },
-    })
-    return { ok: clickedOk, reason: clickedOk ? null : 'send-failed' }
-  }
-
-  async function confirmReply(replyText, context) {
-    void context
-    // 通过等待自己侧气泡出现且包含 replyText 来确认
-    var ok = await Dom.waitFor(function () {
-      var bubbles = Dom.queryAll(SELECTORS.selfBubble)
-      for (var i = bubbles.length - 1; i >= 0; i--) {
-        var text = Dom.getText(bubbles[i])
-        if (text && replyText && text.indexOf(replyText) >= 0) return true
-      }
-      return false
-    }, { timeoutMs: 5000 })
-    Tracer.log({
-      lk_code:  LK.SEND_CONFIRM, stage: Stage.SEND,
-      status:   ok ? Status.SUCCESS : Status.FAILED,
-      message:  'douyin-laike confirm reply',
-      detail:   { confirmType: 'self_bubble' },
-    })
-    return { confirmed: ok, confirm_type: ok ? 'self_bubble' : 'unknown', timeout: !ok }
-  }
-
   function buildRuntimeContext() {
     return {
       platform: 'douyin',
@@ -412,10 +349,6 @@
     getMessages:          getMessages,
     classifyMessage:      classifyMessage,
     toConversationEvent:  toConversationEvent,
-    buildBatch:           buildBatch,
-    prepareReply:         prepareReply,
-    sendReply:            sendReply,
-    confirmReply:         confirmReply,
     buildRuntimeContext:  buildRuntimeContext,
   })
 

@@ -122,7 +122,7 @@
 
   // ── Feature Flag 默认值（在 runtime-config 未返回 experimental 字段时兜底） ─
   // 全部默认 false。解锁路径见 runtime/feature-flags.js。
-  // 二级 send_runtime_v19 锁住整个发送链路（sendReply / confirmReply / prepareReply / sendInBatch）。
+  // 二级 send_runtime_v19 保留为旧 runtime 状态约束开关。
   var FeatureFlagDefaults = {
     runtime_v19:        false,   // V1.9 Runtime 启动总开关
     send_runtime_v19:   false,   // V1.9-M4 发送链路总开关（最高风险）
@@ -130,7 +130,7 @@
     adapter_layer_v19:  false,
     send_confirm_v19:   false,
     watchdog_v19:       false,
-    collector_v1_enabled: false,
+    collector_v1_enabled: true,
   }
 
   // ── 协议常量（V1.9_Runtime_Protocol 关键阈值，便于集中调整） ─────────

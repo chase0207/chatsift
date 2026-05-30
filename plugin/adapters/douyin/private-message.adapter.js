@@ -1,4 +1,4 @@
-// TODO V2.0 改造: W4 新增 toConversationEvent；prepareReply / sendReply 保留到 W5。
+// V2.0 采集探针: 仅 getMessages + toConversationEvent,发送方法已于 W5 移除
 ;(function () {
   'use strict'
 
@@ -253,7 +253,6 @@
   }
 
   function classifyMessage(raw) { return Helpers.classifyByDirection(raw) }
-  async function buildBatch() { return null }
 
   function toConversationEvent(rawMsg, sessionInfo) {
     sessionInfo = sessionInfo || {}
@@ -282,54 +281,6 @@
     }
   }
 
-  async function prepareReply() {
-    var input = Dom.queryFirst(SELECTORS.input)
-    if (input && typeof input.focus === 'function') input.focus()
-  }
-
-  async function sendReply(replyText) {
-    var input = Dom.queryFirst(SELECTORS.input)
-    if (!input) {
-      Tracer.log({
-        lk_code: LK.ERR_DOM_MISSING, stage: Stage.SEND, status: Status.FAILED,
-        message: 'douyin-private input not found',
-      })
-      return { ok: false, reason: 'input-missing' }
-    }
-    Dom.setInputValue(input, replyText)
-    await Dom.waitFor(function () { return (input.value || '').indexOf(replyText) >= 0 }, { timeoutMs: 500 })
-    var btn = Dom.queryFirst(SELECTORS.sendButton)
-    var clicked = false
-    if (btn) clicked = Dom.simulateClick(btn)
-    else {
-      input.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter', code: 'Enter', keyCode: 13, which: 13 }))
-      clicked = true
-    }
-    Tracer.log({
-      lk_code: LK.SEND_CLICK, stage: Stage.SEND,
-      status:  clicked ? Status.SUCCESS : Status.FAILED,
-      message: 'douyin-private send click',
-    })
-    return { ok: clicked, reason: clicked ? null : 'send-failed' }
-  }
-
-  async function confirmReply(replyText) {
-    var ok = await Dom.waitFor(function () {
-      var bubbles = Dom.queryAll(SELECTORS.selfBubble)
-      for (var i = bubbles.length - 1; i >= 0; i--) {
-        var text = Dom.getText(bubbles[i])
-        if (text && replyText && text.indexOf(replyText) >= 0) return true
-      }
-      return false
-    }, { timeoutMs: 5000 })
-    Tracer.log({
-      lk_code: LK.SEND_CONFIRM, stage: Stage.SEND,
-      status:  ok ? Status.SUCCESS : Status.FAILED,
-      message: 'douyin-private confirm reply',
-    })
-    return { confirmed: ok, confirm_type: ok ? 'self_bubble' : 'unknown', timeout: !ok }
-  }
-
   function buildRuntimeContext() {
     return {
       platform: 'douyin',
@@ -352,10 +303,6 @@
     getMessages:          getMessages,
     classifyMessage:      classifyMessage,
     toConversationEvent:  toConversationEvent,
-    buildBatch:           buildBatch,
-    prepareReply:         prepareReply,
-    sendReply:            sendReply,
-    confirmReply:         confirmReply,
     buildRuntimeContext:  buildRuntimeContext,
   })
 

@@ -17,7 +17,6 @@
   //   6. AdapterRegistry 注册数量 + matchPage 路由
   //   7. SessionIdentityResolver L1/L2/L3 三档
   //   8. RuntimeManager start / stop 生命周期
-  //   9. PreCheck 各拒绝路径
 
   function _expect(actual, expected, label) {
     return { label: label, ok: actual === expected, actual: actual, expected: expected }
@@ -125,7 +124,7 @@
     var hasPrivate = !!R.getByKey('douyin/private-message')
     var hasFeige   = !!R.getByKey('douyin/feige')
     return [
-      _expect(list.length >= 6, true, 'registry has ≥6 adapters'),
+      _expect(list.length >= 3, true, 'registry has ≥3 adapters'),
       _expect(hasLaike,   true,  'douyin/laike-message registered'),
       _expect(hasPrivate, true,  'douyin/private-message registered'),
       _expect(hasFeige,   true,  'douyin/feige registered'),
@@ -191,53 +190,6 @@
     ]
   }
 
-  function _checkPreCheck() {
-    var P = window.RpaPreCheck
-    if (!P) return [{ label: 'precheck.deps', ok: false }]
-    // 1. unstable session 拒绝
-    var rUnstable = P.check({
-      batch: { batch_id: 'pc1', status: 'DECIDING', outbound_messages: [] },
-      identity: { identity_level: 'L3', unstable: true },
-      adapter:  { adapterKey: 'fake/test', sendReply: function () {} },
-      replyText: 'hello',
-    })
-    // 2. 已发送
-    var rInflight = P.check({
-      batch: { batch_id: 'pc2', status: 'SENDING', outbound_messages: [] },
-      identity: { identity_level: 'L1', unstable: false },
-      adapter:  { adapterKey: 'fake/test', sendReply: function () {} },
-      replyText: 'hello',
-    })
-    // 3. 重复 outbound
-    var rDup = P.check({
-      batch: { batch_id: 'pc3', status: 'DECIDING', outbound_messages: [{ content: 'hello' }] },
-      identity: { identity_level: 'L1', unstable: false },
-      adapter:  { adapterKey: 'fake/test', sendReply: function () {} },
-      replyText: 'hello',
-    })
-    // 4. 无 adapter
-    var rNoAdapter = P.check({
-      batch: { batch_id: 'pc4', status: 'DECIDING', outbound_messages: [] },
-      identity: { identity_level: 'L1', unstable: false },
-      adapter:  null,
-      replyText: 'hello',
-    })
-    // 5. 通过
-    var rOk = P.check({
-      batch: { batch_id: 'pc5', status: 'DECIDING', outbound_messages: [] },
-      identity: { identity_level: 'L1', unstable: false },
-      adapter:  { adapterKey: 'fake/test', sendReply: function () {} },
-      replyText: 'hello',
-    })
-    return [
-      _expect(rUnstable.ok,   false, 'preCheck rejects L3 unstable'),
-      _expect(rInflight.ok,   false, 'preCheck rejects batch in SENDING'),
-      _expect(rDup.ok,        false, 'preCheck rejects duplicate replyText'),
-      _expect(rNoAdapter.ok,  false, 'preCheck rejects null adapter'),
-      _expect(rOk.ok,         true,  'preCheck passes valid'),
-    ]
-  }
-
   function _checkLkTracer() {
     var T = window.RpaLkTracer
     if (!T) return [{ label: 'tracer.deps', ok: false }]
@@ -248,50 +200,6 @@
     var afterSnap = T.snapshot()
     return [
       _expect(afterSnap.bufferSize >= beforeSnap.bufferSize + 2, true, 'tracer.log adds to buffer'),
-    ]
-  }
-
-  async function _checkSendLock() {
-    var F = window.RpaFeatureFlags
-    var R = window.RpaAdapterRegistry
-    if (!F || !R) return [{ label: 'sendlock.deps', ok: false }]
-    var adapter = R.getByKey('douyin/laike-message')
-    if (!adapter) return [{ label: 'sendlock.adapter', ok: false }]
-
-    // self-check 不依赖初始 flag 状态（QA chaos 流程可能已 unlock）
-    // 主动测试 lock/unlock 周期 + 各状态下 sendReply 行为
-    var origState = F.get('send_runtime_v19')
-
-    // 1. 强制 lock
-    F.lock('send_runtime_v19')
-    var blockedAfterLock = await adapter.sendReply('self-check-locked')
-
-    // 2. unlock 后能进入真实流程（fail reason 不再是 flag-locked）
-    F.unlockForTesting('send_runtime_v19')
-    var afterUnlock = await adapter.sendReply('self-check-unlocked')
-
-    // 3. 恢复原状态
-    if (origState) F.unlockForTesting('send_runtime_v19')
-    else F.lock('send_runtime_v19')
-
-    return [
-      _expect(blockedAfterLock && blockedAfterLock.ok, false, 'adapter.sendReply blocked when flag locked'),
-      _expect(blockedAfterLock && blockedAfterLock.reason, 'send-runtime-v19-locked',
-              'block reason explicit when locked'),
-      // unlock 后 reason 不应该再是 flag 锁（可能是 input-missing 等真实业务原因）
-      _expect(afterUnlock && afterUnlock.reason !== 'send-runtime-v19-locked', true,
-              'sendReply enters real flow after unlock'),
-    ]
-  }
-
-  function _checkSendConfirmMatch() {
-    var SC = window.RpaSendConfirm
-    if (!SC) return [{ label: 'confirm.deps', ok: false }]
-    return [
-      _expect(SC.lenientMatch('hello world', 'hello world'), true,  'confirm.lenientMatch exact'),
-      _expect(SC.lenientMatch('  hello  world  ', 'hello world'), true,  'confirm.lenientMatch ignores spaces'),
-      _expect(SC.lenientMatch('hello wor', 'hello world'), true,  'confirm.lenientMatch prefix tolerance'),
-      _expect(SC.lenientMatch('totally different', 'hello world'), false, 'confirm.lenientMatch rejects different'),
     ]
   }
 
@@ -308,7 +216,7 @@
       'RpaWatchdog', 'RpaRecoveryManager',
       'RpaSessionIdentityResolver',
       'RpaDomUtils', 'RpaAdapterHelpers',
-      'RpaSendConfirm', 'RpaPreCheck', 'RpaRuntimeManager',
+      'RpaRuntimeManager',
     ]
     globals.forEach(function (g) { results.push(_has(g)) })
 
@@ -322,14 +230,8 @@
     results = results.concat(_checkRegistry())
     // 6. Identity
     results = results.concat(_checkIdentity())
-    // 7. PreCheck
-    results = results.concat(_checkPreCheck())
-    // 8. LkTracer
+    // 7. LkTracer
     results = results.concat(_checkLkTracer())
-    // 9. SendConfirm
-    results = results.concat(_checkSendConfirmMatch())
-    // 10. Send Runtime Flag 硬锁
-    results = results.concat(await _checkSendLock())
 
     // ── self-check 完成后必须清理自己的副作用 ────────────────
     // _checkBatchManager / _checkQueue 等会往内存 + chrome.storage 写测试数据。

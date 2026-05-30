@@ -7,7 +7,7 @@
   //   - PRAAdapterRuntime（runtime/adapter-runtime.js）服务于 V1.x legacy 的 customer_service / live 场景调度
   //   - RpaAdapterRegistry（本文件）服务于 V1.9 PlatformPageAdapter 接口
   //
-  // V1.9 Adapter 接口（V1.9_Runtime_Protocol § 第五章）：
+  // W5 后 Adapter 只保留采集探针接口：
   //   {
   //     adapterKey:   string           — 唯一键，建议 "platform/pageKey"
   //     platform:     string
@@ -19,20 +19,17 @@
   //     confirmActiveSession(session): Promise<boolean>
   //     getMessages(session): Promise<RawMessage[]>
   //     classifyMessage(rawMessage): NormalizedMessage
-  //     buildBatch(messages, context): Promise<MessageBatch>
-  //     prepareReply(replyText, context): Promise<void>
-  //     sendReply(replyText, context): Promise<SendResult>
-  //     confirmReply(replyText, context): Promise<ConfirmResult>
+  //     toConversationEvent(rawMessage, sessionInfo): ConversationEvent
   //     buildRuntimeContext(): RuntimePageContext
   //   }
   //
-  // 不实现以上方法的实现，注册时仍然允许（接受 partial adapter），
-  // 但 RuntimeManager 调用未实现方法时会记录 LK-ERROR 并跳过。
+  // 发送/自动回复链路已于 W5 移除，registry 只负责页面匹配和采集 adapter 分发。
 
   var Logger = window.RpaLogger
   if (!Logger) throw new Error('[V19] RpaLogger must load before AdapterRegistry')
 
   var REQUIRED_FIELDS = ['adapterKey', 'platform', 'pageKey']
+  var REQUIRED_METHODS = ['getMessages', 'toConversationEvent']
   var OPTIONAL_METHODS = [
     'matchPage',
     'detectSessions',
@@ -41,17 +38,9 @@
     'confirmActiveSession',
     'getMessages',
     'classifyMessage',
-    'buildBatch',
-    'prepareReply',
-    'sendReply',
-    'confirmReply',
+    'toConversationEvent',
     'buildRuntimeContext',
   ]
-
-  // 高危方法：发送链路相关。注册时会被 send_runtime_v19 Flag 拦截，
-  // Flag 关闭时直接返 { ok:false, reason:'send-runtime-v19-locked' }，
-  // 物理阻断 V1.9-M4 发送链路。M1-M3 验证期保持关闭状态。
-  var SEND_RUNTIME_METHODS = ['prepareReply', 'sendReply', 'confirmReply']
 
   var _adapters = []   // 注册顺序，便于 resolve 选择"最先匹配"
 
@@ -61,34 +50,11 @@
       var k = REQUIRED_FIELDS[i]
       if (!adapter[k] || typeof adapter[k] !== 'string') return 'missing field: ' + k
     }
+    for (var j = 0; j < REQUIRED_METHODS.length; j++) {
+      var m = REQUIRED_METHODS[j]
+      if (typeof adapter[m] !== 'function') return 'missing method: ' + m
+    }
     return null
-  }
-
-  function _wrapSendMethods(adapter) {
-    // 不修改原对象（adapter 内部可能引用 this），返回一个包装后的副本。
-    var wrapped = Object.assign({}, adapter)
-    SEND_RUNTIME_METHODS.forEach(function (m) {
-      var orig = adapter[m]
-      if (typeof orig !== 'function') return
-      wrapped[m] = function () {
-        var Flags = window.RpaFeatureFlags
-        if (!Flags || !Flags.get('send_runtime_v19')) {
-          Logger.warn('AdapterRegistry', 'blocked ' + adapter.adapterKey + '.' + m + ' (send_runtime_v19=false)')
-          return Promise.resolve({
-            ok:           false,
-            confirmed:    false,
-            reason:       'send-runtime-v19-locked',
-            confirm_type: 'unknown',
-            timeout:      false,
-            hint:         'V1.9-M4 发送链路默认关闭。开启路径：' +
-                          'RpaFeatureFlags.unlockForTesting("send_runtime_v19") 或 ' +
-                          '后端 runtime-config.experimental.send_runtime_v19=true（仅测试账号）',
-          })
-        }
-        return orig.apply(adapter, arguments)
-      }
-    })
-    return wrapped
   }
 
   function register(adapter) {
@@ -97,12 +63,11 @@
       Logger.error('AdapterRegistry', 'register rejected:', err, adapter)
       throw new Error('[V19] AdapterRegistry.register: ' + err)
     }
-    var wrapped = _wrapSendMethods(adapter)
     // 同 key 覆盖
     _adapters = _adapters.filter(function (a) { return a.adapterKey !== adapter.adapterKey })
-    _adapters.push(wrapped)
-    Logger.info('AdapterRegistry', 'registered', adapter.adapterKey + ' (send methods locked)')
-    return wrapped
+    _adapters.push(adapter)
+    Logger.info('AdapterRegistry', 'registered', adapter.adapterKey)
+    return adapter
   }
 
   function unregister(adapterKey) {
@@ -163,7 +128,6 @@
     resolve:              resolve,
     hasMethod:            hasMethod,
     OPTIONAL_METHODS:     OPTIONAL_METHODS,
-    SEND_RUNTIME_METHODS: SEND_RUNTIME_METHODS,
   }
 
 })()

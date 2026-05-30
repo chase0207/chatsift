@@ -42,7 +42,7 @@ const MODULES = [
   'runtime/adapter-runtime.js',           // 历史模块，window.PRAAdapterRuntime
   'runtime/runtime-state-machine.js',     // M1: 状态机（依赖 RpaConstants）
   'runtime/lk-tracer.js',                 // M1: LK Trace
-  'runtime/adapter-registry.js',          // M2: V1.9 Adapter 注册（含 send-runtime Flag 拦截）
+  'runtime/adapter-registry.js',          // W5: Adapter 注册与采集分发
   'runtime/batch-manager.js',             // M2+M4: batch 状态机 + stable_wait
   'runtime/queue-manager.js',             // M2: 调度队列
   'runtime/event-queue.js',               // W4: 新采集链路事件队列
@@ -53,14 +53,11 @@ const MODULES = [
   'runtime/session-identity-resolver.js', // M3: session_id 提取器
   'shared/adapter-helpers.js',            // M3: adapter 辅助方法（依赖 session-identity-resolver）
 
-  // ── Adapter base（被 pre-check 和 adapters/** 共同依赖）──────────
+  // ── Adapter base（被 adapters/** 共同依赖）──────────────────────
   'adapters/base/dom-utils.js',           // M3
   'adapters/base/adapter-helpers.js',     // M3
 
-  // ── M4 发送链路（依赖 helpers）──────────────────────────────────
-  'runtime/send-confirm.js',              // M4: lenient confirm
-  'runtime/pre-check.js',                 // M4: 发送门禁（依赖 helpers）
-  'runtime/runtime-manager.js',           // M1+M2+M4: sendInBatch
+  'runtime/runtime-manager.js',           // M1+M2: legacy runtime 骨架保留
 
   // ── 历史 runtime（评估去留）──────────────────────────────────────
   'runtime/session-parser.js',

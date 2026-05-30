@@ -25,8 +25,6 @@
   var Recovery = window.RpaRecoveryManager
   var Registry = window.RpaAdapterRegistry
   var Helpers  = window.RpaAdapterHelpers
-  var PreCheck = window.RpaPreCheck
-  var Confirm  = window.RpaSendConfirm
   if (!C || !SM || !Tracer || !Logger || !Hash || !Batch || !Queue || !Watchdog || !Recovery || !Registry) {
     throw new Error('[V19] RuntimeManager dependencies missing')
   }
@@ -274,172 +272,6 @@
 
   function isPaused() { return !!(_instance && _instance.paused) }
 
-  // ── M4: 高阶发送链路（供 legacy bootstrap / 控制台调用） ───────────
-  // sendInBatch({ batch, identity, adapter, replyText, decisionSource? })
-  // 完整链路：pre-check → adapter.prepareReply → state.SENDING → adapter.sendReply
-  //         → state.CONFIRMING → SendConfirm.confirm() → state.SYNCING → batch.finalizeRemote
-  //
-  // 若当前 runtime_state 不在 DECIDING / batch 不在 DECIDING，会"快走"前置状态。
-  // 这是高阶 entry 的便利性桥接，M5+ 真实主循环应按场景驱动每一步迁移。
-  function _walkToDeciding() {
-    if (!_instance) return false
-    var path = [S.SCANNING, S.SESSION_SWITCHING, S.READING_MESSAGES,
-                S.WAITING_STABLE, S.BUILDING_BATCH, S.DECIDING]
-    var cur = _instance.sm.current()
-    var startIdx = path.indexOf(cur)
-    var i = startIdx >= 0 ? (startIdx + 1) : 0
-    for (; i < path.length; i++) {
-      var ev = _instance.sm.transition(path[i], { reason: 'walk-to-deciding' })
-      if (!ev.ok) return false
-    }
-    return true
-  }
-
-  // batch 状态机也要走到 DECIDING；否则后续 Batch.transition(SENDING) 会被状态机拒绝
-  function _walkBatchToDeciding(batch_id) {
-    var BS = Batch.BatchStatus
-    var b = Batch.get(batch_id)
-    if (!b) return false
-    if (b.status === BS.DECIDING) return true
-    var path = [BS.COLLECTING, BS.STABLE_WAIT, BS.DECIDING]
-    var startIdx = path.indexOf(b.status)
-    var i = startIdx >= 0 ? (startIdx + 1) : 0
-    for (; i < path.length; i++) {
-      var ev = Batch.transition(batch_id, path[i], { reason: 'walk-batch-to-deciding' })
-      if (!ev.ok) return false
-    }
-    return true
-  }
-
-  function sendInBatch(args) {
-    args = args || {}
-    if (!_instance) return Promise.resolve({ ok: false, reason: 'runtime-not-started' })
-    if (!PreCheck || !Confirm) return Promise.resolve({ ok: false, reason: 'pre-check/confirm-not-loaded' })
-
-    var batch    = args.batch
-    var identity = args.identity
-    var adapter  = args.adapter
-    var replyText = args.replyText
-    var decisionSource = args.decisionSource || 'unknown'
-
-    // ── V1.9-M4 二级 Flag 门禁（adapter-registry 层之外的第二道防线） ──
-    var Flags = window.RpaFeatureFlags
-    if (!Flags || !Flags.get('send_runtime_v19')) {
-      Tracer.log({
-        lk_code:    LK.SEND_PRECHECK,
-        stage:      Stage.SEND,
-        status:     Status.SKIPPED,
-        batchId:    batch && batch.batch_id,
-        session_id: identity && identity.session_id,
-        message:    'sendInBatch blocked: send_runtime_v19=false',
-      })
-      return Promise.resolve({
-        ok:     false,
-        reason: 'send-runtime-v19-locked',
-        hint:   'V1.9-M4 send link is locked by default. ' +
-                'Unlock via RpaFeatureFlags.unlockForTesting("send_runtime_v19") in DevTools, ' +
-                'or set server runtime-config.experimental.send_runtime_v19=true for grey-channel test account.',
-      })
-    }
-
-    var pre = PreCheck.check({ batch: batch, identity: identity, adapter: adapter, replyText: replyText })
-    if (!pre.ok) return Promise.resolve({ ok: false, reason: pre.reason, lk_code: pre.lk_code, detail: pre.detail })
-
-    // 自动走 runtime 状态机到 DECIDING
-    if (_instance.sm.current() !== S.DECIDING) {
-      if (!_walkToDeciding()) {
-        return Promise.resolve({ ok: false, reason: 'cannot-walk-runtime-to-deciding', state: _instance.sm.current() })
-      }
-    }
-
-    // 自动走 batch 状态机到 DECIDING（与 runtime 状态机独立）
-    if (batch && batch.status !== Batch.BatchStatus.DECIDING) {
-      if (!_walkBatchToDeciding(batch.batch_id)) {
-        return Promise.resolve({ ok: false, reason: 'cannot-walk-batch-to-deciding', batchStatus: batch.status })
-      }
-    }
-
-    var lkContext = {
-      batchId:    batch && batch.batch_id,
-      session_id: identity && identity.session_id,
-      platform:   adapter.platform,
-      pageKey:    adapter.pageKey,
-    }
-
-    return Promise.resolve()
-      .then(function () {
-        return typeof adapter.prepareReply === 'function' ? adapter.prepareReply(replyText, lkContext) : null
-      })
-      .then(function () {
-        Batch.transition(batch.batch_id, Batch.BatchStatus.SENDING, { decision_source: decisionSource })
-        _instance.sm.transition(S.SENDING)
-        return adapter.sendReply(replyText, lkContext)
-      })
-      .then(function (sendResult) {
-        if (!sendResult || !sendResult.ok) {
-          Batch.transition(batch.batch_id, Batch.BatchStatus.FAILED, { send_confirm_status: 'failed' })
-          _instance.sm.transition(S.ERROR)
-          return { ok: false, reason: (sendResult && sendResult.reason) || 'send-failed' }
-        }
-        Batch.transition(batch.batch_id, Batch.BatchStatus.CONFIRMING)
-        _instance.sm.transition(S.CONFIRMING)
-        // 构造 confirm detectors：优先从 adapter.selectors.selfBubble 读取，
-        // 若 adapter 没暴露 selectors，detectors 返回空数组，再 fallback 到 adapter.confirmReply
-        return Confirm.confirm(replyText, {
-          selfBubbleTexts: function () {
-            var Dom = window.RpaDomUtils
-            if (!Dom || !adapter.selectors || !adapter.selectors.selfBubble) return []
-            var els = Dom.queryAll(adapter.selectors.selfBubble)
-            return els.map(function (el) { return Dom.getText(el) })
-          },
-        }, {
-          lkContext:   lkContext,
-          timeoutMs:   args.confirmTimeoutMs || 6000,
-        }).then(function (confirmResult) {
-          // 如果 SendConfirm 通过 detectors 失败（M4 通用接口），fallback 用 adapter.confirmReply
-          if (!confirmResult.confirmed && typeof adapter.confirmReply === 'function') {
-            return adapter.confirmReply(replyText, lkContext).then(function (adapterConfirm) {
-              return {
-                confirmed:    adapterConfirm && adapterConfirm.confirmed,
-                confirm_type: (adapterConfirm && adapterConfirm.confirm_type) || 'unknown',
-                timeout:      adapterConfirm && adapterConfirm.timeout,
-                evidence:     adapterConfirm && adapterConfirm.evidence || {},
-              }
-            })
-          }
-          return confirmResult
-        }).then(function (finalConfirm) {
-          Batch.recordOutbound(batch.batch_id, { content: replyText, ts: Date.now() })
-          Batch.setConfirm(batch.batch_id, finalConfirm.confirmed ? 'confirmed' : (finalConfirm.timeout ? 'timeout' : 'unknown'))
-
-          if (finalConfirm.confirmed) {
-            Batch.transition(batch.batch_id, Batch.BatchStatus.SYNCING)
-            _instance.sm.transition(S.SYNCING)
-          } else {
-            Batch.transition(batch.batch_id, Batch.BatchStatus.FAILED)
-            _instance.sm.transition(S.ERROR)
-          }
-          return Batch.finalizeRemote(batch.batch_id).then(function () {
-            if (finalConfirm.confirmed) {
-              Batch.transition(batch.batch_id, Batch.BatchStatus.DONE)
-              _instance.sm.transition(S.IDLE)
-            }
-            return { ok: !!finalConfirm.confirmed, confirm: finalConfirm }
-          })
-        })
-      })
-      .catch(function (err) {
-        Tracer.log({
-          lk_code: LK.ERR_SEND_FAILED, stage: Stage.SEND, status: Status.FAILED,
-          batchId: batch && batch.batch_id, session_id: identity && identity.session_id,
-          message: 'sendInBatch threw', detail: { error: (err && err.message) || String(err) },
-        })
-        Batch.transition(batch.batch_id, Batch.BatchStatus.FAILED)
-        try { _instance.sm.transition(S.ERROR) } catch (_) {}
-        return { ok: false, reason: 'exception', error: (err && err.message) || String(err) }
-      })
-  }
-
   window.RpaRuntimeManager = {
     start:             start,
     stop:              stop,
@@ -450,7 +282,6 @@
     current:           current,
     setActiveBatch:    setActiveBatch,
     setActiveSession:  setActiveSession,
-    sendInBatch:       sendInBatch,
   }
 
 })()
