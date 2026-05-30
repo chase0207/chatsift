@@ -1,7 +1,7 @@
 function $(id) { return document.getElementById(id) }
 
 var PRODUCTION_URL = ((window.PRA_APP_CONFIG && window.PRA_APP_CONFIG.serverUrl) || 'http://124.222.146.193:8080').replace(/\/$/, '')
-var LOCAL_URL = 'http://127.0.0.1:3000'
+var LOCAL_URL = 'http://127.0.0.1:3100'
 var TEST_URL = 'http://124.222.146.193:3001'
 var AUTO_SERVER_URL = null
 var AUTO_ENV = 'prod'

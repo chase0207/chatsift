@@ -23,6 +23,7 @@
 - popup 的启动/停止按钮已接入 `collector_v1_enabled`,真实验收时不再需要页面 Console 直接执行 `chrome.storage.local.set`。
 - 启动按钮进一步补强为向当前 tab 发送 `START_COLLECTOR`,避免 content script 未感知 storage 变更时采集链路没有启动。
 - 修复 `build.js` 模块顺序: `shared/adapter-helpers.js` 必须在 `runtime/session-identity-resolver.js` 之后加载,否则 content script 会提前中断。
+- 修复 popup 本地环境端口: chatsift server 使用 `127.0.0.1:3100`,不是 chat_rpa 的 `3000`。
 
 ## 自动化验证
 
