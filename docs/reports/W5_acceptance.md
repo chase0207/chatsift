@@ -228,7 +228,7 @@ id=8 conversation_id=14 workorder_type=inquiry status=pending priority=5 title=ç
 ## Git Log
 
 ```text
-c1d9cc0 feat(W5): round2 - switch flag default on, remove send/auto-reply code
+48f72f9 feat(W5): round2 - switch flag default on, remove send/auto-reply code
 f996855 fix(W4.5): restore missing platform utils (extractDetectHosts/getPlatformAliases)
 7cf17a2 docs(W4): record real douyin acceptance results
 f266b35 fix(W4): normalize stale local server url in uploader
