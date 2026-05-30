@@ -2,7 +2,7 @@
 文档: W4 验收报告
 版本: v1.0.0
 周次: W4
-状态: Pending Manual Acceptance
+状态: Done
 ---
 
 ## 变更范围
@@ -46,42 +46,55 @@ cd plugin && node build.js --check
 
 ## 真实页面验收
 
-尚未执行。该步骤需要用户在已登录抖音来客页面制造真实客户消息,不使用截图。
-
-待执行步骤:
-
-```javascript
-chrome.storage.local.set({ collector_v1_enabled: true })
-```
-
-刷新抖音页面后,观察控制台应出现:
+已执行。用户在已登录抖音来客页面制造真实客户消息,插件控制台出现:
 
 - `LegacyCollector started`
 - `collectMessageSession`
 - `EventCollector collect`
 - `EventUploader uploaded`
 
-数据库验收 SQL:
+上传结果:
+
+- 第一批: `accepted: 50, duplicated: 0, rejected: 0`
+- 第二批: `accepted: 39, duplicated: 0, rejected: 0`
+
+数据库验收结果:
 
 ```sql
 SELECT id, platform, customer_nickname, intent_label, current_stage, completeness_score
 FROM conversations WHERE platform='douyin' ORDER BY created_at DESC LIMIT 5;
+-- id=11, platform=douyin, platform_page=private-message, customer_nickname=chase,
+-- intent_label=price_inquiry, current_stage=collecting, completeness_score=50
 
 SELECT id, direction, content_text, occurred_at
 FROM messages ORDER BY uploaded_at DESC LIMIT 10;
+-- 已看到真实抖音私信消息,如 inbound chase: 上海多少钱
 
 SELECT id, workorder_type, title, completeness_score, priority, status
 FROM workorders ORDER BY created_at DESC LIMIT 5;
+-- id=5, conversation_id=11, workorder_type=pricing, title=报价回复:chase,
+-- completeness_score=50, priority=4, status=pending
 
 SELECT platform_message_id, COUNT(*)
 FROM messages GROUP BY platform_message_id HAVING COUNT(*) > 1;
+-- 空结果;duplicate_message_ids=0
 ```
 
-期望:前三条能看到真实抖音会话/消息/工单;最后一条为空。
+补充计数:
+
+- `douyin/private-message` 消息数: 89
+- 重复 `platform_message_id`: 0
 
 ## Git Log
 
 ```bash
+f266b35 fix(W4): normalize stale local server url in uploader
+386aad4 fix(W4): use chatsift local server port in plugin popup
+fb6843e fix(W4): load adapter helpers after identity resolver
+469fa75 fix(W4): actively start collector from popup
+91d0bd4 fix(W4): wire popup start to collector flag
+68fc5bf fix(W4): add local platform definition fallback for plugin detection
+50fa774 feat(W4): plugin collector round1 - douyin adapters + event upload pipeline
 736a389 docs: collaboration protocol v1.0.0 + W4 docs v2.1.0
 1f6cde1 feat(W3): goal/completeness/workorder engines
 ff479b9 feat(W2): analyzer worker + rule-based intent engine
