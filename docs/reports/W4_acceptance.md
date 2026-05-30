@@ -19,6 +19,7 @@
 - `manifest.json` 引用了缺失的 `background.js`,这会导致 Chrome 无法加载插件;本次补了最小 service worker,只处理登录态和日志消息。
 - `build.js` 原清单引用了不存在的 `adapters/base/*`,实际仓库里是 `plugin/shared/dom-utils.js` 和 `plugin/shared/adapter-helpers.js`;本次把真实文件加入清单,旧缺失项仍按原构建逻辑跳过。
 - `event-uploader.js` 兼容读取 `token/authToken/accessToken` 与 `cfg.serverUrl/serverUrl`,避免改登录流程。
+- 本地 `/api/platforms` 暂因服务端历史工具函数缺失返回 500;插件 background 已加抖音平台定义兜底,不改 W1 服务端已验收代码。
 
 ## 自动化验证
 

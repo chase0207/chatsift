@@ -25,7 +25,7 @@ async function appendLog(message, level) {
 }
 
 async function getStatus() {
-  const data = await storageGet(['token', 'refreshToken', 'cfg', 'userInfo', 'logs'])
+  const data = await storageGet(['token', 'refreshToken', 'cfg', 'userInfo', 'logs', 'platformDefinitions'])
   return {
     ok: true,
     token: data.token || '',
@@ -33,6 +33,7 @@ async function getStatus() {
     cfg: Object.assign({}, DEFAULT_CFG, data.cfg || {}),
     userInfo: data.userInfo || null,
     logs: Array.isArray(data.logs) ? data.logs : [],
+    platforms: Array.isArray(data.platformDefinitions) ? data.platformDefinitions.map(item => ({ id: item.id, platform: item.key || item.platform_code || item.platform_key })) : [],
   }
 }
 
@@ -74,6 +75,83 @@ async function refreshAuth() {
   return { ok: true }
 }
 
+async function authFetch(path, opts = {}) {
+  let state = await getStatus()
+  const headers = Object.assign({}, opts.headers || {}, {
+    Authorization: 'Bearer ' + state.token,
+  })
+  let res = await fetch(state.cfg.serverUrl + path, Object.assign({}, opts, { headers }))
+  if (res.status === 401) {
+    const refreshed = await refreshAuth()
+    if (refreshed && refreshed.ok) {
+      state = await getStatus()
+      headers.Authorization = 'Bearer ' + state.token
+      res = await fetch(state.cfg.serverUrl + path, Object.assign({}, opts, { headers }))
+    }
+  }
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok || json.code !== 0) throw new Error(json.message || json.error || 'request-failed')
+  return json
+}
+
+async function loadPlatformDefinitions() {
+  let data = []
+  try {
+    const json = await authFetch('/api/platforms?enabled=1')
+    data = json.data || []
+  } catch (_) {
+    data = fallbackPlatformDefinitions()
+  }
+  await storageSet({ platformDefinitions: data })
+  return { ok: true, data }
+}
+
+function fallbackPlatformDefinitions() {
+  return [{
+    id: 1,
+    platform_name: '抖音系',
+    platform_key: 'douyin',
+    platform_code: 'douyin',
+    runtime_key: 'douyin',
+    enabled: 1,
+    dom_status: 3,
+    detect_hosts: [
+      'life.douyin.com',
+      'im.douyin.com',
+      'im.jinritemai.com',
+      'fxg.jinritemai.com',
+      'anchor.douyin.com',
+    ],
+    pages: [
+      {
+        id: 101,
+        page_code: 'douyin_life_private_message',
+        page_name: '抖音私信',
+        url: 'https://life.douyin.com/cs/web/clue_private_message/chat/session',
+        detect_hosts: ['life.douyin.com/cs/web/clue_private_message/chat/session'],
+        sort_order: 1,
+      },
+      {
+        id: 102,
+        page_code: 'douyin_feige',
+        page_name: '飞鸽',
+        url: 'https://im.jinritemai.com',
+        detect_hosts: ['im.jinritemai.com'],
+        sort_order: 2,
+      },
+    ],
+  }]
+}
+
+async function loadCloudConfig(platform) {
+  const state = await getStatus()
+  const platforms = state.platforms || []
+  const grant = platforms.find(item => item.platform === platform)
+  if (!grant || !grant.id) return { ok: true, data: {} }
+  const json = await authFetch('/api/configs/' + grant.id + '/' + encodeURIComponent(platform))
+  return { ok: true, data: (json.data && json.data.config_json) || {} }
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const action = message && message.action
   ;(async () => {
@@ -85,6 +163,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return { ok: true }
     }
     if (action === 'REFRESH_AUTH') return refreshAuth()
+    if (action === 'LOAD_PLATFORM_DEFINITIONS') return loadPlatformDefinitions()
+    if (action === 'LOAD_CLOUD_CONFIG') return loadCloudConfig(message.platform)
+    if (action === 'SAVE_CLOUD_CONFIG') return { ok: true }
+    if (action === 'START_PLATFORM') {
+      await storageSet({ runningPlatform: message.platform || '' })
+      return { ok: true }
+    }
+    if (action === 'STOP_PLATFORM') {
+      await storageSet({ runningPlatform: '' })
+      return { ok: true }
+    }
     if (action === 'APPEND_LOG') {
       await appendLog(message.message, message.level)
       return { ok: true }
