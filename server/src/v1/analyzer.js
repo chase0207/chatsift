@@ -122,6 +122,7 @@ async function persist(ctx) {
          intent_source = ?,
          current_stage = ?,
          completeness_score = ?,
+         field_validity = ?,
          analyzed_at = NOW()
      WHERE id = ? AND tenant_id = ?`,
     [
@@ -130,6 +131,7 @@ async function persist(ctx) {
       ctx.intent.source,
       ctx.goal ? ctx.goal.stage : 'new',
       ctx.completeness ? ctx.completeness.score : 0,
+      ctx.completeness ? JSON.stringify(ctx.completeness.field_validity || {}) : null,
       ctx.conversationId,
       ctx.tenantId,
     ]

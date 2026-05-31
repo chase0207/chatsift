@@ -1,9 +1,10 @@
 const rules = require('./business-rules')
 const llmClient = require('./llm-client')
+const validityChecker = require('./validity-checker')
 
 async function evaluate(tenantId, intent, contextMessages) {
   if (intent !== 'appointment' && intent !== 'price_inquiry') {
-    return { score: 0, fields: {}, missing: [] }
+    return { score: 0, fields: {}, field_validity: {}, missing: [] }
   }
 
   const text = (contextMessages || [])
@@ -24,11 +25,14 @@ async function evaluate(tenantId, intent, contextMessages) {
   const missing = required.filter((key) => !fields[key])
   const extracted = await llmExtract(tenantId, text, missing)
   Object.assign(fields, extracted)
-  const finalMissing = required.filter((key) => !fields[key])
+  const pickedFields = pickFields(fields, required)
+  const fieldValidity = await validityChecker.checkValidity(tenantId, pickedFields, required)
+  const finalMissing = required.filter((key) => fieldValidity?.[key]?.status !== 'valid')
 
   return {
-    score: Math.round(((required.length - finalMissing.length) / required.length) * 100),
-    fields: pickFields(fields, required),
+    score: Math.round((validityChecker.validCount(fieldValidity, required) / required.length) * 100),
+    fields: pickedFields,
+    field_validity: fieldValidity,
     missing: finalMissing,
   }
 }
@@ -71,6 +75,9 @@ function extractCity(text) {
 function extractTime(text) {
   const patterns = [
     /(?:时间|用车时间|预约时间)[：:\s]*([^\n,，。;；]{2,30})/,
+    /((?:今天|明天|后天|这周末|本周末|周末|(?:这|本|下)?周[一二三四五六日天])(?:上午|下午|晚上)?\d{1,2}点(?:半)?)/,
+    /(\d{1,2}月\d{1,2}[号日](?:上午|下午|晚上)?\d{1,2}点(?:半)?)/,
+    /(改天|有空|再说|最近|以后|回头|方便时)/,
     /(这周末|本周末|周末|明天|后天|今天|今晚|上午|下午|晚上)/,
     /((?:这|本|下)?周[一二三四五六日天](?:上午|下午|晚上)?)/,
     /(\d{1,2}月\d{1,2}[号日](?:上午|下午|晚上)?)/,

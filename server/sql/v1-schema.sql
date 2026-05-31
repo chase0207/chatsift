@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS conversations (
   intent_source            VARCHAR(16)  DEFAULT NULL          COMMENT 'rule/llm/default',
   current_stage            VARCHAR(32)  DEFAULT 'new'         COMMENT '推进阶段:new/collecting/completing/done',
   completeness_score       TINYINT UNSIGNED DEFAULT 0         COMMENT '完整度评分 0-100',
+  field_validity           JSON         DEFAULT NULL           COMMENT '各字段有效性 valid/invalid/unknown及原因',
   message_count            INT UNSIGNED DEFAULT 0             COMMENT '消息总数(冗余,加速列表)',
   last_message_at          DATETIME     DEFAULT NULL          COMMENT '最后一条消息时间',
   last_inbound_at          DATETIME     DEFAULT NULL          COMMENT '最后一条用户消息时间(判断待回复)',

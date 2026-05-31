@@ -1,5 +1,11 @@
 const pool = require('../../config/db')
 const { ok, fail, tenantId } = require('./_shared')
+const rules = require('../../v1/business-rules')
+
+const contactValidSql = "JSON_UNQUOTE(JSON_EXTRACT(c.field_validity, '$.contact.status')) = 'valid'"
+const appointmentValidSql = rules.appointmentFields
+  .map((field) => `JSON_UNQUOTE(JSON_EXTRACT(c.field_validity, '$.${field}.status')) = 'valid'`)
+  .join(' AND ')
 
 function buildConversationScope(req, alias = 'c') {
   const params = [tenantId(req)]
@@ -39,11 +45,10 @@ async function funnel(req, res) {
       `SELECT
          COUNT(DISTINCT c.id) AS inquiry,
          COUNT(DISTINCT CASE
-           WHEN COALESCE(l.customer_phone, '') <> '' OR COALESCE(l.customer_wechat, '') <> '' THEN c.id
+           WHEN ${contactValidSql} THEN c.id
          END) AS lead_count,
-         COUNT(DISTINCT CASE WHEN c.intent_label = 'appointment' THEN c.id END) AS appointment
+         COUNT(DISTINCT CASE WHEN ${appointmentValidSql} THEN c.id END) AS appointment
        FROM conversations c
-       LEFT JOIN leads l ON l.tenant_id = c.tenant_id AND l.primary_conversation_id = c.id
        ${scope.where}`,
       scope.params
     )
@@ -101,11 +106,10 @@ async function byPage(req, res) {
          COALESCE(c.platform_page, 'unknown') AS platform_page,
          COUNT(DISTINCT c.id) AS inquiry,
          COUNT(DISTINCT CASE
-           WHEN COALESCE(l.customer_phone, '') <> '' OR COALESCE(l.customer_wechat, '') <> '' THEN c.id
+           WHEN ${contactValidSql} THEN c.id
          END) AS lead_count,
-         COUNT(DISTINCT CASE WHEN c.intent_label = 'appointment' THEN c.id END) AS appointment
+         COUNT(DISTINCT CASE WHEN ${appointmentValidSql} THEN c.id END) AS appointment
        FROM conversations c
-       LEFT JOIN leads l ON l.tenant_id = c.tenant_id AND l.primary_conversation_id = c.id
        ${scope.where}
        GROUP BY COALESCE(c.platform_page, 'unknown')
        ORDER BY inquiry DESC`,
@@ -126,11 +130,10 @@ async function trend(req, res) {
          DATE_FORMAT(c.created_at, '%Y-%m-%d') AS date,
          COUNT(DISTINCT c.id) AS inquiry,
          COUNT(DISTINCT CASE
-           WHEN COALESCE(l.customer_phone, '') <> '' OR COALESCE(l.customer_wechat, '') <> '' THEN c.id
+           WHEN ${contactValidSql} THEN c.id
          END) AS lead_count,
-         COUNT(DISTINCT CASE WHEN c.intent_label = 'appointment' THEN c.id END) AS appointment
+         COUNT(DISTINCT CASE WHEN ${appointmentValidSql} THEN c.id END) AS appointment
        FROM conversations c
-       LEFT JOIN leads l ON l.tenant_id = c.tenant_id AND l.primary_conversation_id = c.id
        ${scope.where}
        GROUP BY DATE_FORMAT(c.created_at, '%Y-%m-%d')
        ORDER BY date ASC`,
