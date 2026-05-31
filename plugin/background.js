@@ -156,6 +156,62 @@ async function loadCloudConfig(platform) {
   return { ok: true, data: (json.data && json.data.config_json) || {} }
 }
 
+function normalizeDetectFragment(value) {
+  return String(value || '')
+    .trim()
+    .replace(/^https?:\/\//i, '')
+    .replace(/^www\./i, '')
+    .replace(/\/$/, '')
+}
+
+function collectDetectHosts(platformDef) {
+  const hosts = Array.isArray(platformDef && platformDef.detect_hosts) ? platformDef.detect_hosts.slice() : []
+  const pages = Array.isArray(platformDef && platformDef.pages) ? platformDef.pages : []
+  pages.forEach(page => {
+    ;(Array.isArray(page.detect_hosts) ? page.detect_hosts : []).forEach(host => {
+      if (host && hosts.indexOf(host) === -1) hosts.push(host)
+    })
+    if (page && page.url && hosts.indexOf(page.url) === -1) hosts.push(page.url)
+  })
+  return hosts.map(normalizeDetectFragment).filter(Boolean)
+}
+
+async function reloadMatchedPlatformTabs(message) {
+  const stored = await storageGet(['platformDefinitions'])
+  const platformDefinitions = Array.isArray(stored.platformDefinitions) ? stored.platformDefinitions : fallbackPlatformDefinitions()
+  let platformDef = platformDefinitions.find(item => {
+    const key = item.key || item.platform_code || item.platform_key || item.runtime_key
+    return key === message.platform
+  })
+  if (!platformDef) {
+    platformDef = fallbackPlatformDefinitions().find(item => {
+      const key = item.key || item.platform_code || item.platform_key || item.runtime_key
+      return key === message.platform
+    })
+  }
+  const hosts = collectDetectHosts(platformDef)
+  const shouldReload = url => {
+    const normalizedUrl = normalizeDetectFragment(url)
+    return hosts.some(host => normalizedUrl.indexOf(host) !== -1)
+  }
+  const matched = []
+
+  if (message.tabId && shouldReload(message.pageUrl || '')) {
+    matched.push(message.tabId)
+  } else {
+    const tabs = await chrome.tabs.query({})
+    tabs.forEach(tab => {
+      if (tab.id && shouldReload(tab.url || '')) matched.push(tab.id)
+    })
+  }
+
+  const uniqueIds = Array.from(new Set(matched))
+  for (const tabId of uniqueIds) {
+    try { await chrome.tabs.reload(tabId) } catch (_) {}
+  }
+  return uniqueIds.length
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const action = message && message.action
   ;(async () => {
@@ -175,10 +231,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         runningPlatform: message.platform || '',
         collector_v1_enabled: true,
       })
-      if (message.tabId) {
+      let reloaded = 0
+      if (message.reloadAfterStart) {
+        reloaded = await reloadMatchedPlatformTabs(message)
+      }
+      if (!reloaded && message.tabId) {
         try { await chrome.tabs.sendMessage(message.tabId, { action: 'START_COLLECTOR' }) } catch (_) {}
       }
-      await appendLog('W4 采集已启动', 'success')
+      await appendLog(reloaded ? 'W4 采集已启动,已自动刷新目标页面' : 'W4 采集已启动', 'success')
       return { ok: true }
     }
     if (action === 'STOP_PLATFORM') {

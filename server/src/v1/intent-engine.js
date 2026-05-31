@@ -7,6 +7,8 @@ async function classify(tenantId, messages) {
   const text = (messages || []).filter(Boolean).join('\n')
   if (!text.trim()) return llmFallback(tenantId, text)
 
+  if (matchesComplaint(text)) return { label: 'complaint', confidence: 0.9, source: 'rule' }
+
   const structuredIntent = classifyStructuredAppointment(text)
   if (structuredIntent) return structuredIntent
 
@@ -25,6 +27,10 @@ async function classify(tenantId, messages) {
   }
 
   return llmFallback(tenantId, text)
+}
+
+function matchesComplaint(text) {
+  return /(投诉|售后|退款|差评|举报|不满意|太差|垃圾|骗)/.test(text)
 }
 
 function classifyStructuredAppointment(text) {
@@ -103,4 +109,4 @@ function parseIntentLabel(text) {
   return VALID_INTENTS.find((label) => value.includes(label)) || 'simple_inquiry'
 }
 
-module.exports = { classify, llmFallback, parseIntentLabel, classifyStructuredAppointment }
+module.exports = { classify, llmFallback, parseIntentLabel, classifyStructuredAppointment, matchesComplaint }
