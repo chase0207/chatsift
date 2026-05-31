@@ -101,8 +101,7 @@ function extractContact(text) {
 
 function extractPickupLocation(text) {
   const patterns = [
-    /上车(?:位置|地点)?[：:\s]*([^\n,，。;；]{2,50})/,
-    /(?:地址|位置)[：:\s]*([^\n,，。;；]{2,50})/,
+    /(?:上车位置|上车地点|地址|位置|地点)[：:\s]*([^\n,，。;；]{2,80})/,
     /在([^\n,，。;；]{2,50})(?:接|上车)/,
   ]
   for (const pattern of patterns) {
@@ -113,7 +112,13 @@ function extractPickupLocation(text) {
 }
 
 function extractCarType(text) {
-  const carTypes = envList('COMPLETENESS_CAR_TYPE_LIST', '轿车,SUV,商务车,七座,七座车,MPV,新能源,电车,油车')
+  const labeled = text.match(/(?:车型|车款|车辆)[：:\s]*([^\n,，。;；]{2,40})/)
+  if (labeled) return cleanValue(labeled[1])
+
+  const carTypes = envList(
+    'COMPLETENESS_CAR_TYPE_LIST',
+    '轿车,SUV,商务车,七座,七座车,MPV,新能源,电车,油车,特斯拉,modelY,ModelY,Model Y,model3,Model3,Model 3'
+  )
   return carTypes.find((item) => text.includes(item)) || null
 }
 

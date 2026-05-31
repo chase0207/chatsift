@@ -7,6 +7,9 @@ async function classify(tenantId, messages) {
   const text = (messages || []).filter(Boolean).join('\n')
   if (!text.trim()) return llmFallback(tenantId, text)
 
+  const structuredIntent = classifyStructuredAppointment(text)
+  if (structuredIntent) return structuredIntent
+
   const [rules] = await db.query(
     `SELECT id, tenant_id, intent_label, rule_type, pattern, priority
      FROM intent_rules
@@ -22,6 +25,21 @@ async function classify(tenantId, messages) {
   }
 
   return llmFallback(tenantId, text)
+}
+
+function classifyStructuredAppointment(text) {
+  const fields = ['姓名', '手机', '电话', '联系方式', '时间', '用车时间', '预约时间', '车型', '城市', '地点', '上车位置']
+  const fieldCount = fields.filter((field) => text.includes(field)).length
+  if (fieldCount >= 3) return { label: 'appointment', confidence: 0.92, source: 'rule' }
+
+  if (
+    /(想约|预约|约车|下单|留资|留个信息)/.test(text) &&
+    /(今天|明天|后天|上午|下午|晚上|\d{1,2}点|\d{1,2}月\d{1,2}[号日])/.test(text)
+  ) {
+    return { label: 'appointment', confidence: 0.9, source: 'rule' }
+  }
+
+  return null
 }
 
 function matchesRule(rule, text) {
@@ -85,4 +103,4 @@ function parseIntentLabel(text) {
   return VALID_INTENTS.find((label) => value.includes(label)) || 'simple_inquiry'
 }
 
-module.exports = { classify, llmFallback, parseIntentLabel }
+module.exports = { classify, llmFallback, parseIntentLabel, classifyStructuredAppointment }

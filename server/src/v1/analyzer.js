@@ -12,7 +12,7 @@ let stopping = false
 const POLL_INTERVAL = parseInt(process.env.ANALYZER_POLL_INTERVAL, 10) || 1000
 const BATCH_SIZE = parseInt(process.env.ANALYZER_BATCH_SIZE, 10) || 20
 const MAX_ATTEMPTS = parseInt(process.env.ANALYZER_MAX_ATTEMPTS, 10) || 3
-const CONTEXT_SIZE = parseInt(process.env.INTENT_CONTEXT_SIZE, 10) || 5
+const CONTEXT_SIZE = parseInt(process.env.INTENT_CONTEXT_SIZE, 10) || 20
 
 const pipeline = [
   intentStage,
