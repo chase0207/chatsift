@@ -28,7 +28,7 @@ async function completenessStage(ctx) {
   ctx.completeness = await completenessEngine.evaluate(
     ctx.tenantId,
     ctx.intent.label,
-    ctx.contextMessages
+    ctx.completenessMessages
   )
 }
 
@@ -75,6 +75,16 @@ async function buildContext(job) {
   )
   const contextMessages = contextRows.reverse()
 
+  const [completenessRows] = await db.query(
+    `SELECT id, direction, sender_nickname, content_type, content_text, content_url,
+            DATE_FORMAT(occurred_at, '%Y-%m-%d %H:%i:%s') AS occurred_at
+     FROM messages
+     WHERE tenant_id = ? AND conversation_id = ? AND direction = 'inbound' AND content_text IS NOT NULL
+     ORDER BY occurred_at ASC, id ASC
+     LIMIT 500`,
+    [job.tenant_id, job.conversation_id]
+  )
+
   const [conversations] = await db.query(
     `SELECT id, tenant_id, platform, platform_page, platform_conversation_id,
             customer_nickname, customer_platform_uid, current_stage, completeness_score
@@ -91,6 +101,7 @@ async function buildContext(job) {
     message,
     conversation: conversations[0] || {},
     contextMessages,
+    completenessMessages: completenessRows,
     contextTexts: contextMessages.map((row) => row.content_text).filter(Boolean),
     skip: false,
   }

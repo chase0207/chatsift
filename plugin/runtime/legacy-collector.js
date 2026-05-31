@@ -16,10 +16,6 @@
   var _collecting = false
   var _debounce = null
 
-  function _param(name) {
-    try { return new URL(location.href).searchParams.get(name) || '' } catch (_) { return '' }
-  }
-
   function _readNickname(adapter) {
     var ctx = adapter && adapter.buildRuntimeContext ? adapter.buildRuntimeContext() : {}
     return ctx.sessionTitle ||
@@ -34,13 +30,12 @@
 
   function _buildSessionInfo(adapter) {
     var nickname = _readNickname(adapter)
-    var avatar = (Dom.queryFirst(['div[class*="userInfo"] img', 'div[class*="msgTitle"] img']) || {}).src || ''
     var pageKey = adapter && adapter.pageKey ? adapter.pageKey : 'douyin'
-    var seed = [pageKey, nickname, avatar, _param('conGroupId'), _param('lifeAccountId'), _param('accountId')].join('|')
+    if (!nickname || nickname === 'unknown') return null
+    var seed = [pageKey, nickname].join('|')
     return {
       conversationId: 'douyin_' + pageKey.replace(/[^a-z0-9]+/ig, '_') + '_' + Dom.simpleHash(seed),
       nickname: nickname,
-      avatar: avatar || null,
       pageKey: pageKey,
     }
   }
@@ -55,7 +50,12 @@
       Logger.warn && Logger.warn('LegacyCollector', 'adapter missing collector methods', adapter.adapterKey)
       return { ok: false, reason: 'adapter-method-missing' }
     }
-    var info = Object.assign(_buildSessionInfo(adapter), sessionInfo || {})
+    var baseInfo = _buildSessionInfo(adapter)
+    if (!baseInfo) {
+      Logger.warn && Logger.warn('LegacyCollector', 'skip collect: nickname missing')
+      return { ok: false, reason: 'nickname-missing' }
+    }
+    var info = Object.assign(baseInfo, sessionInfo || {})
     var rawMessages = await adapter.getMessages(info)
     var events = (rawMessages || [])
       .map(function (m) { return adapter.toConversationEvent(m, info) })

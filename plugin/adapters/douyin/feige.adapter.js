@@ -203,7 +203,9 @@
     var direction = (normalized && normalized.direction) || rawMsg.direction || 'inbound'
     var content = rawMsg.content || rawMsg.text || ''
     var occurredAt = _normalizeOccurredAt(rawMsg.timestamp || rawMsg.time || rawMsg.occurred_at)
-    var conversationId = sessionInfo.conversationId || sessionInfo.conversation_id || sessionInfo.session_id || 'douyin-feige-' + Dom.simpleHash(sessionInfo.nickname || location.href)
+    var fallbackName = sessionInfo.nickname || ''
+    if (!fallbackName || fallbackName === 'unknown') return null
+    var conversationId = sessionInfo.conversationId || sessionInfo.conversation_id || sessionInfo.session_id || 'douyin-feige-' + Dom.simpleHash(fallbackName)
     return {
       platform: 'douyin',
       platform_page: 'feige',
