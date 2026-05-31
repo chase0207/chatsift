@@ -17,6 +17,11 @@
             <el-option v-for="item in stageOptions" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
+        <el-form-item label="诊断">
+          <el-select v-model="filters.diagnosis_color" clearable placeholder="全部诊断" style="width:150px">
+            <el-option v-for="item in diagnosisOptions" :key="item.value" :label="item.label" :value="item.value" />
+          </el-select>
+        </el-form-item>
         <el-form-item>
           <el-input
             v-model="filters.keyword"
@@ -68,10 +73,29 @@
             <el-progress :percentage="Number(row.completeness_score || 0)" :stroke-width="8" />
           </template>
         </el-table-column>
+        <el-table-column label="诊断" min-width="220">
+          <template #default="{ row }">
+            <div class="diagnosis-cell">
+              <el-tag size="small" :type="diagnosisMain(row)">{{ diagnosisText[diagnosisMain(row)] }}</el-tag>
+              <el-space wrap :size="4">
+                <el-tag
+                  v-for="tag in diagnosisTags(row).slice(0, 3)"
+                  :key="`${tag.field}-${tag.label}`"
+                  size="small"
+                  effect="plain"
+                  :type="tag.color"
+                >
+                  {{ tag.label }}
+                </el-tag>
+              </el-space>
+            </div>
+          </template>
+        </el-table-column>
         <el-table-column prop="message_count" label="消息数" width="90" align="center" />
         <el-table-column prop="last_message_at" label="最后消息时间" width="170" />
-        <el-table-column label="操作" width="90" fixed="right">
+        <el-table-column label="操作" width="140" fixed="right">
           <template #default="{ row }">
+            <el-button type="primary" link size="small" @click="openMessages(row)">看记录</el-button>
             <el-button type="primary" link size="small" @click="goDetail(row)">查看</el-button>
           </template>
         </el-table-column>
@@ -89,6 +113,8 @@
         />
       </div>
     </el-card>
+
+    <MessageDrawer v-model="messageDrawerVisible" :conversation-id="activeConversationId" />
   </div>
 </template>
 
@@ -97,7 +123,9 @@ import { reactive, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import MessageDrawer from '../components/MessageDrawer.vue'
 import { listConversations } from '../api/conversations'
+import { diagnosisMain, diagnosisOptions, diagnosisTags, diagnosisText } from '../utils/diagnosis'
 
 const router = useRouter()
 const loading = ref(false)
@@ -105,11 +133,14 @@ const tableData = ref([])
 const total = ref(0)
 const page = ref(1)
 const pageSize = ref(20)
+const messageDrawerVisible = ref(false)
+const activeConversationId = ref(null)
 
 const filters = reactive({
   platform: '',
   intent_label: '',
   current_stage: '',
+  diagnosis_color: '',
   keyword: '',
 })
 
@@ -175,13 +206,18 @@ function handleSearch() {
 }
 
 function handleReset() {
-  Object.assign(filters, { platform: '', intent_label: '', current_stage: '', keyword: '' })
+  Object.assign(filters, { platform: '', intent_label: '', current_stage: '', diagnosis_color: '', keyword: '' })
   page.value = 1
   fetchList()
 }
 
 function goDetail(row) {
   router.push(`/conversations/${row.id}`)
+}
+
+function openMessages(row) {
+  activeConversationId.value = row.id
+  messageDrawerVisible.value = true
 }
 
 onMounted(fetchList)
@@ -192,4 +228,5 @@ onMounted(fetchList)
 .filter-form { display: flex; flex-wrap: wrap; gap: 0 4px; }
 .filter-form :deep(.el-form-item) { margin-bottom: 0; }
 .pagination { display: flex; justify-content: flex-end; margin-top: 16px; }
+.diagnosis-cell { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 </style>

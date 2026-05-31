@@ -1,5 +1,6 @@
 const pool = require('../../config/db')
 const { ok, fail, tenantId, paging, dateRange, parseJsonField } = require('./_shared')
+const { buildDiagnosis } = require('../../v1/diagnosis')
 
 async function list(req, res) {
   const tenant = tenantId(req)
@@ -23,11 +24,32 @@ async function list(req, res) {
   }
 
   try {
+    if (req.query.diagnosis_color) {
+      const [allRows] = await pool.query(
+        `SELECT c.id, c.platform, c.platform_page, c.customer_nickname, c.customer_platform_uid,
+                c.intent_label, c.intent_confidence, c.intent_source, c.current_stage,
+                c.completeness_score, c.field_validity, c.message_count,
+                DATE_FORMAT(c.last_message_at, '%Y-%m-%d %H:%i:%s') AS last_message_at,
+                DATE_FORMAT(c.last_inbound_at, '%Y-%m-%d %H:%i:%s') AS last_inbound_at,
+                DATE_FORMAT(c.created_at, '%Y-%m-%d %H:%i:%s') AS created_at
+         FROM conversations c ${where}
+         ORDER BY c.last_message_at DESC, c.id DESC`,
+        params
+      )
+      const filtered = withDiagnosis(allRows).filter((row) => row.diagnosis.mainColor === req.query.diagnosis_color)
+      return ok(res, {
+        list: filtered.slice(offset, offset + pageSize),
+        total: filtered.length,
+        page,
+        page_size: pageSize,
+      })
+    }
+
     const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM conversations c ${where}`, params)
     const [rows] = await pool.query(
       `SELECT c.id, c.platform, c.platform_page, c.customer_nickname, c.customer_platform_uid,
               c.intent_label, c.intent_confidence, c.intent_source, c.current_stage,
-              c.completeness_score, c.message_count,
+              c.completeness_score, c.field_validity, c.message_count,
               DATE_FORMAT(c.last_message_at, '%Y-%m-%d %H:%i:%s') AS last_message_at,
               DATE_FORMAT(c.last_inbound_at, '%Y-%m-%d %H:%i:%s') AS last_inbound_at,
               DATE_FORMAT(c.created_at, '%Y-%m-%d %H:%i:%s') AS created_at
@@ -36,7 +58,7 @@ async function list(req, res) {
        LIMIT ? OFFSET ?`,
       [...params, pageSize, offset]
     )
-    ok(res, { list: rows, total, page, page_size: pageSize })
+    ok(res, { list: withDiagnosis(rows), total, page, page_size: pageSize })
   } catch (err) {
     console.error('[v1.conversations.list]', err)
     fail(res, 500, 5000, '服务器内部错误')
@@ -59,7 +81,15 @@ async function detail(req, res) {
       'SELECT id FROM workorders WHERE tenant_id = ? AND conversation_id = ? ORDER BY id DESC',
       [tenant, req.params.id]
     )
-    ok(res, { ...rows[0], workorder_ids: workorders.map((row) => row.id) })
+    const conversation = {
+      ...rows[0],
+      field_validity: parseJsonField(rows[0].field_validity, {}),
+    }
+    ok(res, {
+      ...conversation,
+      diagnosis: buildDiagnosis(conversation),
+      workorder_ids: workorders.map((row) => row.id),
+    })
   } catch (err) {
     console.error('[v1.conversations.detail]', err)
     fail(res, 500, 5000, '服务器内部错误')
@@ -93,6 +123,14 @@ async function messages(req, res) {
     console.error('[v1.conversations.messages]', err)
     fail(res, 500, 5000, '服务器内部错误')
   }
+}
+
+function withDiagnosis(rows) {
+  return rows.map((row) => {
+    const fieldValidity = parseJsonField(row.field_validity, {})
+    const conversation = { ...row, field_validity: fieldValidity }
+    return { ...conversation, diagnosis: buildDiagnosis(conversation) }
+  })
 }
 
 module.exports = { list, detail, messages }

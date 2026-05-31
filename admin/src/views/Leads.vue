@@ -15,6 +15,11 @@
         <el-form-item label="城市">
           <el-input v-model="filters.city" clearable placeholder="城市" style="width:120px" />
         </el-form-item>
+        <el-form-item label="诊断">
+          <el-select v-model="filters.diagnosis_color" clearable placeholder="全部诊断" style="width:150px">
+            <el-option v-for="item in diagnosisOptions" :key="item.value" :label="item.label" :value="item.value" />
+          </el-select>
+        </el-form-item>
         <el-form-item>
           <el-input
             v-model="filters.keyword"
@@ -76,11 +81,30 @@
             </el-select>
           </template>
         </el-table-column>
+        <el-table-column label="诊断" min-width="220">
+          <template #default="{ row }">
+            <div class="diagnosis-cell">
+              <el-tag size="small" :type="diagnosisMain(row)">{{ diagnosisText[diagnosisMain(row)] }}</el-tag>
+              <el-space wrap :size="4">
+                <el-tag
+                  v-for="tag in diagnosisTags(row).slice(0, 3)"
+                  :key="`${tag.field}-${tag.label}`"
+                  size="small"
+                  effect="plain"
+                  :type="tag.color"
+                >
+                  {{ tag.label }}
+                </el-tag>
+              </el-space>
+            </div>
+          </template>
+        </el-table-column>
         <el-table-column prop="last_followed_at" label="最近跟进" width="170">
           <template #default="{ row }">{{ row.last_followed_at || '-' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="90" fixed="right">
+        <el-table-column label="操作" width="140" fixed="right">
           <template #default="{ row }">
+            <el-button type="primary" link size="small" @click="openMessages(row)">看记录</el-button>
             <el-button type="primary" link size="small" @click="router.push(`/leads/${row.id}`)">查看</el-button>
           </template>
         </el-table-column>
@@ -98,6 +122,8 @@
         />
       </div>
     </el-card>
+
+    <MessageDrawer v-model="messageDrawerVisible" :conversation-id="activeConversationId" />
   </div>
 </template>
 
@@ -106,7 +132,9 @@ import { reactive, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import MessageDrawer from '../components/MessageDrawer.vue'
 import { listLeads, updateLead } from '../api/leads'
+import { diagnosisMain, diagnosisOptions, diagnosisTags, diagnosisText } from '../utils/diagnosis'
 
 const router = useRouter()
 const loading = ref(false)
@@ -114,11 +142,14 @@ const tableData = ref([])
 const total = ref(0)
 const page = ref(1)
 const pageSize = ref(20)
+const messageDrawerVisible = ref(false)
+const activeConversationId = ref(null)
 
 const filters = reactive({
   status: '',
   lead_level: '',
   city: '',
+  diagnosis_color: '',
   keyword: '',
 })
 
@@ -178,7 +209,7 @@ function handleSearch() {
 }
 
 function handleReset() {
-  Object.assign(filters, { status: '', lead_level: '', city: '', keyword: '' })
+  Object.assign(filters, { status: '', lead_level: '', city: '', diagnosis_color: '', keyword: '' })
   page.value = 1
   fetchList()
 }
@@ -194,6 +225,11 @@ async function changeStatus(row) {
   }
 }
 
+function openMessages(row) {
+  activeConversationId.value = row.primary_conversation_id
+  messageDrawerVisible.value = true
+}
+
 onMounted(fetchList)
 </script>
 
@@ -204,4 +240,5 @@ onMounted(fetchList)
 .pagination { display: flex; justify-content: flex-end; margin-top: 16px; }
 .customer-cell { display: flex; flex-direction: column; gap: 2px; }
 .customer-name { font-weight: 600; color: var(--rpa-ink, #0f172a); }
+.diagnosis-cell { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 </style>

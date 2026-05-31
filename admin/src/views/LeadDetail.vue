@@ -35,6 +35,32 @@
 
     <el-card shadow="never" style="margin-top:16px">
       <template #header>
+        <span style="font-weight:600">字段诊断</span>
+      </template>
+      <el-space wrap style="margin-bottom:12px">
+        <el-tag
+          v-for="tag in diagnosisTags(conversation || lead)"
+          :key="`${tag.field}-${tag.label}`"
+          :type="tag.color"
+          effect="plain"
+        >
+          {{ tag.label }}{{ tag.reason ? `：${tag.reason}` : '' }}
+        </el-tag>
+      </el-space>
+      <el-table :data="fieldValidityRows(conversation?.field_validity || {})" stripe>
+        <el-table-column prop="label" label="字段" width="120" />
+        <el-table-column prop="value" label="字段值" min-width="180" />
+        <el-table-column label="状态" width="120">
+          <template #default="{ row }">
+            <el-tag size="small" :type="statusType(row.status)">{{ statusLabel(row.status) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="reason" label="理由" min-width="220" />
+      </el-table>
+    </el-card>
+
+    <el-card shadow="never" style="margin-top:16px">
+      <template #header>
         <span style="font-weight:600">跟进状态</span>
       </template>
       <el-form :model="form" label-width="90px" class="profile-form">
@@ -107,6 +133,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { convertLead, getLead, updateLead } from '../api/leads'
+import { diagnosisTags, fieldValidityRows, statusLabel, statusType } from '../utils/diagnosis'
 
 const route = useRoute()
 const router = useRouter()

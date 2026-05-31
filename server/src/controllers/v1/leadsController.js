@@ -1,38 +1,47 @@
 const pool = require('../../config/db')
 const { ok, fail, tenantId, paging, jsonValue, parseJsonField } = require('./_shared')
+const { buildDiagnosis } = require('../../v1/diagnosis')
 
 async function list(req, res) {
   const tenant = tenantId(req)
   const { page, pageSize, offset } = paging(req.query)
   const params = [tenant]
-  let where = 'WHERE tenant_id = ?'
+  let where = 'WHERE l.tenant_id = ?'
 
   for (const key of ['status', 'lead_level', 'assigned_to', 'city']) {
     if (req.query[key]) {
-      where += ` AND ${key} = ?`
+      where += ` AND l.${key} = ?`
       params.push(req.query[key])
     }
   }
   if (req.query.keyword) {
-    where += ' AND (customer_nickname LIKE ? OR customer_name LIKE ? OR customer_phone LIKE ? OR customer_wechat LIKE ?)'
+    where += ' AND (l.customer_nickname LIKE ? OR l.customer_name LIKE ? OR l.customer_phone LIKE ? OR l.customer_wechat LIKE ?)'
     const keyword = `%${req.query.keyword}%`
     params.push(keyword, keyword, keyword, keyword)
   }
 
   try {
-    const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM leads ${where}`, params)
+    if (req.query.diagnosis_color) {
+      const [allRows] = await pool.query(`${leadListSql()} ${where} ORDER BY l.id DESC`, params)
+      const filtered = withDiagnosis(allRows).filter((row) => row.diagnosis.mainColor === req.query.diagnosis_color)
+      return ok(res, {
+        list: filtered.slice(offset, offset + pageSize),
+        total: filtered.length,
+        page,
+        page_size: pageSize,
+      })
+    }
+
+    const [[{ total }]] = await pool.query(
+      `SELECT COUNT(*) AS total FROM leads l LEFT JOIN conversations c ON c.tenant_id = l.tenant_id AND c.id = l.primary_conversation_id ${where}`,
+      params
+    )
     const [rows] = await pool.query(
-      `SELECT id, primary_conversation_id, customer_nickname, customer_name, customer_platform_uid, customer_phone,
-              customer_wechat, city, intent_label, lead_score, lead_level, tags, status,
-              assigned_to, DATE_FORMAT(last_followed_at, '%Y-%m-%d %H:%i:%s') AS last_followed_at,
-              DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at,
-              DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at
-       FROM leads ${where}
-       ORDER BY id DESC LIMIT ? OFFSET ?`,
+      `${leadListSql()} ${where} ORDER BY l.id DESC LIMIT ? OFFSET ?`,
       [...params, pageSize, offset]
     )
     ok(res, {
-      list: rows.map((row) => ({ ...row, tags: parseJsonField(row.tags, []) })),
+      list: withDiagnosis(rows),
       total,
       page,
       page_size: pageSize,
@@ -54,7 +63,7 @@ async function detail(req, res) {
     const [conversations] = await pool.query(
       `SELECT id, platform, platform_page, platform_conversation_id,
               customer_nickname, customer_platform_uid, intent_label, current_stage,
-              completeness_score, message_count,
+              completeness_score, field_validity, message_count,
               DATE_FORMAT(last_message_at, '%Y-%m-%d %H:%i:%s') AS last_message_at
        FROM conversations
        WHERE tenant_id = ? AND id = ?
@@ -70,9 +79,15 @@ async function detail(req, res) {
        ORDER BY id DESC`,
       [tenantId(req), lead.primary_conversation_id]
     )
+    const conversation = conversations[0]
+      ? { ...conversations[0], field_validity: parseJsonField(conversations[0].field_validity, {}) }
+      : null
     ok(res, {
-      lead,
-      conversation: conversations[0] || null,
+      lead: {
+        ...lead,
+        diagnosis: buildDiagnosis(conversation || lead),
+      },
+      conversation: conversation ? { ...conversation, diagnosis: buildDiagnosis(conversation) } : null,
       workorders: workorders.map((row) => ({
         ...row,
         missing_fields: parseJsonField(row.missing_fields, []),
@@ -82,6 +97,37 @@ async function detail(req, res) {
     console.error('[v1.leads.detail]', err)
     fail(res, 500, 5000, '服务器内部错误')
   }
+}
+
+function leadListSql() {
+  return `SELECT l.id, l.primary_conversation_id, l.customer_nickname, l.customer_name, l.customer_platform_uid,
+                 l.customer_phone, l.customer_wechat, l.city, l.intent_label, l.lead_score, l.lead_level,
+                 l.tags, l.status, l.assigned_to,
+                 c.platform AS conversation_platform,
+                 c.platform_page AS conversation_platform_page,
+                 c.field_validity AS conversation_field_validity,
+                 c.intent_label AS conversation_intent_label,
+                 DATE_FORMAT(l.last_followed_at, '%Y-%m-%d %H:%i:%s') AS last_followed_at,
+                 DATE_FORMAT(l.created_at, '%Y-%m-%d %H:%i:%s') AS created_at,
+                 DATE_FORMAT(l.updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at
+          FROM leads l
+          LEFT JOIN conversations c ON c.tenant_id = l.tenant_id AND c.id = l.primary_conversation_id`
+}
+
+function withDiagnosis(rows) {
+  return rows.map((row) => {
+    const tags = parseJsonField(row.tags, [])
+    const conversation = {
+      id: row.primary_conversation_id,
+      intent_label: row.conversation_intent_label || row.intent_label,
+      field_validity: parseJsonField(row.conversation_field_validity, {}),
+    }
+    return {
+      ...row,
+      tags,
+      diagnosis: buildDiagnosis(conversation),
+    }
+  })
 }
 
 async function update(req, res) {
