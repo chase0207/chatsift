@@ -1,4 +1,7 @@
 const db = require('../config/db')
+const llmClient = require('./llm-client')
+
+const VALID_INTENTS = ['simple_inquiry', 'appointment', 'complaint', 'price_inquiry']
 
 async function classify(tenantId, messages) {
   const text = (messages || []).filter(Boolean).join('\n')
@@ -44,7 +47,42 @@ function matchesRegex(pattern, text) {
 }
 
 async function llmFallback(tenantId, text) {
-  return { label: 'simple_inquiry', confidence: 0.5, source: 'default' }
+  if (!String(text || '').trim()) {
+    return { label: 'simple_inquiry', confidence: 0.5, source: 'default' }
+  }
+
+  const result = await llmClient.chat(tenantId, {
+    systemPrompt: [
+      '你是客服对话意图分类器。',
+      '把用户消息分到四类之一,只返回类别英文,不要解释。',
+      'simple_inquiry=简单咨询',
+      'appointment=预约下单/想约时间/询问是否有空位',
+      'complaint=投诉建议/退款/差评',
+      'price_inquiry=询问价格/费用/报价',
+    ].join('\n'),
+    userPrompt: text,
+    maxTokens: 20,
+  })
+
+  if (!result.ok) {
+    return {
+      label: 'simple_inquiry',
+      confidence: 0.5,
+      source: 'default',
+      degraded: result.error === 'quota_exceeded',
+    }
+  }
+
+  return {
+    label: parseIntentLabel(result.text),
+    confidence: 0.75,
+    source: 'llm',
+  }
 }
 
-module.exports = { classify, llmFallback }
+function parseIntentLabel(text) {
+  const value = String(text || '')
+  return VALID_INTENTS.find((label) => value.includes(label)) || 'simple_inquiry'
+}
+
+module.exports = { classify, llmFallback, parseIntentLabel }

@@ -1,6 +1,7 @@
 const rules = require('./business-rules')
+const llmClient = require('./llm-client')
 
-function evaluate(tenantId, intent, contextMessages) {
+async function evaluate(tenantId, intent, contextMessages) {
   if (intent !== 'appointment' && intent !== 'price_inquiry') {
     return { score: 0, fields: {}, missing: [] }
   }
@@ -21,11 +22,14 @@ function evaluate(tenantId, intent, contextMessages) {
 
   const required = intent === 'appointment' ? rules.appointmentFields : rules.priceFields
   const missing = required.filter((key) => !fields[key])
+  const extracted = await llmExtract(tenantId, text, missing)
+  Object.assign(fields, extracted)
+  const finalMissing = required.filter((key) => !fields[key])
 
   return {
-    score: Math.round(((required.length - missing.length) / required.length) * 100),
+    score: Math.round(((required.length - finalMissing.length) / required.length) * 100),
     fields: pickFields(fields, required),
-    missing,
+    missing: finalMissing,
   }
 }
 
@@ -120,8 +124,51 @@ function envList(key, fallback) {
     .filter(Boolean)
 }
 
-async function llmExtract(tenantId, text, requiredFields) {
-  return {}
+async function llmExtract(tenantId, text, missingFields) {
+  const fields = (missingFields || []).filter(Boolean)
+  if (!fields.length) return {}
+
+  const result = await llmClient.chat(tenantId, {
+    systemPrompt: [
+      '从租车客服对话里抽取字段,只返回 JSON,不要解释。',
+      `只抽取这些字段:${fields.join(',')}`,
+      '字段含义:name=姓名,city=城市,time=预约或用车时间,contact=电话或微信,pickup_location=上车位置,car_type=车型。',
+      '没有的信息填 null。',
+    ].join('\n'),
+    userPrompt: String(text || '').slice(-4000),
+    maxTokens: 200,
+  })
+  if (!result.ok) return {}
+
+  const parsed = parseJsonObject(result.text)
+  if (!parsed) return {}
+
+  return Object.fromEntries(
+    fields
+      .filter((key) => parsed[key] != null && String(parsed[key]).trim() !== '')
+      .map((key) => [key, String(parsed[key]).trim().slice(0, 128)])
+  )
 }
 
-module.exports = { evaluate, llmExtract }
+function parseJsonObject(text) {
+  const value = String(text || '').trim()
+  const jsonText = extractJsonText(value)
+  if (!jsonText) return null
+  try {
+    const parsed = JSON.parse(jsonText)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+function extractJsonText(text) {
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i)
+  if (fenced) return fenced[1].trim()
+  const start = text.indexOf('{')
+  const end = text.lastIndexOf('}')
+  if (start === -1 || end === -1 || end <= start) return null
+  return text.slice(start, end + 1)
+}
+
+module.exports = { evaluate, llmExtract, parseJsonObject }
