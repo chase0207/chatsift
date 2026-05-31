@@ -45,6 +45,36 @@
 
 ## 服务端验证
 
+### 真实 DeepSeek 调用
+
+Chase 在后台配置真实 key 后,GET `/api/v1/llm-config` 只返回脱敏值:
+
+```json
+{
+  "api_base": "https://api.deepseek.com",
+  "api_key": "sk-****afb2",
+  "model": "deepseek-chat",
+  "quota": 1000000,
+  "used": 0,
+  "enabled": 1
+}
+```
+
+规则未命中消息:
+
+```text
+请问这周末还有空位吗我想带孩子来体验一下
+```
+
+结果:
+
+```text
+token_used_before=0 token_used_after=204
+w8_real_llm intent_label=appointment intent_source=llm intent_confidence=0.75 current_stage=collecting completeness_score=17 job_status=done last_error=NULL
+```
+
+结论:真实 DeepSeek 调用成功,LLM 兜底能把隐含预约判成 `appointment`,并正确扣减 token。
+
 ### 规则命中不调 LLM
 
 输入:
@@ -61,6 +91,12 @@ w8_rule                 complaint    rule          0
 ```
 
 结论:规则命中时没有消耗 LLM token。
+
+真实 key 配置后再次验证规则命中:
+
+```text
+w8_real_rule intent_label=complaint intent_source=rule intent_confidence=0.90 job_status=done last_error=NULL
+```
 
 ### 错误 key 降级
 
@@ -105,6 +141,24 @@ monthly_token_used quota_reset_at
 
 结论:惰性月度重置生效。
 
+### completeness LLM 补漏
+
+输入:
+
+```text
+我想预约租车,我是刘思奇,在上海,电话13913972023,明天上午十点普陀区上车,想要一辆轿车
+```
+
+结果:
+
+```text
+token_used_before=204 token_used_after=321
+w8_real_extract intent_label=appointment intent_source=rule current_stage=done completeness_score=100 customer_name=刘思奇 phone=13913972023 lead_score=100 lead_level=high
+payload={"city":"上海","name":"刘思奇","time":"明天","contact":"13913972023","car_type":"轿车","pickup_location":"普陀区"}
+```
+
+结论:规则先命中 appointment,completeness 对缺失字段调用 LLM 补漏,最终 6 字段抽满。
+
 ### LLM 返回容错
 
 ```text
@@ -142,10 +196,6 @@ w8_reg_simple      inquiry     lead_id=9  pending
 - `npm run build` 通过。
 - `http://127.0.0.1:5173/settings/llm` 返回 200。
 - 构建仍有 Vite/Rolldown 第三方依赖 pure annotation 和大 chunk 警告,不影响本次编译。
-
-## 未执行项
-
-- 未做真实 DeepSeek 成功调用,因为本次没有真实 API key。后台配置页已就绪,需要 Chase 在 `/settings/llm` 填入真实 key 后再验 `intent_source=llm` 和 token 正常扣减。
 
 ## Git
 
