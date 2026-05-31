@@ -3,6 +3,7 @@ const intentEngine = require('./intent-engine')
 const completenessEngine = require('./completeness-engine')
 const goalEngine = require('./goal-engine')
 const workorderEngine = require('./workorder-engine')
+const leadEngine = require('./lead-engine')
 
 let timer = null
 let isProcessing = false
@@ -18,6 +19,7 @@ const pipeline = [
   completenessStage,
   goalStage,
   workorderStage,
+  leadStage,
 ]
 
 async function intentStage(ctx) {
@@ -38,6 +40,10 @@ async function goalStage(ctx) {
 
 async function workorderStage(ctx) {
   ctx.workorder = await workorderEngine.generate(ctx)
+}
+
+async function leadStage(ctx) {
+  ctx.lead = await leadEngine.upsert(ctx)
 }
 
 async function buildContext(job) {

@@ -24,6 +24,8 @@ const routes = [
       { path: 'menus',    name: 'Menus',    component: () => import('../views/Menus.vue') },
       { path: 'conversations', name: 'Conversations', component: () => import('../views/Conversations.vue'), meta: { title: '会话中心' } },
       { path: 'conversations/:id', name: 'ConversationDetail', component: () => import('../views/ConversationDetail.vue'), meta: { title: '会话详情' } },
+      { path: 'leads', name: 'Leads', component: () => import('../views/Leads.vue'), meta: { title: '线索中心' } },
+      { path: 'leads/:id', name: 'LeadDetail', component: () => import('../views/LeadDetail.vue'), meta: { title: '线索详情' } },
       { path: 'workorders', name: 'Workorders', component: () => import('../views/Workorders.vue'), meta: { title: '工单中心' } },
     ],
   },
@@ -67,6 +69,8 @@ var routePermMap = {
   Menus: 'menu:list',
   Conversations: 'conversation:list',
   ConversationDetail: 'conversation:list',
+  Leads: 'lead:manage',
+  LeadDetail: 'lead:manage',
   Workorders: 'workorder:handle',
 }
 

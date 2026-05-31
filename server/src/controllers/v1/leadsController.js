@@ -14,15 +14,15 @@ async function list(req, res) {
     }
   }
   if (req.query.keyword) {
-    where += ' AND (customer_nickname LIKE ? OR customer_phone LIKE ? OR customer_wechat LIKE ?)'
+    where += ' AND (customer_nickname LIKE ? OR customer_name LIKE ? OR customer_phone LIKE ? OR customer_wechat LIKE ?)'
     const keyword = `%${req.query.keyword}%`
-    params.push(keyword, keyword, keyword)
+    params.push(keyword, keyword, keyword, keyword)
   }
 
   try {
     const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM leads ${where}`, params)
     const [rows] = await pool.query(
-      `SELECT id, primary_conversation_id, customer_nickname, customer_platform_uid, customer_phone,
+      `SELECT id, primary_conversation_id, customer_nickname, customer_name, customer_platform_uid, customer_phone,
               customer_wechat, city, intent_label, lead_score, lead_level, tags, status,
               assigned_to, DATE_FORMAT(last_followed_at, '%Y-%m-%d %H:%i:%s') AS last_followed_at,
               DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at,
@@ -50,7 +50,34 @@ async function detail(req, res) {
       [tenantId(req), req.params.id]
     )
     if (!rows.length) return fail(res, 404, 2001, '线索不存在')
-    ok(res, { ...rows[0], tags: parseJsonField(rows[0].tags, []) })
+    const lead = { ...rows[0], tags: parseJsonField(rows[0].tags, []) }
+    const [conversations] = await pool.query(
+      `SELECT id, platform, platform_page, platform_conversation_id,
+              customer_nickname, customer_platform_uid, intent_label, current_stage,
+              completeness_score, message_count,
+              DATE_FORMAT(last_message_at, '%Y-%m-%d %H:%i:%s') AS last_message_at
+       FROM conversations
+       WHERE tenant_id = ? AND id = ?
+       LIMIT 1`,
+      [tenantId(req), lead.primary_conversation_id]
+    )
+    const [workorders] = await pool.query(
+      `SELECT id, conversation_id, workorder_type, title, completeness_score,
+              missing_fields, suggestion, priority, status,
+              DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at
+       FROM workorders
+       WHERE tenant_id = ? AND conversation_id = ?
+       ORDER BY id DESC`,
+      [tenantId(req), lead.primary_conversation_id]
+    )
+    ok(res, {
+      lead,
+      conversation: conversations[0] || null,
+      workorders: workorders.map((row) => ({
+        ...row,
+        missing_fields: parseJsonField(row.missing_fields, []),
+      })),
+    })
   } catch (err) {
     console.error('[v1.leads.detail]', err)
     fail(res, 500, 5000, '服务器内部错误')
@@ -62,6 +89,7 @@ async function update(req, res) {
     'status',
     'lead_level',
     'assigned_to',
+    'customer_name',
     'customer_phone',
     'customer_wechat',
     'city',

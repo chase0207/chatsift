@@ -98,7 +98,7 @@ async function buildPayload(ctx, type) {
 
   if (type === 'pricing') {
     const fields = { ...ctx.completeness.fields }
-    if (fields.city && fields.hours) {
+    if (fields.city && fields.car_type) {
       const quote = await findQuote(ctx.tenantId, fields)
       if (quote) fields.quote = quote
     }
@@ -119,27 +119,22 @@ async function buildPayload(ctx, type) {
 
 async function buildSuggestion(ctx, type, payload) {
   if (type !== 'pricing') return null
-  if (!payload.city || !payload.hours) return '缺少城市或课时,需人工报价'
+  if (!payload.city || !payload.car_type) return '缺少城市或车型,需人工报价'
   if (payload.quote) return `建议报价:${payload.quote.price}元`
   return '价格表无匹配,需人工报价'
 }
 
 async function findQuote(tenantId, fields) {
-  const params = [tenantId, fields.city, fields.hours]
-  let projectSql = ''
-  if (fields.project) {
-    projectSql = ' OR product_name LIKE ?'
-    params.push(`%${fields.project}%`)
-  }
+  const params = [tenantId, fields.city, `%${fields.car_type}%`, `%${fields.car_type}%`]
 
   const [rows] = await db.query(
     `SELECT id, city, product_name, hours, price, original_price, notes
      FROM price_table
      WHERE tenant_id = ? AND city = ? AND enabled = 1
-       AND (hours = ?${projectSql})
-     ORDER BY CASE WHEN hours = ? THEN 0 ELSE 1 END, id DESC
+       AND (product_name LIKE ? OR notes LIKE ?)
+     ORDER BY id DESC
      LIMIT 1`,
-    [...params, fields.hours]
+    params
   )
   return rows[0] || null
 }

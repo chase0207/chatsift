@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS leads (
   tenant_id            INT UNSIGNED NOT NULL,
   primary_conversation_id BIGINT UNSIGNED DEFAULT NULL        COMMENT '主会话(首次产生线索的会话)',
   customer_nickname    VARCHAR(128) DEFAULT NULL,
+  customer_name        VARCHAR(64)  DEFAULT NULL              COMMENT '客户真实姓名(预约留的,区别于抖音昵称)',
   customer_platform_uid VARCHAR(128) DEFAULT NULL             COMMENT '平台用户ID,合并依据',
   customer_phone       VARCHAR(32)  DEFAULT NULL,
   customer_wechat      VARCHAR(64)  DEFAULT NULL,
