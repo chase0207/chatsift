@@ -1,66 +1,196 @@
 const pool = require('../../config/db')
-const { ok, fail, tenantId, dateRange } = require('./_shared')
+const { ok, fail, tenantId } = require('./_shared')
+
+function buildConversationScope(req, alias = 'c') {
+  const params = [tenantId(req)]
+  const prefix = alias ? `${alias}.` : ''
+  let where = `WHERE ${prefix}tenant_id = ?`
+
+  const from = req.query.from || defaultFrom()
+  const to = req.query.to || defaultTo()
+  where += ` AND ${prefix}created_at >= ? AND ${prefix}created_at < DATE_ADD(?, INTERVAL 1 DAY)`
+  params.push(from, to)
+
+  if (req.query.platform_page) {
+    where += ` AND ${prefix}platform_page = ?`
+    params.push(req.query.platform_page)
+  }
+
+  return { where, params, from, to }
+}
+
+function buildLeadScope(req, alias = 'l') {
+  const params = [tenantId(req)]
+  const prefix = alias ? `${alias}.` : ''
+  let where = `WHERE ${prefix}tenant_id = ?`
+
+  const from = req.query.from || defaultFrom()
+  const to = req.query.to || defaultTo()
+  where += ` AND ${prefix}created_at >= ? AND ${prefix}created_at < DATE_ADD(?, INTERVAL 1 DAY)`
+  params.push(from, to)
+
+  return { where, params }
+}
 
 async function funnel(req, res) {
-  const tenant = tenantId(req)
-  const convParams = [tenant]
-  let convWhere = 'WHERE tenant_id = ?'
-  convWhere += dateRange(req.query, 'created_at', convParams)
-
+  const scope = buildConversationScope(req)
   try {
-    const [[{ total_conversations }]] = await pool.query(
-      `SELECT COUNT(*) AS total_conversations FROM conversations ${convWhere}`,
-      convParams
+    const [[row]] = await pool.query(
+      `SELECT
+         COUNT(DISTINCT c.id) AS inquiry,
+         COUNT(DISTINCT CASE
+           WHEN COALESCE(l.customer_phone, '') <> '' OR COALESCE(l.customer_wechat, '') <> '' THEN c.id
+         END) AS lead_count,
+         COUNT(DISTINCT CASE WHEN c.intent_label = 'appointment' THEN c.id END) AS appointment
+       FROM conversations c
+       LEFT JOIN leads l ON l.tenant_id = c.tenant_id AND l.primary_conversation_id = c.id
+       ${scope.where}`,
+      scope.params
     )
-    const [intentRows] = await pool.query(
-      `SELECT COALESCE(intent_label, 'unknown') AS intent_label, COUNT(*) AS total
-       FROM conversations ${convWhere}
-       GROUP BY COALESCE(intent_label, 'unknown')`,
-      convParams
-    )
-    const [[{ leads_created }]] = await pool.query(
-      `SELECT COUNT(*) AS leads_created FROM leads ${convWhere}`,
-      convParams
-    )
-    const [[{ workorders_created }]] = await pool.query(
-      `SELECT COUNT(*) AS workorders_created FROM workorders ${convWhere}`,
-      convParams
-    )
-    const [[{ converted }]] = await pool.query(
-      `SELECT COUNT(*) AS converted FROM leads ${convWhere} AND status = 'converted'`,
-      convParams
-    )
-    ok(res, {
-      total_conversations,
-      by_intent: Object.fromEntries(intentRows.map((row) => [row.intent_label, row.total])),
-      leads_created,
-      workorders_created,
-      converted,
-    })
+    ok(res, formatFunnel(row))
   } catch (err) {
     console.error('[v1.analytics.funnel]', err)
     fail(res, 500, 5000, '服务器内部错误')
   }
 }
 
-async function platformComparison(req, res) {
-  const params = [tenantId(req)]
-  let where = 'WHERE tenant_id = ?'
-  where += dateRange(req.query, 'created_at', params)
-
+async function intentDistribution(req, res) {
+  const scope = buildConversationScope(req)
   try {
     const [rows] = await pool.query(
-      `SELECT platform, COUNT(*) AS conversations, SUM(message_count) AS messages
-       FROM conversations ${where}
-       GROUP BY platform
-       ORDER BY conversations DESC`,
-      params
+      `SELECT COALESCE(c.intent_label, 'unknown') AS intent_label, COUNT(*) AS count
+       FROM conversations c
+       ${scope.where}
+       GROUP BY COALESCE(c.intent_label, 'unknown')
+       ORDER BY count DESC`,
+      scope.params
     )
-    ok(res, { list: rows })
+    ok(res, rows)
   } catch (err) {
-    console.error('[v1.analytics.platformComparison]', err)
+    console.error('[v1.analytics.intentDistribution]', err)
     fail(res, 500, 5000, '服务器内部错误')
   }
 }
 
-module.exports = { funnel, platformComparison }
+async function leadLevel(req, res) {
+  const scope = buildLeadScope(req)
+  try {
+    const [rows] = await pool.query(
+      `SELECT lead_level, count
+       FROM (
+         SELECT COALESCE(l.lead_level, 'unknown') AS lead_level, COUNT(*) AS count
+         FROM leads l
+         ${scope.where}
+         GROUP BY COALESCE(l.lead_level, 'unknown')
+       ) t
+       ORDER BY FIELD(lead_level, 'high', 'mid', 'low', 'unknown'), count DESC`,
+      scope.params
+    )
+    ok(res, rows)
+  } catch (err) {
+    console.error('[v1.analytics.leadLevel]', err)
+    fail(res, 500, 5000, '服务器内部错误')
+  }
+}
+
+async function byPage(req, res) {
+  const scope = buildConversationScope(req)
+  try {
+    const [rows] = await pool.query(
+      `SELECT
+         COALESCE(c.platform_page, 'unknown') AS platform_page,
+         COUNT(DISTINCT c.id) AS inquiry,
+         COUNT(DISTINCT CASE
+           WHEN COALESCE(l.customer_phone, '') <> '' OR COALESCE(l.customer_wechat, '') <> '' THEN c.id
+         END) AS lead_count,
+         COUNT(DISTINCT CASE WHEN c.intent_label = 'appointment' THEN c.id END) AS appointment
+       FROM conversations c
+       LEFT JOIN leads l ON l.tenant_id = c.tenant_id AND l.primary_conversation_id = c.id
+       ${scope.where}
+       GROUP BY COALESCE(c.platform_page, 'unknown')
+       ORDER BY inquiry DESC`,
+      scope.params
+    )
+    ok(res, rows.map(normalizeFunnelRow).map((row) => ({ ...row, ...rates(row) })))
+  } catch (err) {
+    console.error('[v1.analytics.byPage]', err)
+    fail(res, 500, 5000, '服务器内部错误')
+  }
+}
+
+async function trend(req, res) {
+  const scope = buildConversationScope(req)
+  try {
+    const [rows] = await pool.query(
+      `SELECT
+         DATE_FORMAT(c.created_at, '%Y-%m-%d') AS date,
+         COUNT(DISTINCT c.id) AS inquiry,
+         COUNT(DISTINCT CASE
+           WHEN COALESCE(l.customer_phone, '') <> '' OR COALESCE(l.customer_wechat, '') <> '' THEN c.id
+         END) AS lead_count,
+         COUNT(DISTINCT CASE WHEN c.intent_label = 'appointment' THEN c.id END) AS appointment
+       FROM conversations c
+       LEFT JOIN leads l ON l.tenant_id = c.tenant_id AND l.primary_conversation_id = c.id
+       ${scope.where}
+       GROUP BY DATE_FORMAT(c.created_at, '%Y-%m-%d')
+       ORDER BY date ASC`,
+      scope.params
+    )
+    ok(res, rows.map(normalizeFunnelRow))
+  } catch (err) {
+    console.error('[v1.analytics.trend]', err)
+    fail(res, 500, 5000, '服务器内部错误')
+  }
+}
+
+function formatFunnel(row) {
+  const data = normalizeFunnelRow(row)
+  return { ...data, ...rates(data) }
+}
+
+function normalizeFunnelRow(row) {
+  const { lead_count, ...rest } = row
+  return {
+    ...rest,
+    inquiry: Number(row.inquiry || 0),
+    lead: Number(lead_count || row.lead || 0),
+    appointment: Number(row.appointment || 0),
+  }
+}
+
+function rates(row) {
+  return {
+    leadRate: percent(row.lead, row.inquiry),
+    appointmentRate: percent(row.appointment, row.lead),
+  }
+}
+
+function percent(value, base) {
+  const numerator = Number(value || 0)
+  const denominator = Number(base || 0)
+  if (!denominator) return 0
+  return Number((numerator / denominator * 100).toFixed(1))
+}
+
+function defaultFrom() {
+  const date = new Date()
+  date.setDate(date.getDate() - 29)
+  return formatDate(date)
+}
+
+function defaultTo() {
+  return formatDate(new Date())
+}
+
+function formatDate(date) {
+  const pad = (num) => String(num).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
+module.exports = {
+  funnel,
+  intentDistribution,
+  leadLevel,
+  byPage,
+  trend,
+}

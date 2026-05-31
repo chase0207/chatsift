@@ -238,6 +238,7 @@ INSERT INTO intent_rules (tenant_id, intent_label, rule_type, pattern, priority,
 --   intent-rule:config    意图规则配置
 --   price:manage          价格表管理
 --   llm:config            LLM配置
+--   analytics:view        运营分析
 -- 新增后台菜单:
 --   会话中心 / 线索中心 / 工单中心 / 运营分析 / 系统设置(意图规则/价格表/LLM)
 -- ============================================================

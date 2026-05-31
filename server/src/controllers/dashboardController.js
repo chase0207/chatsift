@@ -4,7 +4,6 @@ const { applyDataScope } = require('../utils/data-scope')
 exports.stats = async (req, res) => {
   try {
     const pluginScope = applyDataScope(req, { ownerColumn: 'user_id' })
-    const joinScope   = applyDataScope(req, { ownerColumn: 'user_id', alias: 'p' })
 
     const userCount = pluginScope.sql
       ? 1
@@ -15,17 +14,15 @@ exports.stats = async (req, res) => {
       pluginScope.params
     )
     const [[msgRow]] = await pool.query(
-      `SELECT COUNT(*) AS cnt FROM message_logs ml
-       LEFT JOIN plugins p ON p.id = ml.plugin_id
-       WHERE DATE(ml.created_at) = CURDATE()${joinScope.sql}`,
-      joinScope.params
+      `SELECT COUNT(*) AS cnt FROM messages m
+       WHERE DATE(m.occurred_at) = CURDATE()${req.user?.data_scope === 'all' ? '' : ' AND m.tenant_id = ?'}`,
+      req.user?.data_scope === 'all' ? [] : [req.user.id]
     )
     const [[deviceRow]] = await pool.query(
-      `SELECT COUNT(DISTINCT ds.plugin_id, ds.device_id) AS cnt
-       FROM device_sessions ds
-       LEFT JOIN plugins p ON p.id = ds.plugin_id
-       WHERE ds.status = 1${joinScope.sql}`,
-      joinScope.params
+      `SELECT COUNT(DISTINCT platform, platform_page) AS cnt
+       FROM conversations
+       WHERE last_message_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)${req.user?.data_scope === 'all' ? '' : ' AND tenant_id = ?'}`,
+      req.user?.data_scope === 'all' ? [] : [req.user.id]
     )
 
     res.json({

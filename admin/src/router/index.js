@@ -27,6 +27,7 @@ const routes = [
       { path: 'leads', name: 'Leads', component: () => import('../views/Leads.vue'), meta: { title: '线索中心' } },
       { path: 'leads/:id', name: 'LeadDetail', component: () => import('../views/LeadDetail.vue'), meta: { title: '线索详情' } },
       { path: 'workorders', name: 'Workorders', component: () => import('../views/Workorders.vue'), meta: { title: '工单中心' } },
+      { path: 'analytics', name: 'Analytics', component: () => import('../views/Analytics.vue'), meta: { title: '运营分析' } },
       { path: 'settings', name: 'Settings', redirect: '/settings/llm', meta: { title: '系统设置' } },
       { path: 'settings/llm', name: 'LlmConfig', component: () => import('../views/LlmConfig.vue'), meta: { title: 'LLM配置' } },
     ],
@@ -74,6 +75,7 @@ var routePermMap = {
   Leads: 'lead:manage',
   LeadDetail: 'lead:manage',
   Workorders: 'workorder:handle',
+  Analytics: 'analytics:view',
   Settings: 'settings',
   LlmConfig: 'llm:config',
 }

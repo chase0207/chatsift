@@ -137,7 +137,7 @@ INSERT IGNORE INTO menus (id, parent_id, name, icon, route, component, type, per
 (8, NULL, '会话中心', 'ChatLineSquare', '/conversations', 'Conversations', 'menu', 'conversation:list', 8, 1),
 (9, NULL, '线索中心', 'UserFilled', '/leads', 'Leads', 'menu', 'lead:manage', 9, 1),
 (10, NULL, '工单中心', 'Tickets', '/workorders', 'Workorders', 'menu', 'workorder:handle', 10, 1),
-(11, NULL, '运营分析', 'TrendCharts', '/analytics', 'Analytics', 'menu', 'analytics', 11, 1),
+(11, NULL, '运营分析', 'TrendCharts', '/analytics', 'Analytics', 'menu', 'analytics:view', 11, 1),
 (12, NULL, '系统设置', 'Setting', '/settings', 'Settings', 'menu', 'settings', 12, 1);
 
 INSERT IGNORE INTO menus (parent_id, name, type, permission_code, sort_order, status)
@@ -165,6 +165,6 @@ INSERT IGNORE INTO role_has_permissions (role_id, menu_id)
 SELECT 1, id FROM menus;
 
 INSERT IGNORE INTO role_has_permissions (role_id, menu_id)
-SELECT 2, id FROM menus WHERE permission_code IN ('dashboard', 'conversation:list', 'lead:manage', 'workorder:handle');
+SELECT 2, id FROM menus WHERE permission_code IN ('dashboard', 'conversation:list', 'lead:manage', 'workorder:handle', 'analytics:view');
 
 SET FOREIGN_KEY_CHECKS = 1;
