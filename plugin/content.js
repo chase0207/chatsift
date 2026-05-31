@@ -1625,6 +1625,7 @@
   var STORAGE_KEY = 'chatsift_event_queue'
   var _queue = []
   var _restored = false
+  var _listeners = []
 
   function _hasStorage() {
     return typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local
@@ -1667,6 +1668,7 @@
     if (!event) return false
     _queue.push(event)
     persist()
+    _notify()
     return true
   }
 
@@ -1689,6 +1691,20 @@
     return { storageKey: STORAGE_KEY, size: _queue.length, restored: _restored }
   }
 
+  function onChange(fn) {
+    if (typeof fn !== 'function') return false
+    _listeners.push(fn)
+    return function () {
+      _listeners = _listeners.filter(function (item) { return item !== fn })
+    }
+  }
+
+  function _notify() {
+    _listeners.slice().forEach(function (fn) {
+      try { fn(_queue.length) } catch (_) {}
+    })
+  }
+
   window.RpaEventQueue = {
     enqueue:      enqueue,
     dequeueBatch: dequeueBatch,
@@ -1697,6 +1713,7 @@
     restore:      restore,
     size:         size,
     snapshot:     snapshot,
+    onChange:     onChange,
   }
 })()
 
@@ -1802,11 +1819,13 @@
   var Logger = window.RpaLogger || console
   if (!Queue) throw new Error('[W4] RpaEventQueue must load before EventUploader')
 
-  var UPLOAD_INTERVAL = 5000
+  var UPLOAD_INTERVAL = 15000
+  var UPLOAD_FLUSH_SIZE = 10
   var UPLOAD_BATCH_MAX = 50
   var DEFAULT_SERVER_URL = 'http://127.0.0.1:3100'
   var _timer = null
   var _uploading = false
+  var _offQueueChange = null
 
   function _hasStorage() {
     return typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local
@@ -1882,6 +1901,11 @@
     if (_timer) return true
     await Queue.restore()
     _timer = setInterval(tick, UPLOAD_INTERVAL)
+    if (Queue.onChange) {
+      _offQueueChange = Queue.onChange(function (size) {
+        if (size >= UPLOAD_FLUSH_SIZE) tick()
+      })
+    }
     tick()
     Logger.info && Logger.info('EventUploader', 'started')
     return true
@@ -1891,6 +1915,8 @@
     if (!_timer) return false
     clearInterval(_timer)
     _timer = null
+    if (_offQueueChange) _offQueueChange()
+    _offQueueChange = null
     Logger.info && Logger.info('EventUploader', 'stopped')
     return true
   }
@@ -4080,6 +4106,7 @@
   var _timer = null
   var _collecting = false
   var _debounce = null
+  var COLLECT_DEBOUNCE_MS = 10000
 
   function _readNickname(adapter) {
     var ctx = adapter && adapter.buildRuntimeContext ? adapter.buildRuntimeContext() : {}
@@ -4146,7 +4173,7 @@
       } finally {
         _collecting = false
       }
-    }, 800)
+    }, COLLECT_DEBOUNCE_MS)
   }
 
   async function start() {

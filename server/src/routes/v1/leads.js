@@ -6,6 +6,7 @@ const controller = require('../../controllers/v1/leadsController')
 
 router.use(auth)
 
+router.get('/recent', perm('lead:manage'), controller.recent)
 router.get('/', perm('lead:manage'), controller.list)
 router.get('/:id', perm('lead:manage'), controller.detail)
 router.patch('/:id', perm('lead:manage'), controller.update)

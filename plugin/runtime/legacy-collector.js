@@ -15,6 +15,7 @@
   var _timer = null
   var _collecting = false
   var _debounce = null
+  var COLLECT_DEBOUNCE_MS = 10000
 
   function _readNickname(adapter) {
     var ctx = adapter && adapter.buildRuntimeContext ? adapter.buildRuntimeContext() : {}
@@ -81,7 +82,7 @@
       } finally {
         _collecting = false
       }
-    }, 800)
+    }, COLLECT_DEBOUNCE_MS)
   }
 
   async function start() {

@@ -128,8 +128,8 @@
 </template>
 
 <script setup>
-import { reactive, ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { reactive, ref, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import MessageDrawer from '../components/MessageDrawer.vue'
@@ -137,6 +137,7 @@ import { listLeads, updateLead } from '../api/leads'
 import { diagnosisMain, diagnosisOptions, diagnosisTags, diagnosisText } from '../utils/diagnosis'
 
 const router = useRouter()
+const route = useRoute()
 const loading = ref(false)
 const tableData = ref([])
 const total = ref(0)
@@ -146,6 +147,7 @@ const messageDrawerVisible = ref(false)
 const activeConversationId = ref(null)
 
 const filters = reactive({
+  ids: '',
   status: '',
   lead_level: '',
   city: '',
@@ -209,7 +211,7 @@ function handleSearch() {
 }
 
 function handleReset() {
-  Object.assign(filters, { status: '', lead_level: '', city: '', diagnosis_color: '', keyword: '' })
+  Object.assign(filters, { ids: '', status: '', lead_level: '', city: '', diagnosis_color: '', keyword: '' })
   page.value = 1
   fetchList()
 }
@@ -230,7 +232,30 @@ function openMessages(row) {
   messageDrawerVisible.value = true
 }
 
-onMounted(fetchList)
+function applyRouteQuery() {
+  Object.assign(filters, {
+    ids: route.query.ids || '',
+    status: route.query.status || '',
+    lead_level: route.query.lead_level || '',
+    city: route.query.city || '',
+    diagnosis_color: route.query.diagnosis_color || '',
+    keyword: route.query.keyword || '',
+  })
+}
+
+onMounted(function () {
+  applyRouteQuery()
+  fetchList()
+})
+
+watch(
+  () => route.query,
+  function () {
+    applyRouteQuery()
+    page.value = 1
+    fetchList()
+  }
+)
 </script>
 
 <style scoped>

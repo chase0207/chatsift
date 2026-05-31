@@ -1,6 +1,7 @@
 const pool = require('../../config/db')
-const { ok, fail, tenantId, paging, jsonValue, parseJsonField } = require('./_shared')
+const { ok, fail, tenantId, paging, jsonValue, parseJsonField, toMysqlDate } = require('./_shared')
 const { buildDiagnosis } = require('../../v1/diagnosis')
+const rules = require('../../v1/business-rules')
 
 async function list(req, res) {
   const tenant = tenantId(req)
@@ -18,6 +19,13 @@ async function list(req, res) {
     where += ' AND (l.customer_nickname LIKE ? OR l.customer_name LIKE ? OR l.customer_phone LIKE ? OR l.customer_wechat LIKE ?)'
     const keyword = `%${req.query.keyword}%`
     params.push(keyword, keyword, keyword, keyword)
+  }
+  if (req.query.ids) {
+    const ids = String(req.query.ids).split(',').map((id) => Number(id)).filter(Boolean)
+    if (ids.length) {
+      where += ` AND l.id IN (${ids.map(() => '?').join(',')})`
+      params.push(...ids)
+    }
   }
 
   try {
@@ -99,6 +107,42 @@ async function detail(req, res) {
   }
 }
 
+async function recent(req, res) {
+  const tenant = tenantId(req)
+  const since = toMysqlDate(req.query.since) || toMysqlDate(new Date(Date.now() - 30 * 60 * 1000))
+  const minLevel = req.query.min_level || 'high'
+  const params = [tenant, since]
+  try {
+    const [rows] = await pool.query(
+      `${leadListSql()}
+       WHERE l.tenant_id = ?
+         AND l.status = 'new'
+         AND l.updated_at >= ?
+       ORDER BY l.updated_at DESC
+       LIMIT 50`,
+      params
+    )
+    const list = withDiagnosis(rows)
+      .filter((row) => shouldNotify(row, minLevel))
+      .map((row) => ({
+        id: row.id,
+        primary_conversation_id: row.primary_conversation_id,
+        customer_nickname: row.customer_nickname,
+        customer_name: row.customer_name,
+        lead_level: row.lead_level,
+        intent_label: row.intent_label,
+        diagnosis_mainColor: row.diagnosis.mainColor,
+        diagnosis: row.diagnosis,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      }))
+    ok(res, { list, total: list.length, since })
+  } catch (err) {
+    console.error('[v1.leads.recent]', err)
+    fail(res, 500, 5000, '服务器内部错误')
+  }
+}
+
 function leadListSql() {
   return `SELECT l.id, l.primary_conversation_id, l.customer_nickname, l.customer_name, l.customer_platform_uid,
                  l.customer_phone, l.customer_wechat, l.city, l.intent_label, l.lead_score, l.lead_level,
@@ -112,6 +156,18 @@ function leadListSql() {
                  DATE_FORMAT(l.updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at
           FROM leads l
           LEFT JOIN conversations c ON c.tenant_id = l.tenant_id AND c.id = l.primary_conversation_id`
+}
+
+function shouldNotify(row, minLevel) {
+  if (row.intent_label === 'complaint' || row.conversation_intent_label === 'complaint') return true
+  if (minLevel === 'high' && row.lead_level === 'high') return true
+  if (row.diagnosis.mainColor === 'success' && isCompleteAppointment(row.conversation_field_validity)) return true
+  return false
+}
+
+function isCompleteAppointment(fieldValidity) {
+  const value = parseJsonField(fieldValidity, {})
+  return rules.appointmentFields.every((field) => value?.[field]?.status === 'valid')
 }
 
 function withDiagnosis(rows) {
@@ -189,4 +245,4 @@ async function convert(req, res) {
   }
 }
 
-module.exports = { list, detail, update, convert }
+module.exports = { list, detail, recent, update, convert }

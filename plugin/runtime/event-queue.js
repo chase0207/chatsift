@@ -5,6 +5,7 @@
   var STORAGE_KEY = 'chatsift_event_queue'
   var _queue = []
   var _restored = false
+  var _listeners = []
 
   function _hasStorage() {
     return typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local
@@ -47,6 +48,7 @@
     if (!event) return false
     _queue.push(event)
     persist()
+    _notify()
     return true
   }
 
@@ -69,6 +71,20 @@
     return { storageKey: STORAGE_KEY, size: _queue.length, restored: _restored }
   }
 
+  function onChange(fn) {
+    if (typeof fn !== 'function') return false
+    _listeners.push(fn)
+    return function () {
+      _listeners = _listeners.filter(function (item) { return item !== fn })
+    }
+  }
+
+  function _notify() {
+    _listeners.slice().forEach(function (fn) {
+      try { fn(_queue.length) } catch (_) {}
+    })
+  }
+
   window.RpaEventQueue = {
     enqueue:      enqueue,
     dequeueBatch: dequeueBatch,
@@ -77,5 +93,6 @@
     restore:      restore,
     size:         size,
     snapshot:     snapshot,
+    onChange:     onChange,
   }
 })()

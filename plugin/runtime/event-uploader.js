@@ -5,11 +5,13 @@
   var Logger = window.RpaLogger || console
   if (!Queue) throw new Error('[W4] RpaEventQueue must load before EventUploader')
 
-  var UPLOAD_INTERVAL = 5000
+  var UPLOAD_INTERVAL = 15000
+  var UPLOAD_FLUSH_SIZE = 10
   var UPLOAD_BATCH_MAX = 50
   var DEFAULT_SERVER_URL = 'http://127.0.0.1:3100'
   var _timer = null
   var _uploading = false
+  var _offQueueChange = null
 
   function _hasStorage() {
     return typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local
@@ -85,6 +87,11 @@
     if (_timer) return true
     await Queue.restore()
     _timer = setInterval(tick, UPLOAD_INTERVAL)
+    if (Queue.onChange) {
+      _offQueueChange = Queue.onChange(function (size) {
+        if (size >= UPLOAD_FLUSH_SIZE) tick()
+      })
+    }
     tick()
     Logger.info && Logger.info('EventUploader', 'started')
     return true
@@ -94,6 +101,8 @@
     if (!_timer) return false
     clearInterval(_timer)
     _timer = null
+    if (_offQueueChange) _offQueueChange()
+    _offQueueChange = null
     Logger.info && Logger.info('EventUploader', 'stopped')
     return true
   }

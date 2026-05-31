@@ -8,6 +8,10 @@ export function getLead(id) {
   return request.get(`/v1/leads/${id}`)
 }
 
+export function recentLeads(params) {
+  return request.get('/v1/leads/recent', { params })
+}
+
 export function updateLead(id, data) {
   return request.patch(`/v1/leads/${id}`, data)
 }

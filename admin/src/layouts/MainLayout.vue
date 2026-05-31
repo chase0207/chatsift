@@ -56,6 +56,9 @@
         </div>
 
         <div class="topbar-right">
+          <el-badge :value="notificationCount" :hidden="!notificationCount" class="notification-badge">
+            <el-button :icon="Bell" circle @click="goNotifications" />
+          </el-badge>
           <el-dropdown @command="handleCommand">
             <div class="user-info">
               <el-avatar :size="32" style="background:#5e6ad2;font-size:13px;font-weight:600">
@@ -85,14 +88,16 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessageBox } from 'element-plus'
+import { ElMessageBox, ElNotification } from 'element-plus'
 import { useUserStore } from '../stores/user'
 import { getMenuTree } from '../api/menus'
+import { recentLeads } from '../api/leads'
 import {
   House, User, Connection, Monitor, Document, Files, Grid, ChatLineSquare, ChatDotRound,
   Fold, Expand, ArrowDown, SwitchButton, Key, Menu as MenuIcon, Reading, Setting,
-  Tickets, UserFilled, TrendCharts,
+  Tickets, UserFilled, TrendCharts, Bell,
 } from '@element-plus/icons-vue'
 
 // Element Plus 图标名称 → 组件映射
@@ -111,6 +116,10 @@ var userInfo = computed(function () { return store.userInfo })
 var activeMenu = computed(function () { return route.path })
 var menuTree = ref([])
 var menuTitleMap = ref({})
+var notificationCount = ref(0)
+var notificationLeadIds = ref([])
+var notificationTimer = null
+var notificationSince = new Date().toISOString()
 
 var currentTitle = computed(function () {
   return menuTitleMap.value[route.path] || route.meta?.title || route.name || '控制台'
@@ -118,6 +127,11 @@ var currentTitle = computed(function () {
 
 onMounted(async function () {
   await loadMenus()
+  startNotificationPolling()
+})
+
+onUnmounted(function () {
+  if (notificationTimer) clearInterval(notificationTimer)
 })
 
 async function loadMenus() {
@@ -151,6 +165,37 @@ async function handleCommand(cmd) {
     await store.logout()
     router.push('/login')
   }
+}
+
+function startNotificationPolling() {
+  pollRecentLeads()
+  notificationTimer = setInterval(pollRecentLeads, 30000)
+}
+
+async function pollRecentLeads() {
+  var since = notificationSince
+  notificationSince = new Date().toISOString()
+  try {
+    var res = await recentLeads({ since: since, min_level: 'high' })
+    var list = res.data?.list || []
+    if (!list.length) return
+    notificationCount.value += list.length
+    notificationLeadIds.value = Array.from(new Set(notificationLeadIds.value.concat(list.map(function (item) { return item.id }))))
+    ElNotification({
+      title: '新高意向线索',
+      message: `有 ${list.length} 条线索需要跟进`,
+      type: 'warning',
+      duration: 4500,
+    })
+  } catch (e) {
+  }
+}
+
+function goNotifications() {
+  var ids = notificationLeadIds.value.join(',')
+  notificationCount.value = 0
+  notificationLeadIds.value = []
+  router.push({ path: '/leads', query: ids ? { ids: ids, status: 'new' } : { lead_level: 'high', status: 'new' } })
 }
 </script>
 
@@ -277,7 +322,8 @@ async function handleCommand(cmd) {
   font-weight: 600;
 }
 
-.topbar-right { display: flex; align-items: center; }
+.topbar-right { display: flex; align-items: center; gap: 14px; }
+.notification-badge :deep(.el-badge__content) { box-shadow: 0 0 0 2px #fff; }
 
 .user-info {
   display: flex;
