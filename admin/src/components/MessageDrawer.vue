@@ -7,7 +7,7 @@
     @update:model-value="emit('update:modelValue', $event)"
     @open="fetchMessages"
   >
-    <div v-loading="loading" class="message-list">
+    <div ref="messageListRef" v-loading="loading" class="message-list">
       <el-empty v-if="!messages.length && !loading" description="暂无消息" />
       <div
         v-for="msg in messages"
@@ -28,7 +28,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getMessages } from '../api/conversations'
 
@@ -40,6 +40,7 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue'])
 const loading = ref(false)
 const messages = ref([])
+const messageListRef = ref(null)
 
 async function fetchMessages() {
   if (!props.conversationId) {
@@ -50,11 +51,18 @@ async function fetchMessages() {
   try {
     const res = await getMessages(props.conversationId, { page: 1, page_size: 100 })
     messages.value = res.data?.list || []
+    await nextTick()
+    scrollToBottom()
   } catch (err) {
     ElMessage.error(err?.response?.data?.message || '加载聊天记录失败')
   } finally {
     loading.value = false
   }
+}
+
+function scrollToBottom() {
+  const el = messageListRef.value
+  if (el) el.scrollTop = el.scrollHeight
 }
 
 function formatDate(value) {
@@ -69,7 +77,7 @@ function formatDate(value) {
 </script>
 
 <style scoped>
-.message-list { min-height: 240px; }
+.message-list { min-height: 240px; max-height: calc(100vh - 140px); overflow-y: auto; }
 .message-row { display: flex; margin-bottom: 14px; }
 .message-row-left { justify-content: flex-start; }
 .message-row-right { justify-content: flex-end; }

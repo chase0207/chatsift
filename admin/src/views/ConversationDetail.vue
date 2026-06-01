@@ -70,7 +70,7 @@
       <template #header>
         <span style="font-weight:600">消息流</span>
       </template>
-      <div v-loading="loading" class="message-list">
+      <div ref="messageListRef" v-loading="loading" class="message-list">
         <el-empty v-if="!messages.length && !loading" description="暂无消息" />
         <div
           v-for="msg in messages"
@@ -92,7 +92,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { nextTick, ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
@@ -104,6 +104,7 @@ const router = useRouter()
 const loading = ref(false)
 const conversation = ref({})
 const messages = ref([])
+const messageListRef = ref(null)
 
 const intentMap = {
   simple_inquiry: { label: '简单咨询', type: 'info' },
@@ -143,11 +144,18 @@ async function fetchDetail() {
     ])
     conversation.value = detailRes.data || {}
     messages.value = messagesRes.data?.list || []
+    await nextTick()
+    scrollToBottom()
   } catch (err) {
     ElMessage.error(err?.response?.data?.message || '加载会话详情失败')
   } finally {
     loading.value = false
   }
+}
+
+function scrollToBottom() {
+  const el = messageListRef.value
+  if (el) el.scrollTop = el.scrollHeight
 }
 
 onMounted(fetchDetail)
@@ -158,7 +166,7 @@ onMounted(fetchDetail)
 .detail-header { display: flex; align-items: center; gap: 16px; }
 .detail-title h2 { margin: 0 0 8px; font-size: 18px; font-weight: 600; color: var(--rpa-ink, #0f172a); }
 .detail-meta { display: flex; gap: 8px; align-items: center; }
-.message-list { min-height: 240px; }
+.message-list { min-height: 240px; max-height: calc(100vh - 360px); overflow-y: auto; }
 .message-row { display: flex; margin-bottom: 14px; }
 .message-row-left { justify-content: flex-start; }
 .message-row-right { justify-content: flex-end; }
