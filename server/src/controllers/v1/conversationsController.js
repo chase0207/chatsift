@@ -14,6 +14,14 @@ async function list(req, res) {
       params.push(req.query[key])
     }
   }
+  if (req.query.platform_page) {
+    where += ' AND c.platform_page LIKE ?'
+    params.push(`%${req.query.platform_page}%`)
+  }
+  if (req.query.nickname) {
+    where += ' AND c.customer_nickname LIKE ?'
+    params.push(`%${req.query.nickname}%`)
+  }
   where += dateRange(req.query, 'c.last_message_at', params)
   if (req.query.keyword) {
     where += ` AND EXISTS (
@@ -104,17 +112,19 @@ async function messages(req, res) {
       'SELECT COUNT(*) AS total FROM messages WHERE tenant_id = ? AND conversation_id = ?',
       [tenant, req.params.id]
     )
+    const latest = req.query.latest === '1' || req.query.latest === 'true'
     const [rows] = await pool.query(
       `SELECT id, direction, sender_nickname, content_type, content_text, content_url, raw_snapshot,
               DATE_FORMAT(occurred_at, '%Y-%m-%d %H:%i:%s') AS occurred_at
        FROM messages
        WHERE tenant_id = ? AND conversation_id = ?
-       ORDER BY occurred_at ASC, id ASC
+       ORDER BY occurred_at ${latest ? 'DESC' : 'ASC'}, id ${latest ? 'DESC' : 'ASC'}
        LIMIT ? OFFSET ?`,
       [tenant, req.params.id, pageSize, offset]
     )
+    const list = latest ? rows.reverse() : rows
     ok(res, {
-      list: rows.map((row) => ({ ...row, raw_snapshot: parseJsonField(row.raw_snapshot) })),
+      list: list.map((row) => ({ ...row, raw_snapshot: parseJsonField(row.raw_snapshot) })),
       total,
       page,
       page_size: pageSize,

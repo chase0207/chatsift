@@ -49,7 +49,7 @@ async function fetchMessages() {
   }
   loading.value = true
   try {
-    const res = await getMessages(props.conversationId, { page: 1, page_size: 100 })
+    const res = await getMessages(props.conversationId, { page: 1, page_size: 100, latest: 1 })
     messages.value = res.data?.list || []
     await nextTick()
     scrollToBottom()

@@ -241,20 +241,38 @@
     return Dom.getText(textEl)
   }
 
+  function _findMessageTextNode(el) {
+    if (!el.querySelector) return null
+    return el.querySelector('div[class*="px-3"][class*="py-2"]') ||
+      Dom.queryFirst(SELECTORS.bubbleText, el)
+  }
+
   function _extractMessageTime(el) {
     return Dom.getTextByXpath(el, './/span[contains(@class,"text-xs")]') ||
       Dom.getTextByXpath(el, './/p[contains(@class,"text")]//span')
   }
 
   function _extractPreciseMessageTime(el) {
-    var nodes = el.querySelectorAll
-      ? el.querySelectorAll('p.invisible.whitespace-nowrap.absolute')
-      : []
+    var textNode = _findMessageTextNode(el)
+    var scope = _findMessageColumn(textNode) || el
+    var nodes = scope.querySelectorAll ? scope.querySelectorAll('*') : []
     for (var i = 0; i < nodes.length; i++) {
+      var cls = String(nodes[i].className || '')
+      if (!/invisible/.test(cls) || !/whitespace-nowrap/.test(cls) || !/absolute/.test(cls)) continue
       var text = Dom.getText(nodes[i])
       if (/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}$/.test(text)) return text
     }
     return ''
+  }
+
+  function _findMessageColumn(node) {
+    var current = node
+    while (current && current.parentElement) {
+      current = current.parentElement
+      var cls = String(current.className || '')
+      if (/flex-col/.test(cls) && /flex-1/.test(cls)) return current
+    }
+    return null
   }
 
   function _isOutbound(el) {

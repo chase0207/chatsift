@@ -3,8 +3,23 @@
     <el-card shadow="never" class="toolbar-card">
       <el-form :model="filters" inline class="filter-form">
         <el-form-item label="平台">
-          <el-select v-model="filters.platform" clearable placeholder="全部平台" style="width:140px">
+          <el-select v-model="filters.platform" clearable placeholder="全部平台" style="width:140px" @change="handlePlatformChange">
             <el-option label="抖音" value="douyin" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="页面">
+          <el-select
+            v-model="filters.platform_page"
+            placeholder="全部页面"
+            clearable
+            style="width:160px"
+          >
+            <el-option
+              v-for="item in filteredPageOptions"
+              :key="`${item.platform}-${item.value}`"
+              :label="item.label"
+              :value="item.value"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="意图">
@@ -22,7 +37,16 @@
             <el-option v-for="item in diagnosisOptions" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
-        <el-form-item>
+        <el-form-item label="昵称">
+          <el-input
+            v-model="filters.nickname"
+            placeholder="搜索客户昵称"
+            clearable
+            style="width:160px"
+            @keyup.enter="handleSearch"
+          />
+        </el-form-item>
+        <el-form-item label="消息">
           <el-input
             v-model="filters.keyword"
             placeholder="搜索消息内容"
@@ -34,6 +58,7 @@
         </el-form-item>
         <el-form-item>
           <el-button type="primary" :icon="Search" @click="handleSearch">查询</el-button>
+          <el-button :icon="Refresh" @click="fetchList">刷新</el-button>
           <el-button @click="handleReset">重置</el-button>
         </el-form-item>
       </el-form>
@@ -53,7 +78,7 @@
         </el-table-column>
         <el-table-column label="平台页面" min-width="140">
           <template #default="{ row }">
-            <el-text type="info" size="small">{{ row.platform_page || '-' }}</el-text>
+            <el-text type="info" size="small">{{ platformPageLabel(row) }}</el-text>
           </template>
         </el-table-column>
         <el-table-column label="意图标签" width="130">
@@ -119,12 +144,13 @@
 </template>
 
 <script setup>
-import { reactive, ref, onMounted } from 'vue'
+import { computed, reactive, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Search } from '@element-plus/icons-vue'
+import { Refresh, Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import MessageDrawer from '../components/MessageDrawer.vue'
 import { listConversations } from '../api/conversations'
+import { getPlatformList } from '../api/platforms'
 import { diagnosisMain, diagnosisOptions, diagnosisTags, diagnosisText } from '../utils/diagnosis'
 
 const router = useRouter()
@@ -135,12 +161,15 @@ const page = ref(1)
 const pageSize = ref(20)
 const messageDrawerVisible = ref(false)
 const activeConversationId = ref(null)
+const pageOptions = ref([])
 
 const filters = reactive({
   platform: '',
+  platform_page: '',
   intent_label: '',
   current_stage: '',
   diagnosis_color: '',
+  nickname: '',
   keyword: '',
 })
 
@@ -172,6 +201,11 @@ const stageMap = {
   done: '已完成',
 }
 
+const filteredPageOptions = computed(() => {
+  if (!filters.platform) return pageOptions.value
+  return pageOptions.value.filter((item) => item.platform === filters.platform)
+})
+
 function platformLabel(platform) {
   return platform === 'douyin' ? '抖音' : platform || '-'
 }
@@ -200,13 +234,56 @@ async function fetchList() {
   }
 }
 
+async function fetchPageOptions() {
+  try {
+    const res = await getPlatformList({ enabled: 1 })
+    const platforms = Array.isArray(res.data) ? res.data : []
+    pageOptions.value = platforms
+      .filter((platform) => Number(platform.dom_status) === 3)
+      .flatMap((platform) => (platform.pages || []).map((page) => ({
+        platform: platform.platform_key,
+        label: page.page_name,
+        value: platformPageValue(page),
+      })))
+  } catch {
+    pageOptions.value = []
+  }
+}
+
+function platformPageValue(page) {
+  const name = page.page_name || ''
+  if (name.includes('抖音私信')) return 'private-message'
+  if (name.includes('来客私信')) return 'laike-message'
+  if (name.includes('飞鸽')) return 'feige'
+  return page.page_name || page.page_code || ''
+}
+
+function handlePlatformChange() {
+  if (filters.platform_page && !filteredPageOptions.value.some((item) => item.value === filters.platform_page)) {
+    filters.platform_page = ''
+  }
+}
+
+function platformPageLabel(row) {
+  const option = pageOptions.value.find((item) => item.platform === row.platform && item.value === row.platform_page)
+  return option?.label || row.platform_page || '-'
+}
+
 function handleSearch() {
   page.value = 1
   fetchList()
 }
 
 function handleReset() {
-  Object.assign(filters, { platform: '', intent_label: '', current_stage: '', diagnosis_color: '', keyword: '' })
+  Object.assign(filters, {
+    platform: '',
+    platform_page: '',
+    intent_label: '',
+    current_stage: '',
+    diagnosis_color: '',
+    nickname: '',
+    keyword: '',
+  })
   page.value = 1
   fetchList()
 }
@@ -220,12 +297,15 @@ function openMessages(row) {
   messageDrawerVisible.value = true
 }
 
-onMounted(fetchList)
+onMounted(() => {
+  fetchPageOptions()
+  fetchList()
+})
 </script>
 
 <style scoped>
 .toolbar-card :deep(.el-card__body) { padding: 14px 20px; }
-.filter-form { display: flex; flex-wrap: wrap; gap: 0 4px; }
+.filter-form { display: flex; flex-wrap: wrap; gap: 12px 10px; }
 .filter-form :deep(.el-form-item) { margin-bottom: 0; }
 .pagination { display: flex; justify-content: flex-end; margin-top: 16px; }
 .diagnosis-cell { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }

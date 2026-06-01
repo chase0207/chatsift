@@ -140,7 +140,7 @@ async function fetchDetail() {
     const id = route.params.id
     const [detailRes, messagesRes] = await Promise.all([
       getConversation(id),
-      getMessages(id, { page: 1, page_size: 100 }),
+      getMessages(id, { page: 1, page_size: 100, latest: 1 }),
     ])
     conversation.value = detailRes.data || {}
     messages.value = messagesRes.data?.list || []
