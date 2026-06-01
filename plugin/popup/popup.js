@@ -41,6 +41,14 @@ function cycleEnv() {
     showToast('已切换到生产环境')
   }
   renderEnvBadge()
+  // 切环境即写入 storage,采集 uploader 读 cfg.serverUrl,无需重新登录也能改向
+  try {
+    chrome.storage.local.get('cfg', function (d) {
+      var c = d.cfg || {}
+      c.serverUrl = AUTO_SERVER_URL
+      chrome.storage.local.set({ cfg: c, serverUrl: AUTO_SERVER_URL })
+    })
+  } catch (_) {}
 }
 
 function renderEnvBadge() {

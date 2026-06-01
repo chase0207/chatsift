@@ -8,7 +8,7 @@
   var UPLOAD_INTERVAL = 15000
   var UPLOAD_FLUSH_SIZE = 10
   var UPLOAD_BATCH_MAX = 50
-  var DEFAULT_SERVER_URL = 'http://127.0.0.1:3100'
+  var DEFAULT_SERVER_URL = 'https://admin.kongyuekeji.com'
   var _timer = null
   var _uploading = false
   var _offQueueChange = null

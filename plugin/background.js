@@ -1,4 +1,4 @@
-const DEFAULT_CFG = { serverUrl: 'http://127.0.0.1:3100', autoReply: false }
+const DEFAULT_CFG = { serverUrl: 'https://admin.kongyuekeji.com', autoReply: false }
 
 function storageGet(keys) {
   return new Promise(resolve => {
