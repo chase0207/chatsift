@@ -1,0 +1,58 @@
+name: chatsift-test
+
+# test 环境,与 prod 全隔离(容器名/网络/数据卷/端口/库名/JWT 都不同)。
+# 机密从 deploy/.env.test 读(软链 .env.test 或 --env-file .env.test)。
+services:
+  mysql-test:
+    image: mysql:8.0
+    container_name: chatsift-mysql-test
+    restart: unless-stopped
+    command:
+      - --default-authentication-plugin=mysql_native_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - ./data-test/mysql:/var/lib/mysql
+      - ../server/sql/00_reused_tables.sql:/docker-entrypoint-initdb.d/01-reused.sql:ro
+      - ../server/sql/v1-schema.sql:/docker-entrypoint-initdb.d/02-v1-schema.sql:ro
+    networks: [chatsift-net-test]
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  server-test:
+    build:
+      context: ../server
+    container_name: chatsift-server-test
+    restart: unless-stopped
+    depends_on:
+      mysql-test:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3100
+      DB_HOST: mysql-test
+      DB_PORT: 3306
+      DB_USER: ${MYSQL_USER}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+      DB_NAME: ${MYSQL_DATABASE}
+      JWT_SECRET: ${JWT_SECRET}   # test 的 JWT_SECRET 必须与 prod 不同,避免 token 互通
+      JWT_EXPIRES_IN: 7d
+      ANALYZER_ENABLED: "true"
+      INTENT_CONTEXT_SIZE: 20
+    ports:
+      - "127.0.0.1:3101:3100"
+    volumes:
+      - ../admin/dist:/app/public:ro
+    networks: [chatsift-net-test]
+
+networks:
+  chatsift-net-test:
+    name: chatsift-net-test

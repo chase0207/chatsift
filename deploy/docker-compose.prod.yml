@@ -1,0 +1,62 @@
+name: chatsift-prod
+
+# 生产部署。机密从 deploy/.env.production 读(软链 .env -> .env.production)。
+# 注意:LLM key 不在这里 —— 各租户在后台写 tenant_llm_config 表。
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: chatsift-mysql
+    restart: unless-stopped
+    command:
+      - --default-authentication-plugin=mysql_native_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+      # init SQL 单一真源 = server/sql/;新增 migration 时这里追加一行,并保证 check-version.sh 计数一致
+      - ../server/sql/00_reused_tables.sql:/docker-entrypoint-initdb.d/01-reused.sql:ro
+      - ../server/sql/v1-schema.sql:/docker-entrypoint-initdb.d/02-v1-schema.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  server:
+    build:
+      context: ../server
+    container_name: chatsift-server
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3100
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: ${MYSQL_USER}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+      DB_NAME: ${MYSQL_DATABASE}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: 7d
+      ANALYZER_ENABLED: "true"
+      ANALYZER_POLL_INTERVAL: 1000
+      ANALYZER_BATCH_SIZE: 20
+      ANALYZER_MAX_ATTEMPTS: 3
+      INTENT_CONTEXT_SIZE: 20   # 生产用 20(最近20条 inbound,W12.5 口径);dev 用 5 仅为测试
+      SLA_INQUIRY_HOURS: 24
+      SLA_APPOINTMENT_HOURS: 4
+      SLA_COMPLAINT_HOURS: 1
+      SLA_PRICING_HOURS: 2
+    ports:
+      - "127.0.0.1:3100:3100"   # 只绑本地,公网经 Nginx HTTPS 进
+    volumes:
+      - ../admin/dist:/app/public:ro   # 后台静态产物(release-prod 构建后同步)
+
+volumes: {}
