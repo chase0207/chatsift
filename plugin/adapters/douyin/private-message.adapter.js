@@ -178,7 +178,8 @@
           anchorOffset = 0
           return
         }
-        var timeText = _extractMessageTime(el)
+        var preciseTimeText = _extractPreciseMessageTime(el)
+        var timeText = preciseTimeText || _extractMessageTime(el)
         var occurred = _resolveOccurredAt(timeText, currentAnchor, anchorOffset, collectAt, lastOccurredAt)
         if (!timeText && currentAnchor) anchorOffset += 1
         lastOccurredAt = occurred.ms
@@ -195,7 +196,7 @@
             selector: 'life-message-item',
             rect: Dom.readRect(el),
             time_text: timeText || '',
-            time_source: occurred.source,
+            time_source: preciseTimeText ? 'precise-invisible' : occurred.source,
             time_estimated: occurred.estimated,
           },
         })
@@ -243,6 +244,17 @@
   function _extractMessageTime(el) {
     return Dom.getTextByXpath(el, './/span[contains(@class,"text-xs")]') ||
       Dom.getTextByXpath(el, './/p[contains(@class,"text")]//span')
+  }
+
+  function _extractPreciseMessageTime(el) {
+    var nodes = el.querySelectorAll
+      ? el.querySelectorAll('p.invisible.whitespace-nowrap.absolute')
+      : []
+    for (var i = 0; i < nodes.length; i++) {
+      var text = Dom.getText(nodes[i])
+      if (/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}$/.test(text)) return text
+    }
+    return ''
   }
 
   function _isOutbound(el) {
