@@ -101,6 +101,16 @@ J. 稳定运行观察后,再清理 chat_rpa 旧目录与数据卷(最终弃用)
 - Nginx server 块示例(chatsift.kongyuekeji.com → 127.0.0.1:3100 + 证书)
 - `scripts/backup-mysql.sh`(每日 dump + 上传)
 
+## 6.1 实际上线记录(2026-06-02)
+服务器用**宝塔面板**管 nginx(非 /etc/nginx/conf.d),vhost 在 `/www/server/panel/vhost/nginx/`。实际切换:
+- `html_admin.kongyuekeji.com.conf`:`root /opt/chat-rpa/admin/dist`→`/opt/chatsift/admin/dist`(静态托管 SPA),`/api` 反代 `3000`→`3100`。
+- `html_api.kongyuekeji.com.conf`、`html_ip_api.conf`(IP:8080):反代 `3000`→`3100`。
+- 每个文件改前 `cp` 备份(`.bak.时间戳`),`nginx -t` 通过才 reload。
+- chat_rpa prod + test 容器 `docker compose down`(数据卷保留,可回退)。
+- 部署踩坑:① server/sql/*.sql 需 644(否则容器内读不到→v1 表不建);② mysql healthcheck 需 start_period(否则首次 init 误判不健康)。均已在仓库修复。
+- 真实主机名 `VM-0-13-opencloudos`(非 chat-rpa-prod);登录 `ssh -i <Ubuntu.pem> root@124.222.146.193`。
+- **遗留**:插件 serverUrl 需指到 `https://admin.kongyuekeji.com` 才往生产传数据;Phase 3(删 chat_rpa 旧目录)稳定后再做。
+
 ## 7. 回滚
 - 上线不稳:`docker compose down` chatsift,chat_rpa 旧目录/数据卷在 §3-C 暂保留时可 `up` 回退(故 chat_rpa 数据卷在 chatsift 稳定前不要删)。
 - 版本回滚:`git checkout vX.Y.Z` 旧 tag → 重新 build/up(库迁移只增不改,旧版本兼容旧表)。
