@@ -1,8 +1,8 @@
 function $(id) { return document.getElementById(id) }
 
-var PRODUCTION_URL = ((window.PRA_APP_CONFIG && window.PRA_APP_CONFIG.serverUrl) || 'http://124.222.146.193:8080').replace(/\/$/, '')
+var PRODUCTION_URL = ((window.PRA_APP_CONFIG && window.PRA_APP_CONFIG.serverUrl) || 'https://admin.kongyuekeji.com').replace(/\/$/, '')
 var LOCAL_URL = 'http://127.0.0.1:3100'
-var TEST_URL = 'http://124.222.146.193:3001'
+var TEST_URL = 'https://test-admin.kongyuekeji.com'
 var AUTO_SERVER_URL = null
 var AUTO_ENV = 'prod'
 
@@ -44,18 +44,19 @@ function cycleEnv() {
 }
 
 function renderEnvBadge() {
+  var envName = AUTO_ENV === 'local' ? '本地开发' : (AUTO_ENV === 'test' ? '测试环境' : '生产环境')
+  var ver = 'v' + chrome.runtime.getManifest().version
+  ;['brandVersionSub', 'loginVersion'].forEach(function (id) {
+    var el = $(id)
+    if (!el) return
+    el.textContent = ver + ' · ' + envName
+    el.style.cursor = 'pointer'
+    el.title = '点击切换环境（生产/测试/本地）'
+  })
   var badge = $('envBadge')
   if (!badge) return
-  if (AUTO_ENV === 'local') {
-    badge.textContent = '本地开发'
-    badge.className = 'env-badge env-local'
-  } else if (AUTO_ENV === 'test') {
-    badge.textContent = '测试环境'
-    badge.className = 'env-badge env-test'
-  } else {
-    badge.textContent = '生产环境'
-    badge.className = 'env-badge env-prod'
-  }
+  badge.textContent = envName
+  badge.className = 'env-badge ' + (AUTO_ENV === 'local' ? 'env-local' : (AUTO_ENV === 'test' ? 'env-test' : 'env-prod'))
   badge.style.cursor = 'pointer'
   badge.title = '点击切换环境'
   badge.onclick = cycleEnv
@@ -845,9 +846,9 @@ async function initialize() {
 
   await detectServerUrl()
 
-  $('loginVersion').style.cursor = 'pointer'
-  $('loginVersion').title = '点击切换环境'
   $('loginVersion').addEventListener('click', cycleEnv)
+  $('brandVersionSub').addEventListener('click', cycleEnv)
+  renderEnvBadge()
 
   bindNav()
   bindPanels()

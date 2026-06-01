@@ -57,9 +57,13 @@ fi
 # 3. bump 版本并同步
 bash scripts/bump-version.sh "$VERSION"
 
-# 4. 构建插件与后台(版本号内联进产物)
+# 4. 构建插件 → 打包供下载 → 构建后台(版本号内联进产物)
 npm run build:plugin
+bash scripts/package-plugin.sh "$NOTES"
 npm run build:admin
+# 插件下载产物放进 admin/dist(生产容器把 admin/dist 挂为 /app/public,dashboard 从那读)
+mkdir -p admin/dist/plugin-downloads
+cp -f server/public/plugin-downloads/* admin/dist/plugin-downloads/ 2>/dev/null || true
 
 # 5. 更新 CHANGELOG(在 marker 后插入新版本块)
 DATE=$(date +%Y-%m-%d)
