@@ -26,6 +26,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+      start_period: 40s   # 首次初始化(建库+灌 schema)较慢,给足启动期再判健康
 
   server:
     build:
