@@ -15,7 +15,7 @@ UPDATE menus SET parent_id=@kefu, sort_order=1 WHERE permission_code='conversati
 UPDATE menus SET parent_id=@kefu, sort_order=2 WHERE permission_code='lead:manage';
 UPDATE menus SET parent_id=@kefu, sort_order=3 WHERE permission_code='workorder:handle';
 UPDATE menus SET parent_id=@kefu, sort_order=4 WHERE permission_code='analytics:view';
-UPDATE menus SET parent_id=@kefu, sort_order=5 WHERE permission_code='log:list';
+UPDATE menus SET parent_id=@kefu, sort_order=5, status=0 WHERE permission_code='log:list';  -- 日志中心暂不披露
 
 UPDATE menus SET parent_id=@sys, sort_order=1 WHERE permission_code='user:list';
 UPDATE menus SET parent_id=@sys, sort_order=2 WHERE permission_code='role:list';

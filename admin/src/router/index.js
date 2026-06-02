@@ -29,6 +29,7 @@ const routes = [
       { path: 'workorders', name: 'Workorders', component: () => import('../views/Workorders.vue'), meta: { title: '工单中心' } },
       { path: 'analytics', name: 'Analytics', component: () => import('../views/Analytics.vue'), meta: { title: '运营分析' } },
       { path: 'logs', name: 'Logs', component: () => import('../views/Logs.vue'), meta: { title: '日志中心' } },
+      { path: 'aggregate', name: 'Aggregate', component: () => import('../views/Aggregate.vue'), meta: { title: '消息聚合' } },
       { path: 'settings', name: 'Settings', redirect: '/settings/llm', meta: { title: '系统设置' } },
       { path: 'settings/llm', name: 'LlmConfig', component: () => import('../views/LlmConfig.vue'), meta: { title: 'LLM配置' } },
     ],
@@ -78,6 +79,7 @@ var routePermMap = {
   Workorders: 'workorder:handle',
   Analytics: 'analytics:view',
   Logs: 'log:list',
+  Aggregate: 'aggregate:view',
   Settings: 'settings',
   LlmConfig: 'llm:config',
 }

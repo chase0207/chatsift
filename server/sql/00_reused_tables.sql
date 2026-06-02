@@ -179,12 +179,18 @@ UPDATE menus SET parent_id=@kefu, sort_order=1 WHERE permission_code='conversati
 UPDATE menus SET parent_id=@kefu, sort_order=2 WHERE permission_code='lead:manage';
 UPDATE menus SET parent_id=@kefu, sort_order=3 WHERE permission_code='workorder:handle';
 UPDATE menus SET parent_id=@kefu, sort_order=4 WHERE permission_code='analytics:view';
-UPDATE menus SET parent_id=@kefu, sort_order=5 WHERE permission_code='log:list';
+UPDATE menus SET parent_id=@kefu, sort_order=5, status=0 WHERE permission_code='log:list';  -- 日志中心暂不披露
 UPDATE menus SET parent_id=@sys, sort_order=1 WHERE permission_code='user:list';
 UPDATE menus SET parent_id=@sys, sort_order=2 WHERE permission_code='role:list';
 UPDATE menus SET parent_id=@sys, sort_order=3 WHERE permission_code='menu:list';
 UPDATE menus SET parent_id=@sys, sort_order=4 WHERE permission_code='platform:list';
 UPDATE menus SET parent_id=@sys, sort_order=5 WHERE permission_code='plugin:list';
 INSERT IGNORE INTO role_has_permissions (role_id, menu_id) VALUES (1,@kefu),(1,@sys),(2,@kefu);
+
+-- W13 消息聚合(只读三栏页),客服管理组首位
+INSERT IGNORE INTO menus (parent_id, name, icon, route, component, type, permission_code, sort_order, status)
+  VALUES (@kefu, '消息聚合', 'Files', '/aggregate', 'Aggregate', 'menu', 'aggregate:view', 0, 1);
+SET @agg := (SELECT id FROM menus WHERE permission_code='aggregate:view' LIMIT 1);
+INSERT IGNORE INTO role_has_permissions (role_id, menu_id) VALUES (1,@agg),(2,@agg);
 
 SET FOREIGN_KEY_CHECKS = 1;
