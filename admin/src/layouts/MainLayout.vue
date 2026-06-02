@@ -92,6 +92,7 @@ import { onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox, ElNotification } from 'element-plus'
 import { useUserStore } from '../stores/user'
+import pkg from '../../package.json'
 import { getMenuTree } from '../api/menus'
 import { recentLeads } from '../api/leads'
 import {
@@ -111,7 +112,7 @@ var router = useRouter()
 var store = useUserStore()
 
 var isCollapsed = ref(false)
-var appVersion = 'v1.0.0'
+var appVersion = 'v' + pkg.version
 var userInfo = computed(function () { return store.userInfo })
 var activeMenu = computed(function () { return route.path })
 var menuTree = ref([])
