@@ -76,12 +76,12 @@ ENTRY="## [$VERSION] - $DATE
 - 复盘: $RETRO
 "
 if grep -q "$MARKER" CHANGELOG.md; then
-  node -e "
+  ENTRY="$ENTRY" node -e "
     const fs=require('fs');const m='$MARKER';
     let c=fs.readFileSync('CHANGELOG.md','utf8');
     c=c.replace(m, m+'\n\n'+process.env.ENTRY.trim());
     fs.writeFileSync('CHANGELOG.md',c);
-  " ENTRY="$ENTRY"
+  "
 else
   echo -e "${YELLOW}[warn]${NC} CHANGELOG.md 未找到锚点,追加到文件末尾。"
   printf "\n%s\n" "$ENTRY" >> CHANGELOG.md
