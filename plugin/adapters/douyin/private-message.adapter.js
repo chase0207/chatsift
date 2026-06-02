@@ -243,6 +243,7 @@
         message_type: 'user_text',
         type: 'text',
         content: text,
+        agent_name: direction === 'outbound' ? _extractAgentName(el) : '',
         timestamp: occurred.iso,
         time_meta: occurred,
         raw_payload: {
@@ -287,6 +288,21 @@
     if (!el.querySelector) return null
     return el.querySelector('div[class*="px-3"][class*="py-2"]') ||
       Dom.queryFirst(SELECTORS.bubbleText, el)
+  }
+
+  function _extractAgentName(el) {
+    // outbound 消息行内的客服名:p.text-right.text-gray-2(内含时间 span,需排除,只取文本节点)
+    if (!el || !el.querySelector) return ''
+    var p = el.querySelector('p[class*="text-right"][class*="text-gray"]') || el.querySelector('p[class*="text-right"]')
+    if (!p) return ''
+    var name = ''
+    var nodes = p.childNodes || []
+    for (var i = 0; i < nodes.length; i++) {
+      if (nodes[i].nodeType === 3) name += nodes[i].textContent || ''
+    }
+    name = String(name || '').trim()
+    if (!name) name = String(Dom.getText(p) || '').trim()
+    return name
   }
 
   function _extractMessageTime(el) {
@@ -443,7 +459,7 @@
         occurredAt: occurredAt,
       }),
       direction: direction,
-      sender_nickname: direction === 'inbound' ? (sessionInfo.nickname || '') : (sessionInfo.accountNickname || ''),
+      sender_nickname: direction === 'inbound' ? (sessionInfo.nickname || '') : (rawMsg.agent_name || sessionInfo.accountNickname || ''),
       content_type: rawMsg.type || 'text',
       content_text: content,
       content_url: rawMsg.url || null,

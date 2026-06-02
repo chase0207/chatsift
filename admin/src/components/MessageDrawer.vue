@@ -1,13 +1,12 @@
 <template>
   <el-drawer
     :model-value="modelValue"
-    title="聊天记录"
+    :title="drawerTitle"
     size="520px"
     destroy-on-close
     @update:model-value="emit('update:modelValue', $event)"
     @open="fetchMessages"
   >
-    <div v-if="messages.length" class="chat-header">用户：{{ customerName }}</div>
     <div ref="messageListRef" v-loading="loading" class="message-list">
       <el-empty v-if="!messages.length && !loading" description="暂无消息" />
       <template v-for="item in renderItems" :key="item.msg.id">
@@ -61,8 +60,9 @@ const renderItems = computed(() => {
 })
 const customerName = computed(() => {
   const inb = (messages.value || []).find((m) => m.direction === 'inbound' && m.sender_nickname)
-  return inb ? inb.sender_nickname : '用户'
+  return inb ? inb.sender_nickname : ''
 })
+const drawerTitle = computed(() => (customerName.value ? `聊天记录 · ${customerName.value}` : '聊天记录'))
 
 async function fetchMessages() {
   if (!props.conversationId) {
