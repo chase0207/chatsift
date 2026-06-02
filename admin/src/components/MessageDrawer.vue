@@ -9,26 +9,27 @@
   >
     <div ref="messageListRef" v-loading="loading" class="message-list">
       <el-empty v-if="!messages.length && !loading" description="暂无消息" />
-      <div
-        v-for="msg in messages"
-        :key="msg.id"
-        class="message-row"
-        :class="msg.direction === 'outbound' ? 'message-row-right' : 'message-row-left'"
-      >
-        <div class="message-bubble" :class="msg.direction === 'outbound' ? 'outbound' : 'inbound'">
-          <div class="message-sender">
-            <span>{{ msg.sender_nickname || (msg.direction === 'outbound' ? '客服' : '用户') }}</span>
-            <el-text type="info" size="small">{{ formatDate(msg.occurred_at) }}</el-text>
+      <template v-for="item in renderItems" :key="item.msg.id">
+        <div v-if="item.sep" class="message-time-sep"><span>{{ item.sep }}</span></div>
+        <div
+          class="message-row"
+          :class="item.msg.direction === 'outbound' ? 'message-row-right' : 'message-row-left'"
+        >
+          <div
+            class="message-bubble"
+            :class="item.msg.direction === 'outbound' ? 'outbound' : 'inbound'"
+            :title="item.hoverTime"
+          >
+            <div class="message-content">{{ item.msg.content_text || item.msg.content_url || `[${item.msg.content_type || 'unknown'}]` }}</div>
           </div>
-          <div class="message-content">{{ msg.content_text || msg.content_url || `[${msg.content_type || 'unknown'}]` }}</div>
         </div>
-      </div>
+      </template>
     </div>
   </el-drawer>
 </template>
 
 <script setup>
-import { nextTick, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getMessages } from '../api/conversations'
 
@@ -41,6 +42,33 @@ const emit = defineEmits(['update:modelValue'])
 const loading = ref(false)
 const messages = ref([])
 const messageListRef = ref(null)
+
+const SEP_GAP_MS = 5 * 60 * 1000
+function tsOf(v) {
+  if (!v) return null
+  const d = new Date(String(v).includes('T') ? v : String(v).replace(' ', 'T'))
+  return Number.isNaN(d.getTime()) ? null : d.getTime()
+}
+// 抖音式展示:不在每条上显示昵称/时间;按时间间隔(>5min)或跨天插入时间分隔条;
+// 有精确时间的消息(raw_snapshot.time_estimated===false)hover 才显示具体时间,拿不到的不显示。
+const renderItems = computed(() => {
+  const list = messages.value || []
+  const items = []
+  let lastTs = null
+  let lastDay = null
+  for (const m of list) {
+    const ts = tsOf(m.occurred_at)
+    const day = ts ? new Date(ts).toDateString() : null
+    let sep = null
+    if (lastTs === null || (ts !== null && ts - lastTs >= SEP_GAP_MS) || (day && day !== lastDay)) {
+      sep = formatDate(m.occurred_at).slice(0, 16)
+    }
+    const precise = !!(m.raw_snapshot && m.raw_snapshot.time_estimated === false)
+    items.push({ msg: m, sep, hoverTime: precise ? formatDate(m.occurred_at) : '' })
+    if (ts !== null) { lastTs = ts; lastDay = day }
+  }
+  return items
+})
 
 async function fetchMessages() {
   if (!props.conversationId) {
@@ -84,6 +112,7 @@ function formatDate(value) {
 .message-bubble { max-width: 82%; border-radius: 8px; padding: 10px 12px; border: 1px solid var(--rpa-border, #e5e7eb); }
 .message-bubble.inbound { background: #ffffff; }
 .message-bubble.outbound { background: var(--rpa-brand-soft, #eef0ff); }
-.message-sender { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 6px; font-size: 12px; color: var(--rpa-ink-2, #475569); }
+.message-time-sep { text-align: center; margin: 12px 0 8px; }
+.message-time-sep span { display: inline-block; font-size: 12px; color: #9ca3af; background: rgba(15, 23, 42, 0.05); padding: 2px 10px; border-radius: 10px; }
 .message-content { white-space: pre-wrap; word-break: break-word; line-height: 1.6; color: var(--rpa-ink, #0f172a); }
 </style>
