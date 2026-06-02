@@ -23,12 +23,16 @@
     { key: 'sessionTab', label: '会话Tab', color: '#38bdf8', group: 'A 会话级', optional: true, description: '当前咨询、历史咨询或同类会话 tab 节点' },
     { key: 'sourceTag', label: '来源标签', color: '#60a5fa', group: 'A 会话级', optional: true, description: '经营源、自然流量等来源标签节点' },
     { key: 'leadStatusTag', label: '留资状态标签', color: '#a78bfa', group: 'A 会话级', optional: true, description: '已留资、未留资等状态标签节点' },
+    { key: 'noConversationHint', label: '暂无会话', color: '#94a3b8', group: 'A 会话级', optional: true, description: '暂无会话、空列表或空状态提示节点' },
+    { key: 'customerServiceOnlineStatus', label: '客服在线状态', color: '#10b981', group: 'A 会话级', optional: true, description: '客服在线、休息、离线等状态节点' },
     { key: 'loginDialog', label: '登录态', color: '#dc2626', group: 'A 会话级', optional: true, description: '登录失效弹窗或登录态识别节点' },
     { key: 'closedHint', label: '会话关闭态', color: '#64748b', group: 'A 会话级', optional: true, description: '会话关闭、超时或不可继续处理的状态节点' },
     { key: 'messageItem', label: '消息容器', color: '#f59e0b', group: 'B 消息级', required: true, description: '单条消息根节点，逐条遍历的锚' },
     { key: 'messageText', label: '用户消息文本', color: '#d97706', group: 'B 消息级', required: true, description: '用户侧文本气泡节点，用于方向推导' },
     { key: 'selfMessageText', label: '自己消息文本', color: '#14b8a6', group: 'B 消息级', required: true, description: '客服侧文本气泡节点，用于方向推导' },
-    { key: 'messageTypeAnchor', label: '消息类型判别锚', color: '#8b5cf6', group: 'B 消息级', optional: true, description: '图片、卡片、系统消息等类型区分节点' },
+    { key: 'messageImageAnchor', label: '图片消息锚', color: '#8b5cf6', group: 'B 消息级', optional: true, description: '图片消息识别节点' },
+    { key: 'messageCardAnchor', label: '卡片消息锚', color: '#f97316', group: 'B 消息级', optional: true, description: '商品、咨询、订单等卡片消息识别节点' },
+    { key: 'messageSystemAnchor', label: '系统消息锚', color: '#64748b', group: 'B 消息级', optional: true, description: '系统消息或平台提示消息识别节点' },
     { key: 'messageSenderName', label: '用户发送者名', color: '#06b6d4', group: 'B 消息级', optional: true, description: '用户消息上方发送者名节点' },
     { key: 'selfMessageSenderName', label: '自己发送者名', color: '#0f766e', group: 'B 消息级', optional: true, description: '客服侧消息上方发送者名节点' },
     { key: 'historyLoadTrigger', label: '加载历史触发器', color: '#4f46e5', group: 'B 消息级', optional: true, description: '加载更多历史消息的入口或触发节点' },
@@ -476,6 +480,19 @@
         label: type.label,
         status: 'uncollected',
         message: '未采集',
+      }
+    }
+
+    if (item.root_type === 'manual_html' || item.manual_html || item.simple_html) {
+      return {
+        type: type.key,
+        label: item.label || type.label,
+        status: 'warn',
+        method: 'manual_html',
+        selector: '',
+        root_type: 'manual_html',
+        count: 0,
+        message: 'HTML补充，非选择器命中',
       }
     }
 

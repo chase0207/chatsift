@@ -12,12 +12,16 @@ var ELEMENT_TYPES = [
   { key: 'sessionTab', label: '会话Tab', group: 'A 会话级', optional: true, description: '当前咨询、历史咨询或同类会话 tab 节点' },
   { key: 'sourceTag', label: '来源标签', group: 'A 会话级', optional: true, description: '经营源、自然流量等来源标签节点' },
   { key: 'leadStatusTag', label: '留资状态标签', group: 'A 会话级', optional: true, description: '已留资、未留资等状态标签节点' },
+  { key: 'noConversationHint', label: '暂无会话', group: 'A 会话级', optional: true, description: '暂无会话、空列表或空状态提示节点' },
+  { key: 'customerServiceOnlineStatus', label: '客服在线状态', group: 'A 会话级', optional: true, description: '客服在线、休息、离线等状态节点' },
   { key: 'loginDialog', label: '登录态', group: 'A 会话级', optional: true, description: '登录失效弹窗或登录态识别节点' },
   { key: 'closedHint', label: '会话关闭态', group: 'A 会话级', optional: true, description: '会话关闭、超时或不可继续处理的状态节点' },
   { key: 'messageItem', label: '消息容器', group: 'B 消息级', required: true, description: '单条消息根节点，逐条遍历的锚' },
   { key: 'messageText', label: '用户消息文本', group: 'B 消息级', required: true, description: '用户侧文本气泡节点，用于方向推导' },
   { key: 'selfMessageText', label: '自己消息文本', group: 'B 消息级', required: true, description: '客服侧文本气泡节点，用于方向推导' },
-  { key: 'messageTypeAnchor', label: '消息类型判别锚', group: 'B 消息级', optional: true, description: '图片、卡片、系统消息等类型区分节点' },
+  { key: 'messageImageAnchor', label: '图片消息锚', group: 'B 消息级', optional: true, description: '图片消息识别节点' },
+  { key: 'messageCardAnchor', label: '卡片消息锚', group: 'B 消息级', optional: true, description: '商品、咨询、订单等卡片消息识别节点' },
+  { key: 'messageSystemAnchor', label: '系统消息锚', group: 'B 消息级', optional: true, description: '系统消息或平台提示消息识别节点' },
   { key: 'messageSenderName', label: '用户发送者名', group: 'B 消息级', optional: true, description: '用户消息上方发送者名节点' },
   { key: 'selfMessageSenderName', label: '自己发送者名', group: 'B 消息级', optional: true, description: '客服侧消息上方发送者名节点' },
   { key: 'historyLoadTrigger', label: '加载历史触发器', group: 'B 消息级', optional: true, description: '加载更多历史消息的入口或触发节点' },
@@ -524,6 +528,83 @@ async function resetCollect() {
   }
 }
 
+async function saveManualHtml() {
+  setMessage('')
+  var html = ($('manualHtml').value || '').trim()
+  if (!html) {
+    setMessage('请先粘贴 HTML 片段')
+    return
+  }
+  var payload = await getCurrentPayload()
+  var typeKey = getCurrentTypeKey(payload)
+  var type = ELEMENT_TYPES.find(function (item) { return item.key === typeKey })
+  if (!type) {
+    setMessage('请先选择要补充的点位')
+    return
+  }
+  var storageState = await getStorageState()
+  var collected = Object.assign({}, storageState.collectedItems || {}, (payload && payload.collectedItems) || {})
+  var tab = await getActiveTab()
+  collected[type.key] = buildManualHtmlItem(type, html, tab, payload)
+  var nextState = Object.assign({}, storageState, {
+    isCollecting: payload && payload.isCollecting,
+    selectedType: type.key,
+    collectedItems: collected,
+    frame: (payload && payload.frame) || storageState.frame || { url: tab && tab.url || '', title: tab && tab.title || '' },
+    updatedAt: new Date().toISOString(),
+  })
+  await chrome.storage.local.set({ [STORAGE_KEY]: nextState })
+  latestCollectedItems = collected
+  renderProgress(nextState)
+  $('manualHtml').value = ''
+  setMessage('已补充 HTML：' + type.label)
+}
+
+function getCurrentTypeKey(payload) {
+  var selected = document.querySelector('#progressList li.selected')
+  if (selected && selected.dataset.type) return selected.dataset.type
+  if (payload && payload.selectedType) return payload.selectedType
+  return getNextTypeKey()
+}
+
+function buildManualHtmlItem(type, html, tab, payload) {
+  var text = extractTextFromHtml(html)
+  return {
+    primary: null,
+    css_list: [],
+    xpath: null,
+    text_xpath: null,
+    tag: null,
+    id: null,
+    classes: [],
+    stable_classes: [],
+    attributes: [],
+    text: text || null,
+    root_type: 'manual_html',
+    sample_html: html.slice(0, 500),
+    simple_html: html,
+    manual_html: html,
+    dom_path: '',
+    label: type.label,
+    group: type.group,
+    required: !!type.required,
+    optional: !!type.optional,
+    description: type.description,
+    captured_at: new Date().toISOString(),
+    page_url: (payload && payload.frame && payload.frame.url) || (tab && tab.url) || '',
+    frame_title: (payload && payload.frame && payload.frame.title) || (tab && tab.title) || '',
+  }
+}
+
+function extractTextFromHtml(html) {
+  try {
+    var doc = new DOMParser().parseFromString(html, 'text/html')
+    return (doc.body && doc.body.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 120)
+  } catch (_) {
+    return ''
+  }
+}
+
 async function exportJson() {
   setMessage('')
   savePlatformInfo()
@@ -668,6 +749,7 @@ document.addEventListener('DOMContentLoaded', function () {
   $('btnReset').addEventListener('click', resetCollect)
   $('btnValidate').addEventListener('click', function () { validateSelectors() })
   $('btnExport').addEventListener('click', exportJson)
+  $('btnManualHtml').addEventListener('click', saveManualHtml)
   $('authButton').addEventListener('click', toggleAuth)
   $('platformSelect').addEventListener('change', function () {
     updatePlatformFields()

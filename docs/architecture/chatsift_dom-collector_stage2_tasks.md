@@ -91,6 +91,8 @@ git commit -m "chore(tools/dom-collector): remove send element-type definitions,
 | 会话Tab | 当前咨询/历史咨询 tab | 建议 |
 | 来源标签 | 经营源/自然流量 节点 | 建议 |
 | 留资状态标签 | 已留资 节点 | 建议 |
+| 暂无会话 | 暂无会话/空列表/空状态提示节点 | 建议 |
+| 客服在线状态 | 在线/休息/离线等客服状态节点 | 建议 |
 | 登录态 | loginDialog(保留,状态识别) | 保留 |
 | 会话关闭态 | closedHint(保留) | 保留 |
 
@@ -103,7 +105,9 @@ git commit -m "chore(tools/dom-collector): remove send element-type definitions,
 | 消息容器 | 单条消息的根节点(如 my-4 行) | 必采(逐条遍历的锚) |
 | 用户消息文本 | 用户气泡文本节点 | 必采 |
 | 自己消息文本 | 自己(客服)气泡文本节点 | 必采(与上一条配合判方向,见§3.4) |
-| 消息类型判别锚 | 图片/卡片/系统消息的区分节点 | 建议 |
+| 图片消息锚 | 图片消息识别节点 | 建议 |
+| 卡片消息锚 | 商品/咨询/订单等卡片消息识别节点 | 建议 |
+| 系统消息锚 | 系统消息或平台提示消息识别节点 | 建议 |
 | 用户发送者名 | 用户消息上方发送者名节点 | 建议 |
 | 自己发送者名 | 客服侧消息上方发送者名节点 | 建议 |
 | 加载历史触发器 | historyLoadTrigger(滚动加载更多) | 保留(采全历史) |
@@ -131,6 +135,10 @@ git commit -m "chore(tools/dom-collector): remove send element-type definitions,
 | **accountId(稳定客户ID)** | DOM 不暴露 | 拿不到;会话标识用 pageKey+nickname 合成(W6.5 取舍) |
 
 > 一句话:**点位采"DOM 上看得见、点得到"的;逻辑推导"看不见、要算出来"的(方向/顺序/精确时间爬取/去重)。** 两者分开,前者进 selectors.json,后者附说明给 CC。
+
+### 3.5 HTML 兜底补充
+
+当目标元素无法点选时,允许在工具侧边栏粘贴该元素的 HTML 片段,作为当前点位的 `simple_html/manual_html/sample_html` 导出。HTML 补充不伪装成选择器命中,只作为 CC 后续解析 DOM 结构的人工证据。
 
 ---
 

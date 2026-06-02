@@ -39,6 +39,8 @@
 | `sessionTab` | 会话Tab | 建议 | 当前咨询、历史咨询等 tab |
 | `sourceTag` | 来源标签 | 建议 | 经营源、自然流量等来源 |
 | `leadStatusTag` | 留资状态标签 | 建议 | 已留资、未留资等标签 |
+| `noConversationHint` | 暂无会话 | 建议 | 暂无会话、空列表或空状态提示节点 |
+| `customerServiceOnlineStatus` | 客服在线状态 | 建议 | 客服在线、休息、离线等状态节点 |
 | `loginDialog` | 登录态 | 保留 | 登录失效弹窗或状态节点 |
 | `closedHint` | 会话关闭态 | 保留 | 会话关闭、超时或不可继续处理状态 |
 
@@ -49,7 +51,9 @@
 | `messageItem` | 消息容器 | 必采 | 单条消息根节点,逐条遍历锚 |
 | `messageText` | 用户消息文本 | 必采 | 用户侧文本气泡节点 |
 | `selfMessageText` | 自己消息文本 | 必采 | 客服侧文本气泡节点 |
-| `messageTypeAnchor` | 消息类型判别锚 | 建议 | 图片、卡片、系统消息等区分节点 |
+| `messageImageAnchor` | 图片消息锚 | 建议 | 图片消息识别节点 |
+| `messageCardAnchor` | 卡片消息锚 | 建议 | 商品、咨询、订单等卡片消息识别节点 |
+| `messageSystemAnchor` | 系统消息锚 | 建议 | 系统消息或平台提示消息识别节点 |
 | `messageSenderName` | 用户发送者名 | 建议 | 用户消息上方发送者名节点 |
 | `selfMessageSenderName` | 自己发送者名 | 建议 | 客服侧消息上方发送者名节点 |
 | `historyLoadTrigger` | 加载历史触发器 | 保留 | 加载更多历史消息入口 |
@@ -72,6 +76,21 @@
 | outbound 精确时间 | 采不到常驻精确时间,继承最近 `timeSeparator` 锚点并按 DOM 顺序保序 |
 | 消息唯一标识 | DOM 无原生 msg_id,用会话 + 方向 + 内容 + DOM seq 合成 |
 | accountId | DOM 不暴露,若平台 URL 有稳定参数则由 adapter 读 URL;拿不到时用 pageKey + nickname 等合成会话标识 |
+
+## HTML 补充
+
+当目标元素无法点选时,可以在侧边栏选择当前点位后,把元素片段粘贴到“HTML 补充”,再点击“补充当前点位”。导出 JSON 会在该点位下包含:
+
+```json
+{
+  "root_type": "manual_html",
+  "simple_html": "<div>...</div>",
+  "manual_html": "<div>...</div>",
+  "sample_html": "<div>...</div>"
+}
+```
+
+HTML 补充不是选择器命中,验证时会标记为提示项。它用于把页面结构线索交给 CC 解析,不替代真实可复用 selector。
 
 ## 导出 JSON
 

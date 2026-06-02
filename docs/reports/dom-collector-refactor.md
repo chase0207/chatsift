@@ -65,6 +65,8 @@ diff -qr /Users/caihongyang/vscode/chat_rpa/dom-collector /Users/caihongyang/vsc
 | `sessionTab` | 会话Tab | 建议 |
 | `sourceTag` | 来源标签 | 建议 |
 | `leadStatusTag` | 留资状态标签 | 建议 |
+| `noConversationHint` | 暂无会话 | 建议 |
+| `customerServiceOnlineStatus` | 客服在线状态 | 建议 |
 | `loginDialog` | 登录态 | 保留 |
 | `closedHint` | 会话关闭态 | 保留 |
 
@@ -75,7 +77,9 @@ diff -qr /Users/caihongyang/vscode/chat_rpa/dom-collector /Users/caihongyang/vsc
 | `messageItem` | 消息容器 | 必采 |
 | `messageText` | 用户消息文本 | 必采 |
 | `selfMessageText` | 自己消息文本 | 必采 |
-| `messageTypeAnchor` | 消息类型判别锚 | 建议 |
+| `messageImageAnchor` | 图片消息锚 | 建议 |
+| `messageCardAnchor` | 卡片消息锚 | 建议 |
+| `messageSystemAnchor` | 系统消息锚 | 建议 |
 | `messageSenderName` | 用户发送者名 | 建议 |
 | `selfMessageSenderName` | 自己发送者名 | 建议 |
 | `historyLoadTrigger` | 加载历史触发器 | 保留 |
@@ -100,6 +104,15 @@ diff -qr /Users/caihongyang/vscode/chat_rpa/dom-collector /Users/caihongyang/vsc
 | accountId | DOM 不暴露,adapter 读 URL 或降级合成 |
 
 这些字段不作为点位导出。
+
+## 4.1 HTML 兜底补充
+
+已新增侧边栏“HTML 补充”:
+
+- 元素无法点选时,可选择当前点位并粘贴 HTML 片段。
+- 导出字段包含 `root_type=manual_html`、`simple_html`、`manual_html`、`sample_html`。
+- 验证时标记为提示项,不伪装成真实 selector 命中。
+- 用途是把 DOM 结构线索交给 CC 解析,不进入运行时自动点击或发送。
 
 ## 5. Chatsift 平台/页面体系
 
