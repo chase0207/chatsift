@@ -1,0 +1,1145 @@
+{
+  "schema_version": "dom-collector.v1.9",
+  "platform_name": "抖音",
+  "platform_key": "douyin",
+  "page_name": "来客消息",
+  "page_key": "2",
+  "platform_url_pattern": "https://im.jinritemai.com,https://fxg.jinritemai.com,https://buyin.jinritemai.com,https://life.douyin.com,https://im.douyin.com,https://anchor.douyin.com",
+  "url_pattern": "https://life.douyin.com/cs/web",
+  "captured_at": "2026-05-23T14:05:44.425Z",
+  "page_url": "https://life.douyin.com/cs/web/?accountId=1858797317227848&conGroupId=13127910&groupId=1858797317227848&lifeAccountId=7613630133065156650",
+  "page_title": "聊天窗口",
+  "capture_points": {
+    "total": 28,
+    "implemented": 24,
+    "missing": 4,
+    "required_total": 12,
+    "required_implemented": 12,
+    "required_missing": 0,
+    "points": [
+      {
+        "key": "contactList",
+        "label": "会话列表容器",
+        "group": "会话列表",
+        "required": true,
+        "optional": false,
+        "implemented": true,
+        "status": "implemented",
+        "description": "用于 detect 和 observer 绑定"
+      },
+      {
+        "key": "contactItem",
+        "label": "单个会话条目",
+        "group": "会话列表",
+        "required": true,
+        "optional": false,
+        "implemented": true,
+        "status": "implemented",
+        "description": "用于点击切换目标会话"
+      },
+      {
+        "key": "sessionPreviewText",
+        "label": "会话末条消息预览",
+        "group": "会话列表",
+        "required": true,
+        "optional": false,
+        "implemented": true,
+        "status": "implemented",
+        "description": "DiffEngine 四信号之一"
+      },
+      {
+        "key": "sessionTimestamp",
+        "label": "会话时间戳",
+        "group": "会话列表",
+        "required": false,
+        "optional": true,
+        "implemented": true,
+        "status": "implemented",
+        "description": "DiffEngine 四信号之一，页面无时间时可选"
+      },
+      {
+        "key": "sessionUnreadCount",
+        "label": "未读数字文本",
+        "group": "会话列表",
+        "required": false,
+        "optional": true,
+        "implemented": true,
+        "status": "implemented",
+        "description": "未读数量，区别于红点存在性"
+      },
+      {
+        "key": "unreadBadge",
+        "label": "未读消息角标",
+        "group": "会话列表",
+        "required": false,
+        "optional": true,
+        "implemented": true,
+        "status": "implemented",
+        "description": "未读红点/数字触发点"
+      },
+      {
+        "key": "sessionAvatar",
+        "label": "会话头像",
+        "group": "会话身份",
+        "required": false,
+        "optional": true,
+        "implemented": true,
+        "status": "implemented",
+        "description": "辅助生成会话签名"
+      },
+      {
+        "key": "sessionUserIdNode",
+        "label": "用户ID/主页节点",
+        "group": "会话身份",
+        "required": false,
+        "optional": true,
+        "implemented": true,
+        "status": "implemented",
+        "description": "优先采 data-id、链接或稳定用户标识"
+      },
+      {
+        "key": "activeContactItem",
+        "label": "当前选中会话",
+        "group": "会话校验",
+        "required": true,
+        "optional": false,
+        "implemented": true,
+        "status": "implemented",
+        "description": "用于 verifySession 防串号"
+      },
+      {
+        "key": "activeSessionMarker",
+        "label": "选中态标识",
+        "group": "会话校验",
+        "required": true,
+        "optional": false,
+        "implemented": true,
+        "status": "implemented",
+        "description": "选中态 class/aria/data 标识"
+      },
+      {
+        "key": "sessionTitle",
+        "label": "会话标题/昵称",
+        "group": "会话校验",
+        "required": true,
+        "optional": false,
+        "implemented": true,
+        "status": "implemented",
+        "description": "用于确认已切到目标会话"
+      },
+      {
+        "key": "loadingIndicator",
+        "label": "会话加载中标识",
+        "group": "会话校验",
+        "required": false,
+        "optional": true,
+        "implemented": true,
+        "status": "implemented",
+        "description": "用于等待会话切换稳定"
+      },
+      {
+        "key": "messageList",
+        "label": "消息列表容器",
+        "group": "消息区",
+        "required": true,
+        "optional": false,
+        "implemented": true,
+        "status": "implemented",
+        "description": "限定消息扫描范围"
+      },
+      {
+        "key": "messageItem",
+        "label": "单条消息容器",
+        "group": "消息区",
+        "required": true,
+        "optional": false,
+        "implemented": true,
+        "status": "implemented",
+        "description": "消息方向、时间、内容的父容器"
+      },
+      {
+        "key": "messageText",
+        "label": "用户消息气泡",
+        "group": "消息区",
+        "required": true,
+        "optional": false,
+        "implemented": true,
+        "status": "implemented",
+        "description": "用户侧文本消息"
+      },
+      {
+        "key": "selfMessageText",
+        "label": "自己消息气泡",
+        "group": "消息区",
+        "required": true,
+        "optional": false,
+        "implemented": true,
+        "status": "implemented",
+        "description": "避免把自己回复当成用户消息"
+      },
+      {
+        "key": "messageTimestamp",
+        "label": "消息时间",
+        "group": "消息区",
+        "required": false,
+        "optional": true,
+        "implemented": true,
+        "status": "implemented",
+        "description": "消息级时间戳"
+      },
+      {
+        "key": "messageSenderName",
+        "label": "消息发送人/昵称",
+        "group": "消息区",
+        "required": false,
+        "optional": true,
+        "implemented": true,
+        "status": "implemented",
+        "description": "多人/群聊或复杂客服页辅助识别"
+      },
+      {
+        "key": "messageSystemText",
+        "label": "系统提示消息",
+        "group": "消息区",
+        "required": false,
+        "optional": true,
+        "implemented": true,
+        "status": "implemented",
+        "description": "系统提示、时间分割、状态文本"
+      },
+      {
+        "key": "messageProductCard",
+        "label": "商品/咨询卡片",
+        "group": "消息区",
+        "required": false,
+        "optional": true,
+        "implemented": true,
+        "status": "implemented",
+        "description": "咨询商品或卡片消息"
+      },
+      {
+        "key": "messageImage",
+        "label": "图片消息",
+        "group": "消息区",
+        "required": false,
+        "optional": true,
+        "implemented": true,
+        "status": "implemented",
+        "description": "图片消息识别"
+      },
+      {
+        "key": "inputBox",
+        "label": "输入框",
+        "group": "发送区",
+        "required": true,
+        "optional": false,
+        "implemented": true,
+        "status": "implemented",
+        "description": "回复输入目标"
+      },
+      {
+        "key": "sendButton",
+        "label": "发送按钮",
+        "group": "发送区",
+        "required": true,
+        "optional": false,
+        "implemented": true,
+        "status": "implemented",
+        "description": "回复发送动作"
+      },
+      {
+        "key": "sendButtonDisabledState",
+        "label": "发送按钮禁用态",
+        "group": "发送区",
+        "required": false,
+        "optional": true,
+        "implemented": true,
+        "status": "implemented",
+        "description": "判断发送按钮不可用原因"
+      },
+      {
+        "key": "inputDisabledHint",
+        "label": "输入不可用提示",
+        "group": "异常态",
+        "required": false,
+        "optional": true,
+        "implemented": false,
+        "status": "missing",
+        "description": "输入框不可用/禁言/关闭原因"
+      },
+      {
+        "key": "closedHint",
+        "label": "会话关闭提示",
+        "group": "异常态",
+        "required": false,
+        "optional": true,
+        "implemented": false,
+        "status": "missing",
+        "description": "会话关闭或超时不可回复"
+      },
+      {
+        "key": "loginDialog",
+        "label": "登录失效弹窗",
+        "group": "异常态",
+        "required": false,
+        "optional": true,
+        "implemented": false,
+        "status": "missing",
+        "description": "LoginMonitor 掉线判断"
+      },
+      {
+        "key": "historyLoadTrigger",
+        "label": "加载历史入口",
+        "group": "异常态",
+        "required": false,
+        "optional": true,
+        "implemented": false,
+        "status": "missing",
+        "description": "加载更多历史消息"
+      }
+    ]
+  },
+  "validation_summary": {
+    "total": 28,
+    "hit": 22,
+    "warn": 2,
+    "missing": 0,
+    "uncollected": 4
+  },
+  "selectors": {
+    "contactList": {
+      "primary": "#list-container",
+      "css_list": [
+        "#list-container",
+        "div[class*=\"list\"]",
+        "div.list-container-ikJNI8",
+        "div#list-container"
+      ],
+      "xpath": "//*[@id=\"list-container\"]",
+      "text_xpath": "//div[contains(normalize-space(.),\"chase价格15分钟车评老帅1刚刚\")]",
+      "tag": "div",
+      "id": "list-container",
+      "classes": [
+        "list-container-ikJNI8"
+      ],
+      "stable_classes": [
+        "list"
+      ],
+      "attributes": [],
+      "text": "chase价格15分钟车评老帅1刚刚",
+      "root_type": "document",
+      "sample_html": "<div class=\"list-container-ikJNI8 rpa-collector-hover\" id=\"list-container\" elementtiming=\"element-timing\" style=\"outline: rgb(239, 68, 68) dashed 2px !important; outline-offset: 2px !important; cursor: crosshair !important;\"><div class=\"contactCard-NdfsWo isFirstTime-QSW87N\" elementtiming=\"element-timing\" style=\"\"><div class=\"avatar-container-WIXYlV\" elementtiming=\"element-timing\" style=\"\"><span class=\"life-im-pc-avatar life-im-pc-avatar-shape-circle life-im-pc-avatar-image avatar-EmvegP\" elemen",
+      "dom_path": "div.basicLayout > div.microApp > div.pageContainer > div.app > div.sdk > div.chat > div.contactList > div#list-container",
+      "label": "会话列表容器",
+      "group": "会话列表",
+      "required": true,
+      "optional": false,
+      "description": "用于 detect 和 observer 绑定",
+      "color": "#3b82f6",
+      "captured_at": "2026-05-23T13:58:37.970Z",
+      "page_url": "https://life.douyin.com/cs/web/?accountId=1858797317227848&conGroupId=13127910&groupId=1858797317227848&lifeAccountId=7613630133065156650",
+      "frame_title": "聊天窗口"
+    },
+    "contactItem": {
+      "primary": "div[class*=\"contactCard\"][class*=\"selected\"]",
+      "css_list": [
+        "div[class*=\"contactCard\"][class*=\"selected\"]",
+        "div.contactCard-NdfsWo.selected-v29BiX",
+        "div#list-container > div[class*=\"contactCard\"]"
+      ],
+      "xpath": "//div[contains(@class,\"contactCard\")]",
+      "text_xpath": "//div[contains(normalize-space(.),\"车评老帅1刚刚\")]",
+      "tag": "div",
+      "id": null,
+      "classes": [
+        "contactCard-NdfsWo",
+        "selected-v29BiX"
+      ],
+      "stable_classes": [
+        "contactCard",
+        "selected"
+      ],
+      "attributes": [],
+      "text": "车评老帅1刚刚",
+      "root_type": "document",
+      "sample_html": "<div class=\"contactCard-NdfsWo selected-v29BiX rpa-collector-hover\" elementtiming=\"element-timing\" style=\"outline: rgb(239, 68, 68) dashed 2px !important; outline-offset: 2px !important; cursor: crosshair !important;\"><div class=\"avatar-container-WIXYlV\" elementtiming=\"element-timing\"><span class=\"life-im-pc-avatar life-im-pc-avatar-shape-circle life-im-pc-avatar-image avatar-EmvegP\" elementtiming=\"element-timing\" style=\"width: 30px; height: 30px; line-height: 30px;\"><img src=\"https://p26.douyin",
+      "dom_path": "div.microApp > div.pageContainer > div.app > div.sdk > div.chat > div.contactList > div#list-container > div.contactCard",
+      "label": "单个会话条目",
+      "group": "会话列表",
+      "required": true,
+      "optional": false,
+      "description": "用于点击切换目标会话",
+      "color": "#10b981",
+      "captured_at": "2026-05-23T13:58:41.871Z",
+      "page_url": "https://life.douyin.com/cs/web/?accountId=1858797317227848&conGroupId=13127910&groupId=1858797317227848&lifeAccountId=7613630133065156650",
+      "frame_title": "聊天窗口"
+    },
+    "sessionPreviewText": {
+      "primary": "div[class*=\"message\"]",
+      "css_list": [
+        "div[class*=\"message\"]",
+        "div.message-HXFy2a",
+        "div#list-container > div[class*=\"contactCard\"] > div[class*=\"contentInfo\"] > div[class*=\"message\"]"
+      ],
+      "xpath": "//div[contains(@class,\"message\")]",
+      "text_xpath": "//div[contains(normalize-space(.),\"价格\")]",
+      "tag": "div",
+      "id": null,
+      "classes": [
+        "message-HXFy2a"
+      ],
+      "stable_classes": [
+        "message"
+      ],
+      "attributes": [],
+      "text": "价格",
+      "root_type": "document",
+      "sample_html": "<div class=\"message-HXFy2a rpa-collector-hover\" elementtiming=\"element-timing\" style=\"outline: rgb(239, 68, 68) dashed 2px !important; outline-offset: 2px !important; cursor: crosshair !important;\">价格</div>",
+      "dom_path": "div.app > div.sdk > div.chat > div.contactList > div#list-container > div.contactCard > div.contentInfo > div.message",
+      "label": "会话末条消息预览",
+      "group": "会话列表",
+      "required": true,
+      "optional": false,
+      "description": "DiffEngine 四信号之一",
+      "color": "#38bdf8",
+      "captured_at": "2026-05-23T13:58:51.401Z",
+      "page_url": "https://life.douyin.com/cs/web/?accountId=1858797317227848&conGroupId=13127910&groupId=1858797317227848&lifeAccountId=7613630133065156650",
+      "frame_title": "聊天窗口"
+    },
+    "sessionTimestamp": {
+      "primary": "div[class*=\"increase\"]",
+      "css_list": [
+        "div[class*=\"increase\"]",
+        "div.increase-timmer-text-mka4rG",
+        "div#list-container > div[class*=\"contactCard\"] > div:nth-of-type(3) > div[class*=\"increase\"]"
+      ],
+      "xpath": "//div[contains(@class,\"increase\")]",
+      "text_xpath": "//div[contains(normalize-space(.),\"15分钟\")]",
+      "tag": "div",
+      "id": null,
+      "classes": [
+        "increase-timmer-text-mka4rG"
+      ],
+      "stable_classes": [
+        "increase"
+      ],
+      "attributes": [],
+      "text": "15分钟",
+      "root_type": "document",
+      "sample_html": "<div class=\"increase-timmer-text-mka4rG rpa-collector-hover\" elementtiming=\"element-timing\" style=\"outline: rgb(239, 68, 68) dashed 2px !important; outline-offset: 2px !important; cursor: crosshair !important;\">15分钟</div>",
+      "dom_path": "div.app > div.sdk > div.chat > div.contactList > div#list-container > div.contactCard > div > div.increase",
+      "label": "会话时间戳",
+      "group": "会话列表",
+      "required": false,
+      "optional": true,
+      "description": "DiffEngine 四信号之一，页面无时间时可选",
+      "color": "#60a5fa",
+      "captured_at": "2026-05-23T13:58:54.572Z",
+      "page_url": "https://life.douyin.com/cs/web/?accountId=1858797317227848&conGroupId=13127910&groupId=1858797317227848&lifeAccountId=7613630133065156650",
+      "frame_title": "聊天窗口"
+    },
+    "sessionUnreadCount": {
+      "primary": "div[class*=\"life\"] > sup[class*=\"life\"] > div[class*=\"life\"] > span[class*=\"life\"] > p[class*=\"rpa\"]",
+      "css_list": [
+        "div[class*=\"life\"] > sup[class*=\"life\"] > div[class*=\"life\"] > span[class*=\"life\"] > p[class*=\"rpa\"]"
+      ],
+      "xpath": "//p[contains(@class,\"rpa\")]",
+      "text_xpath": null,
+      "tag": "p",
+      "id": null,
+      "classes": [],
+      "stable_classes": [],
+      "attributes": [],
+      "text": "4",
+      "root_type": "document",
+      "sample_html": "<p elementtiming=\"element-timing\" class=\"rpa-collector-hover\" style=\"outline: rgb(239, 68, 68) dashed 2px !important; outline-offset: 2px !important; cursor: crosshair !important;\">4</p>",
+      "dom_path": "div#list-container > div.contactCard > div.avatar > div.life > sup.life > div.life > span.life > p.rpa",
+      "label": "未读数字文本",
+      "group": "会话列表",
+      "required": false,
+      "optional": true,
+      "description": "未读数量，区别于红点存在性",
+      "color": "#f43f5e",
+      "captured_at": "2026-05-23T13:59:20.903Z",
+      "page_url": "https://life.douyin.com/cs/web/?accountId=1858797317227848&conGroupId=13127910&groupId=1858797317227848&lifeAccountId=7613630133065156650",
+      "frame_title": "聊天窗口"
+    },
+    "unreadBadge": {
+      "primary": "div[class*=\"contactCard\"] > div[class*=\"avatar\"] > div[class*=\"life\"] > sup[class*=\"life\"] > div[class*=\"life\"]",
+      "css_list": [
+        "div[class*=\"life\"]",
+        "div.life-im-pc-animated-number.life-im-pc-badge-text.life-im-pc-badge-text-placement-top-right.life-im-pc-badge-type-danger",
+        "div[class*=\"contactCard\"] > div[class*=\"avatar\"] > div[class*=\"life\"] > sup[class*=\"life\"] > div[class*=\"life\"]"
+      ],
+      "xpath": "//div[contains(@class,\"life\")]",
+      "text_xpath": "//div[contains(normalize-space(.),\"012345678901234567\")]",
+      "tag": "div",
+      "id": null,
+      "classes": [
+        "life-im-pc-animated-number",
+        "life-im-pc-badge-text",
+        "life-im-pc-badge-text-placement-top-right",
+        "life-im-pc-badge-type-danger"
+      ],
+      "stable_classes": [
+        "life"
+      ],
+      "attributes": [],
+      "text": "012345678901234567890123456789",
+      "root_type": "document",
+      "sample_html": "<div class=\"life-im-pc-animated-number life-im-pc-badge-text life-im-pc-badge-text-placement-top-right life-im-pc-badge-type-danger rpa-collector-hover\" elementtiming=\"element-timing\" style=\"transform: scale(0.7); outline: rgb(239, 68, 68) dashed 2px !important; outline-offset: 2px !important; cursor: crosshair !important;\"><span class=\"life-im-pc-animated-number-bit\" elementtiming=\"element-timing\" style=\"transform: translate3d(0px, -1400%, 0px);\"><p elementtiming=\"element-timing\">0</p><p elemen",
+      "dom_path": "div.chat > div.contactList > div#list-container > div.contactCard > div.avatar > div.life > sup.life > div.life",
+      "label": "未读消息角标",
+      "group": "会话列表",
+      "required": false,
+      "optional": true,
+      "description": "未读红点/数字触发点",
+      "color": "#ef4444",
+      "captured_at": "2026-05-23T13:59:25.177Z",
+      "page_url": "https://life.douyin.com/cs/web/?accountId=1858797317227848&conGroupId=13127910&groupId=1858797317227848&lifeAccountId=7613630133065156650",
+      "frame_title": "聊天窗口"
+    },
+    "sessionAvatar": {
+      "primary": "div[class*=\"avatar\"]",
+      "css_list": [
+        "div[class*=\"avatar\"]",
+        "div.avatar-container-WIXYlV",
+        "div#list-container > div[class*=\"contactCard\"] > div[class*=\"avatar\"]"
+      ],
+      "xpath": "//div[contains(@class,\"avatar\")]",
+      "text_xpath": null,
+      "tag": "div",
+      "id": null,
+      "classes": [
+        "avatar-container-WIXYlV"
+      ],
+      "stable_classes": [
+        "avatar"
+      ],
+      "attributes": [],
+      "text": null,
+      "root_type": "document",
+      "sample_html": "<div class=\"avatar-container-WIXYlV rpa-collector-hover\" elementtiming=\"element-timing\" style=\"outline: rgb(239, 68, 68) dashed 2px !important; outline-offset: 2px !important; cursor: crosshair !important;\"><span class=\"life-im-pc-avatar life-im-pc-avatar-shape-circle life-im-pc-avatar-image avatar-EmvegP\" elementtiming=\"element-timing\" style=\"width: 30px; height: 30px; line-height: 30px;\"><img src=\"https://p26.douyinpic.com/img/aweme-avatar/tos-cn-avt-0015_9ea54410a225e7e467667ef0a2c10fc4~c5_30",
+      "dom_path": "div.pageContainer > div.app > div.sdk > div.chat > div.contactList > div#list-container > div.contactCard > div.avatar",
+      "label": "会话头像",
+      "group": "会话身份",
+      "required": false,
+      "optional": true,
+      "description": "辅助生成会话签名",
+      "color": "#a78bfa",
+      "captured_at": "2026-05-23T13:59:42.195Z",
+      "page_url": "https://life.douyin.com/cs/web/?accountId=1858797317227848&conGroupId=13127910&groupId=1858797317227848&lifeAccountId=7613630133065156650",
+      "frame_title": "聊天窗口"
+    },
+    "sessionUserIdNode": {
+      "primary": "div[class*=\"uname\"]",
+      "css_list": [
+        "div[class*=\"uname\"]",
+        "div.uname-TuM4B8",
+        "div#list-container > div[class*=\"contactCard\"] > div[class*=\"contentInfo\"] > div[class*=\"userInfo\"] > div[class*=\"uname\"]"
+      ],
+      "xpath": "//div[contains(@class,\"uname\")]",
+      "text_xpath": "//div[contains(normalize-space(.),\"车评老帅\")]",
+      "tag": "div",
+      "id": null,
+      "classes": [
+        "uname-TuM4B8"
+      ],
+      "stable_classes": [
+        "uname"
+      ],
+      "attributes": [],
+      "text": "车评老帅",
+      "root_type": "document",
+      "sample_html": "<div class=\"uname-TuM4B8 rpa-collector-hover\" elementtiming=\"element-timing\" style=\"outline: rgb(239, 68, 68) dashed 2px !important; outline-offset: 2px !important; cursor: crosshair !important;\">车评老帅</div>",
+      "dom_path": "div.sdk > div.chat > div.contactList > div#list-container > div.contactCard > div.contentInfo > div.userInfo > div.uname",
+      "label": "用户ID/主页节点",
+      "group": "会话身份",
+      "required": false,
+      "optional": true,
+      "description": "优先采 data-id、链接或稳定用户标识",
+      "color": "#c084fc",
+      "captured_at": "2026-05-23T13:59:54.046Z",
+      "page_url": "https://life.douyin.com/cs/web/?accountId=1858797317227848&conGroupId=13127910&groupId=1858797317227848&lifeAccountId=7613630133065156650",
+      "frame_title": "聊天窗口"
+    },
+    "activeContactItem": {
+      "primary": "div[class*=\"contactCard\"][class*=\"selected\"][class*=\"isFirstTime\"]",
+      "css_list": [
+        "div[class*=\"contactCard\"][class*=\"selected\"][class*=\"isFirstTime\"]",
+        "div.contactCard-NdfsWo.selected-v29BiX.isFirstTime-QSW87N",
+        "div#list-container > div[class*=\"contactCard\"]"
+      ],
+      "xpath": "//div[contains(@class,\"contactCard\")]",
+      "text_xpath": "//div[contains(normalize-space(.),\"chase鹅鹅鹅17分钟\")]",
+      "tag": "div",
+      "id": null,
+      "classes": [
+        "contactCard-NdfsWo",
+        "selected-v29BiX",
+        "isFirstTime-QSW87N"
+      ],
+      "stable_classes": [
+        "contactCard",
+        "selected",
+        "isFirstTime"
+      ],
+      "attributes": [],
+      "text": "chase鹅鹅鹅17分钟",
+      "root_type": "document",
+      "sample_html": "<div class=\"contactCard-NdfsWo selected-v29BiX isFirstTime-QSW87N rpa-collector-hover\" elementtiming=\"element-timing\" style=\"outline: rgb(239, 68, 68) dashed 2px !important; outline-offset: 2px !important; cursor: crosshair !important;\"><div class=\"avatar-container-WIXYlV\" elementtiming=\"element-timing\" style=\"\"><span class=\"life-im-pc-avatar life-im-pc-avatar-shape-circle life-im-pc-avatar-image avatar-EmvegP\" elementtiming=\"element-timing\" style=\"width: 30px; height: 30px; line-height: 30px;\">",
+      "dom_path": "div.microApp > div.pageContainer > div.app > div.sdk > div.chat > div.contactList > div#list-container > div.contactCard",
+      "label": "当前选中会话",
+      "group": "会话校验",
+      "required": true,
+      "optional": false,
+      "description": "用于 verifySession 防串号",
+      "color": "#22c55e",
+      "captured_at": "2026-05-23T14:00:45.142Z",
+      "page_url": "https://life.douyin.com/cs/web/?accountId=1858797317227848&conGroupId=13127910&groupId=1858797317227848&lifeAccountId=7613630133065156650",
+      "frame_title": "聊天窗口"
+    },
+    "activeSessionMarker": {
+      "primary": "div[class*=\"contactCard\"][class*=\"selected\"][class*=\"isFirstTime\"]",
+      "css_list": [
+        "div[class*=\"contactCard\"][class*=\"selected\"][class*=\"isFirstTime\"]",
+        "div.contactCard-NdfsWo.selected-v29BiX.isFirstTime-QSW87N",
+        "div#list-container > div[class*=\"contactCard\"]"
+      ],
+      "xpath": "//div[contains(@class,\"contactCard\")]",
+      "text_xpath": "//div[contains(normalize-space(.),\"chase鹅鹅鹅18分钟\")]",
+      "tag": "div",
+      "id": null,
+      "classes": [
+        "contactCard-NdfsWo",
+        "selected-v29BiX",
+        "isFirstTime-QSW87N"
+      ],
+      "stable_classes": [
+        "contactCard",
+        "selected",
+        "isFirstTime"
+      ],
+      "attributes": [],
+      "text": "chase鹅鹅鹅18分钟",
+      "root_type": "document",
+      "sample_html": "<div class=\"contactCard-NdfsWo selected-v29BiX isFirstTime-QSW87N rpa-collector-locked\" elementtiming=\"element-timing\" style=\"--rpa-lock-color: #22c55e; outline: rgb(34, 197, 94) solid 3px !important; outline-offset: 2px !important; cursor: crosshair !important;\"><div class=\"avatar-container-WIXYlV\" elementtiming=\"element-timing\" style=\"\"><span class=\"life-im-pc-avatar life-im-pc-avatar-shape-circle life-im-pc-avatar-image avatar-EmvegP\" elementtiming=\"element-timing\" style=\"width: 30px; height:",
+      "dom_path": "div.microApp > div.pageContainer > div.app > div.sdk > div.chat > div.contactList > div#list-container > div.contactCard",
+      "label": "选中态标识",
+      "group": "会话校验",
+      "required": true,
+      "optional": false,
+      "description": "选中态 class/aria/data 标识",
+      "color": "#16a34a",
+      "captured_at": "2026-05-23T14:01:02.475Z",
+      "page_url": "https://life.douyin.com/cs/web/?accountId=1858797317227848&conGroupId=13127910&groupId=1858797317227848&lifeAccountId=7613630133065156650",
+      "frame_title": "聊天窗口"
+    },
+    "sessionTitle": {
+      "primary": "div[class*=\"uname\"]",
+      "css_list": [
+        "div[class*=\"uname\"]",
+        "div.uname-TuM4B8",
+        "div#list-container > div[class*=\"contactCard\"] > div[class*=\"contentInfo\"] > div[class*=\"userInfo\"] > div[class*=\"uname\"]"
+      ],
+      "xpath": "//div[contains(@class,\"uname\")]",
+      "text_xpath": "//div[contains(normalize-space(.),\"chase\")]",
+      "tag": "div",
+      "id": null,
+      "classes": [
+        "uname-TuM4B8"
+      ],
+      "stable_classes": [
+        "uname"
+      ],
+      "attributes": [],
+      "text": "chase",
+      "root_type": "document",
+      "sample_html": "<div class=\"uname-TuM4B8 rpa-collector-hover\" elementtiming=\"element-timing\" style=\"outline: rgb(239, 68, 68) dashed 2px !important; outline-offset: 2px !important; cursor: crosshair !important;\">chase</div>",
+      "dom_path": "div.sdk > div.chat > div.contactList > div#list-container > div.contactCard > div.contentInfo > div.userInfo > div.uname",
+      "label": "会话标题/昵称",
+      "group": "会话校验",
+      "required": true,
+      "optional": false,
+      "description": "用于确认已切到目标会话",
+      "color": "#84cc16",
+      "captured_at": "2026-05-23T14:01:09.541Z",
+      "page_url": "https://life.douyin.com/cs/web/?accountId=1858797317227848&conGroupId=13127910&groupId=1858797317227848&lifeAccountId=7613630133065156650",
+      "frame_title": "聊天窗口"
+    },
+    "messageList": {
+      "primary": "div[role=\"button\"]",
+      "css_list": [
+        "div[role=\"button\"]",
+        "div[class*=\"chatRoom\"]",
+        "div.chatRoom-QSemdh",
+        "div[class*=\"pageContainer\"] > div[class*=\"app\"] > div[class*=\"sdk\"] > div[class*=\"chat\"] > div[class*=\"chatRoom\"]"
+      ],
+      "xpath": "//div[contains(@class,\"chatRoom\")]",
+      "text_xpath": "//div[contains(normalize-space(.),\"排队人数 0今日接待人数 1不响应率\")]",
+      "tag": "div",
+      "id": null,
+      "classes": [
+        "chatRoom-QSemdh"
+      ],
+      "stable_classes": [
+        "chatRoom"
+      ],
+      "attributes": [
+        {
+          "name": "role",
+          "value": "button"
+        }
+      ],
+      "text": "排队人数 0今日接待人数 1不响应率 -3分钟回复率 -不满意率 -chase04:48chase3新用户进线咨询，请及时回复空月培训教育很高兴为您服务，请问有",
+      "root_type": "document",
+      "sample_html": "<div class=\"chatRoom-QSemdh rpa-collector-hover\" role=\"button\" elementtiming=\"element-timing\" tabindex=\"0\" style=\"outline: rgb(239, 68, 68) dashed 2px !important; outline-offset: 2px !important; cursor: crosshair !important;\"><div elementtiming=\"element-timing\"><div class=\"life-im-pc-loading life-im-pc-loading-block\" elementtiming=\"element-timing\"><div class=\"wrapper-nxc1NS\" elementtiming=\"element-timing\"><div class=\"container-b0lJI2\" elementtiming=\"element-timing\"><div class=\"item-ZZS9nI item-A",
+      "dom_path": "div#root > div.basicLayout > div.microApp > div.pageContainer > div.app > div.sdk > div.chat > div.chatRoom",
+      "label": "消息列表容器",
+      "group": "消息区",
+      "required": true,
+      "optional": false,
+      "description": "限定消息扫描范围",
+      "color": "#fb923c",
+      "captured_at": "2026-05-23T14:01:32.326Z",
+      "page_url": "https://life.douyin.com/cs/web/?accountId=1858797317227848&conGroupId=13127910&groupId=1858797317227848&lifeAccountId=7613630133065156650",
+      "frame_title": "聊天窗口"
+    },
+    "loadingIndicator": {
+      "primary": "div[class*=\"chatd\"]",
+      "css_list": [
+        "div[class*=\"chatd\"]",
+        "div.chatd-message-body-info-message",
+        "div[class*=\"chatd\"] > div[class*=\"chatd\"] > div[class*=\"chatd\"] > div[class*=\"chatd\"] > div[class*=\"chatd\"]"
+      ],
+      "xpath": "//div[contains(@class,\"chatd\")]",
+      "text_xpath": "//div[contains(normalize-space(.),\"徐州\")]",
+      "tag": "div",
+      "id": null,
+      "classes": [
+        "chatd-message-body-info-message"
+      ],
+      "stable_classes": [
+        "chatd"
+      ],
+      "attributes": [],
+      "text": "徐州",
+      "root_type": "document",
+      "sample_html": "<div class=\"chatd-message-body-info-message rpa-collector-hover\" elementtiming=\"element-timing\" style=\"outline: rgb(239, 68, 68) dashed 2px !important; outline-offset: 2px !important; cursor: crosshair !important;\"><div data-type=\"content-el-helper\" elementtiming=\"element-timing\" style=\"width: 100%;\"></div><div class=\"chatd-bubble chatd-bubble--left chatd-bubble--other\" elementtiming=\"element-timing\"><div class=\"chatd-bubble-main chatd-bubble-main--other chatd-bubble-main--left chatd-bubble-main",
+      "dom_path": "div.chatd > div.chatd > div > div.chatd > div.chatd > div.chatd > div.chatd > div.chatd",
+      "label": "会话加载中标识",
+      "group": "会话校验",
+      "required": false,
+      "optional": true,
+      "description": "用于等待会话切换稳定",
+      "color": "#f97316",
+      "captured_at": "2026-05-23T14:01:47.526Z",
+      "page_url": "https://life.douyin.com/cs/web/?accountId=1858797317227848&conGroupId=13127910&groupId=1858797317227848&lifeAccountId=7613630133065156650",
+      "frame_title": "聊天窗口"
+    },
+    "messageItem": {
+      "primary": "div[class*=\"chatd\"]",
+      "css_list": [
+        "div[class*=\"chatd\"]",
+        "div.chatd-message-body",
+        "div[class*=\"chatd\"] > div[class*=\"chatd\"] > div:nth-of-type(20) > div[class*=\"chatd\"] > div[class*=\"chatd\"]"
+      ],
+      "xpath": "//div[contains(@class,\"chatd\")]",
+      "text_xpath": "//div[contains(normalize-space(.),\"chase墨墨\")]",
+      "tag": "div",
+      "id": null,
+      "classes": [
+        "chatd-message-body"
+      ],
+      "stable_classes": [
+        "chatd"
+      ],
+      "attributes": [],
+      "text": "chase墨墨",
+      "root_type": "document",
+      "sample_html": "<div class=\"chatd-message-body rpa-collector-hover\" elementtiming=\"element-timing\" style=\"outline: rgb(239, 68, 68) dashed 2px !important; outline-offset: 2px !important; cursor: crosshair !important;\"><div class=\"chatd-message-avatar\" elementtiming=\"element-timing\" style=\"\"><div class=\"chatd-avatar chatd-avatar--sm chatd-avatar--circle chatd-message-avatar-avatar\" elementtiming=\"element-timing\" style=\"\"></div></div><div class=\"chatd-message-body-info\" elementtiming=\"element-timing\"><div class=\"",
+      "dom_path": "div.chat > div.chatRoom > div.messageList > div.chatd > div.chatd > div > div.chatd > div.chatd",
+      "label": "单条消息容器",
+      "group": "消息区",
+      "required": true,
+      "optional": false,
+      "description": "消息方向、时间、内容的父容器",
+      "color": "#f59e0b",
+      "captured_at": "2026-05-23T14:02:17.652Z",
+      "page_url": "https://life.douyin.com/cs/web/?accountId=1858797317227848&conGroupId=13127910&groupId=1858797317227848&lifeAccountId=7613630133065156650",
+      "frame_title": "聊天窗口"
+    },
+    "messageText": {
+      "primary": "div[class*=\"chatd\"][class*=\"bubble\"]",
+      "css_list": [
+        "div[class*=\"chatd\"][class*=\"bubble\"]",
+        "div.chatd-bubble-main.chatd-bubble-main--other.chatd-bubble-main--left.chatd-bubble-main--platform-mobile.bubble-EyVrRZ",
+        "div[class*=\"chatd\"] > div[class*=\"chatd\"] > div[class*=\"chatd\"] > div[class*=\"chatd\"] > div[class*=\"chatd\"]"
+      ],
+      "xpath": "//div[contains(@class,\"chatd\")]",
+      "text_xpath": "//div[contains(normalize-space(.),\"弄\")]",
+      "tag": "div",
+      "id": null,
+      "classes": [
+        "chatd-bubble-main",
+        "chatd-bubble-main--other",
+        "chatd-bubble-main--left",
+        "chatd-bubble-main--platform-mobile",
+        "bubble-EyVrRZ"
+      ],
+      "stable_classes": [
+        "chatd",
+        "bubble"
+      ],
+      "attributes": [],
+      "text": "弄",
+      "root_type": "document",
+      "sample_html": "<div class=\"chatd-bubble-main chatd-bubble-main--other chatd-bubble-main--left chatd-bubble-main--platform-mobile bubble-EyVrRZ rpa-collector-hover\" elementtiming=\"element-timing\" style=\"outline: rgb(239, 68, 68) dashed 2px !important; outline-offset: 2px !important; cursor: crosshair !important;\"><div elementtiming=\"element-timing\" style=\"white-space: pre-wrap;\">弄</div></div>",
+      "dom_path": "div > div.chatd > div.chatd > div.chatd > div.chatd > div.chatd > div.chatd > div.chatd",
+      "label": "用户消息气泡",
+      "group": "消息区",
+      "required": true,
+      "optional": false,
+      "description": "用户侧文本消息",
+      "color": "#d97706",
+      "captured_at": "2026-05-23T14:02:25.971Z",
+      "page_url": "https://life.douyin.com/cs/web/?accountId=1858797317227848&conGroupId=13127910&groupId=1858797317227848&lifeAccountId=7613630133065156650",
+      "frame_title": "聊天窗口"
+    },
+    "selfMessageText": {
+      "primary": "div[class*=\"chatd\"][class*=\"bubble\"]",
+      "css_list": [
+        "div[class*=\"chatd\"][class*=\"bubble\"]",
+        "div.chatd-bubble-main.chatd-bubble-main--self.chatd-bubble-main--left.chatd-bubble-main--platform-mobile.bubble-EyVrRZ",
+        "div[class*=\"chatd\"] > div[class*=\"chatd\"] > div[class*=\"chatd\"] > div[class*=\"chatd\"] > div[class*=\"chatd\"]"
+      ],
+      "xpath": "//div[contains(@class,\"chatd\")]",
+      "text_xpath": "//div[contains(normalize-space(.),\"很高兴为您服务，请问有什么可以帮您？\")]",
+      "tag": "div",
+      "id": null,
+      "classes": [
+        "chatd-bubble-main",
+        "chatd-bubble-main--self",
+        "chatd-bubble-main--left",
+        "chatd-bubble-main--platform-mobile",
+        "bubble-EyVrRZ"
+      ],
+      "stable_classes": [
+        "chatd",
+        "bubble"
+      ],
+      "attributes": [],
+      "text": "很高兴为您服务，请问有什么可以帮您？",
+      "root_type": "document",
+      "sample_html": "<div class=\"chatd-bubble-main chatd-bubble-main--self chatd-bubble-main--left chatd-bubble-main--platform-mobile bubble-EyVrRZ rpa-collector-hover\" elementtiming=\"element-timing\" style=\"outline: rgb(239, 68, 68) dashed 2px !important; outline-offset: 2px !important; cursor: crosshair !important;\"><div elementtiming=\"element-timing\" style=\"white-space: pre-wrap;\" class=\"\">很高兴为您服务，请问有什么可以帮您？</div></div>",
+      "dom_path": "div > div.chatd > div.chatd > div.chatd > div.chatd > div.chatd > div.chatd > div.chatd",
+      "label": "自己消息气泡",
+      "group": "消息区",
+      "required": true,
+      "optional": false,
+      "description": "避免把自己回复当成用户消息",
+      "color": "#14b8a6",
+      "captured_at": "2026-05-23T14:02:35.646Z",
+      "page_url": "https://life.douyin.com/cs/web/?accountId=1858797317227848&conGroupId=13127910&groupId=1858797317227848&lifeAccountId=7613630133065156650",
+      "frame_title": "聊天窗口"
+    },
+    "messageSenderName": {
+      "primary": "div.uname-ZNPWRk",
+      "css_list": [
+        "div[class*=\"uname\"]",
+        "div.uname-ZNPWRk",
+        "div:nth-of-type(2) > div[class*=\"topbar\"] > div[class*=\"name\"] > div[class*=\"name\"] > div[class*=\"uname\"]"
+      ],
+      "xpath": "//div[contains(@class,\"uname\")]",
+      "text_xpath": "//div[contains(normalize-space(.),\"chase\")]",
+      "tag": "div",
+      "id": null,
+      "classes": [
+        "uname-ZNPWRk"
+      ],
+      "stable_classes": [
+        "uname"
+      ],
+      "attributes": [],
+      "text": "chase",
+      "root_type": "document",
+      "sample_html": "<div class=\"uname-ZNPWRk rpa-collector-hover\" elementtiming=\"element-timing\" style=\"outline: rgb(239, 68, 68) dashed 2px !important; outline-offset: 2px !important; cursor: crosshair !important;\">chase<svg width=\"1em\" height=\"1em\" viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" elementtiming=\"element-timing\" style=\"position: relative; top: 2px; margin-left: 6px;\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M12 3.00016C12.2761 3.00016 12.5 3.22402 12.5 3.50016V9.8335C12.5 ",
+      "dom_path": "div.sdk > div.chat > div.chatRoom > div > div.topbar > div.name > div.name > div.uname",
+      "label": "消息发送人/昵称",
+      "group": "消息区",
+      "required": false,
+      "optional": true,
+      "description": "多人/群聊或复杂客服页辅助识别",
+      "color": "#06b6d4",
+      "captured_at": "2026-05-23T14:03:19.589Z",
+      "page_url": "https://life.douyin.com/cs/web/?accountId=1858797317227848&conGroupId=13127910&groupId=1858797317227848&lifeAccountId=7613630133065156650",
+      "frame_title": "聊天窗口"
+    },
+    "messageSystemText": {
+      "primary": "div[class*=\"chatd\"]",
+      "css_list": [
+        "div[class*=\"chatd\"]",
+        "div.chatd-message-time",
+        "div[class*=\"chatd\"] > div[class*=\"chatd\"] > div:nth-of-type(11) > div[class*=\"chatd\"] > div[class*=\"chatd\"]"
+      ],
+      "xpath": "//div[contains(@class,\"chatd\")]",
+      "text_xpath": "//div[contains(normalize-space(.),\"11:31\")]",
+      "tag": "div",
+      "id": null,
+      "classes": [
+        "chatd-message-time"
+      ],
+      "stable_classes": [
+        "chatd"
+      ],
+      "attributes": [],
+      "text": "11:31",
+      "root_type": "document",
+      "sample_html": "<div class=\"chatd-message-time rpa-collector-hover\" elementtiming=\"element-timing\" style=\"outline: rgb(239, 68, 68) dashed 2px !important; outline-offset: 2px !important; cursor: crosshair !important;\"><time class=\"chatd-time\" elementtiming=\"element-timing\">11:31</time></div>",
+      "dom_path": "div.chat > div.chatRoom > div.messageList > div.chatd > div.chatd > div > div.chatd > div.chatd",
+      "label": "系统提示消息",
+      "group": "消息区",
+      "required": false,
+      "optional": true,
+      "description": "系统提示、时间分割、状态文本",
+      "color": "#64748b",
+      "captured_at": "2026-05-23T14:03:37.055Z",
+      "page_url": "https://life.douyin.com/cs/web/?accountId=1858797317227848&conGroupId=13127910&groupId=1858797317227848&lifeAccountId=7613630133065156650",
+      "frame_title": "聊天窗口"
+    },
+    "messageTimestamp": {
+      "primary": "div[class*=\"chatd\"]",
+      "css_list": [
+        "div[class*=\"chatd\"]",
+        "div.chatd-image-mask",
+        "div[class*=\"chatd\"] > div[class*=\"chatd\"] > div[class*=\"chatd\"] > div[class*=\"chatd\"] > div[class*=\"chatd\"]"
+      ],
+      "xpath": "//div[contains(@class,\"chatd\")]",
+      "text_xpath": null,
+      "tag": "div",
+      "id": null,
+      "classes": [
+        "chatd-image-mask"
+      ],
+      "stable_classes": [
+        "chatd"
+      ],
+      "attributes": [],
+      "text": null,
+      "root_type": "document",
+      "sample_html": "<div class=\"chatd-image-mask rpa-collector-hover\" elementtiming=\"element-timing\" style=\"outline: rgb(239, 68, 68) dashed 2px !important; outline-offset: 2px !important; cursor: crosshair !important;\"></div>",
+      "dom_path": "div.chatd > div.chatd > div.chatd > div.chatd > div.chatd > div.chatd > div.chatd > div.chatd",
+      "label": "消息时间",
+      "group": "消息区",
+      "required": false,
+      "optional": true,
+      "description": "消息级时间戳",
+      "color": "#0ea5e9",
+      "captured_at": "2026-05-23T14:04:16.753Z",
+      "page_url": "https://life.douyin.com/cs/web/?accountId=1858797317227848&conGroupId=13127910&groupId=1858797317227848&lifeAccountId=7613630133065156650",
+      "frame_title": "聊天窗口"
+    },
+    "messageImage": {
+      "primary": "div[class*=\"chatd\"]",
+      "css_list": [
+        "div[class*=\"chatd\"]",
+        "div.chatd-image-mask",
+        "div[class*=\"chatd\"] > div[class*=\"chatd\"] > div[class*=\"chatd\"] > div[class*=\"chatd\"] > div[class*=\"chatd\"]"
+      ],
+      "xpath": "//div[contains(@class,\"chatd\")]",
+      "text_xpath": null,
+      "tag": "div",
+      "id": null,
+      "classes": [
+        "chatd-image-mask"
+      ],
+      "stable_classes": [
+        "chatd"
+      ],
+      "attributes": [],
+      "text": null,
+      "root_type": "document",
+      "sample_html": "<div class=\"chatd-image-mask rpa-collector-locked\" elementtiming=\"element-timing\" style=\"--rpa-lock-color: #0ea5e9; outline: rgb(14, 165, 233) solid 3px !important; outline-offset: 2px !important; cursor: crosshair !important;\"></div>",
+      "dom_path": "div.chatd > div.chatd > div.chatd > div.chatd > div.chatd > div.chatd > div.chatd > div.chatd",
+      "label": "图片消息",
+      "group": "消息区",
+      "required": false,
+      "optional": true,
+      "description": "图片消息识别",
+      "color": "#8b5cf6",
+      "captured_at": "2026-05-23T14:04:23.079Z",
+      "page_url": "https://life.douyin.com/cs/web/?accountId=1858797317227848&conGroupId=13127910&groupId=1858797317227848&lifeAccountId=7613630133065156650",
+      "frame_title": "聊天窗口"
+    },
+    "messageProductCard": {
+      "primary": "textarea[placeholder=\"发送消息给用户chase，按Enter发送\"]",
+      "css_list": [
+        "textarea[placeholder=\"发送消息给用户chase，按Enter发送\"]",
+        "textarea[class*=\"textarea\"]",
+        "textarea.textarea-GUOuIB",
+        "div[class*=\"chatRoom\"] > div[class*=\"inputWrapper\"] > div > div[class*=\"wrapper\"] > textarea[class*=\"textarea\"]"
+      ],
+      "xpath": "//textarea[contains(@class,\"textarea\")]",
+      "text_xpath": null,
+      "tag": "textarea",
+      "id": null,
+      "classes": [
+        "textarea-GUOuIB"
+      ],
+      "stable_classes": [
+        "textarea"
+      ],
+      "attributes": [
+        {
+          "name": "placeholder",
+          "value": "发送消息给用户chase，按Enter发送"
+        }
+      ],
+      "text": null,
+      "root_type": "document",
+      "sample_html": "<textarea maxlength=\"800\" placeholder=\"发送消息给用户chase，按Enter发送\" class=\"textarea-GUOuIB rpa-collector-hover\" elementtiming=\"element-timing\" style=\"outline: rgb(239, 68, 68) dashed 2px !important; outline-offset: 2px !important; cursor: crosshair !important;\"></textarea>",
+      "dom_path": "div.app > div.sdk > div.chat > div.chatRoom > div.inputWrapper > div > div.wrapper > textarea.textarea",
+      "label": "商品/咨询卡片",
+      "group": "消息区",
+      "required": false,
+      "optional": true,
+      "description": "咨询商品或卡片消息",
+      "color": "#f97316",
+      "captured_at": "2026-05-23T14:04:29.372Z",
+      "page_url": "https://life.douyin.com/cs/web/?accountId=1858797317227848&conGroupId=13127910&groupId=1858797317227848&lifeAccountId=7613630133065156650",
+      "frame_title": "聊天窗口"
+    },
+    "inputBox": {
+      "primary": "button[class*=\"life\"][class*=\"sendBtn\"]",
+      "css_list": [
+        "button[type=\"button\"]",
+        "button[class*=\"life\"][class*=\"sendBtn\"]",
+        "button.life-im-pc-btn.life-im-pc-btn-size-sm.life-im-pc-btn-type-primary.life-im-pc-btn-shape-angle.life-im-pc-can-input-grouped.sendBtn-pCL1uW",
+        "div > div[class*=\"wrapper\"] > div[class*=\"footer\"] > div[class*=\"send\"] > button[class*=\"life\"]"
+      ],
+      "xpath": "//button[contains(@class,\"life\")]",
+      "text_xpath": "//button[contains(normalize-space(.),\"发送\")]",
+      "tag": "button",
+      "id": null,
+      "classes": [
+        "life-im-pc-btn",
+        "life-im-pc-btn-size-sm",
+        "life-im-pc-btn-type-primary",
+        "life-im-pc-btn-shape-angle",
+        "life-im-pc-can-input-grouped",
+        "sendBtn-pCL1uW"
+      ],
+      "stable_classes": [
+        "life",
+        "sendBtn"
+      ],
+      "attributes": [
+        {
+          "name": "type",
+          "value": "button"
+        }
+      ],
+      "text": "发送",
+      "root_type": "document",
+      "sample_html": "<button type=\"button\" class=\"life-im-pc-btn life-im-pc-btn-size-sm life-im-pc-btn-type-primary life-im-pc-btn-shape-angle life-im-pc-can-input-grouped sendBtn-pCL1uW rpa-collector-hover\" elementtiming=\"element-timing\" style=\"outline: rgb(239, 68, 68) dashed 2px !important; outline-offset: 2px !important; cursor: crosshair !important;\">发送</button>",
+      "dom_path": "div.chat > div.chatRoom > div.inputWrapper > div > div.wrapper > div.footer > div.send > button.life",
+      "label": "输入框",
+      "group": "发送区",
+      "required": true,
+      "optional": false,
+      "description": "回复输入目标",
+      "color": "#7c3aed",
+      "captured_at": "2026-05-23T14:04:33.037Z",
+      "page_url": "https://life.douyin.com/cs/web/?accountId=1858797317227848&conGroupId=13127910&groupId=1858797317227848&lifeAccountId=7613630133065156650",
+      "frame_title": "聊天窗口"
+    },
+    "sendButton": {
+      "primary": "button[class*=\"life\"][class*=\"sendBtn\"]",
+      "css_list": [
+        "button[type=\"button\"]",
+        "button[class*=\"life\"][class*=\"sendBtn\"]",
+        "button.life-im-pc-btn.life-im-pc-btn-size-sm.life-im-pc-btn-type-primary.life-im-pc-btn-shape-angle.life-im-pc-can-input-grouped.sendBtn-pCL1uW",
+        "div > div[class*=\"wrapper\"] > div[class*=\"footer\"] > div[class*=\"send\"] > button[class*=\"life\"]"
+      ],
+      "xpath": "//button[contains(@class,\"life\")]",
+      "text_xpath": "//button[contains(normalize-space(.),\"发送\")]",
+      "tag": "button",
+      "id": null,
+      "classes": [
+        "life-im-pc-btn",
+        "life-im-pc-btn-size-sm",
+        "life-im-pc-btn-type-primary",
+        "life-im-pc-btn-shape-angle",
+        "life-im-pc-can-input-grouped",
+        "sendBtn-pCL1uW"
+      ],
+      "stable_classes": [
+        "life",
+        "sendBtn"
+      ],
+      "attributes": [
+        {
+          "name": "type",
+          "value": "button"
+        }
+      ],
+      "text": "发送",
+      "root_type": "document",
+      "sample_html": "<button type=\"button\" class=\"life-im-pc-btn life-im-pc-btn-size-sm life-im-pc-btn-type-primary life-im-pc-btn-shape-angle life-im-pc-can-input-grouped sendBtn-pCL1uW rpa-collector-locked\" elementtiming=\"element-timing\" style=\"--rpa-lock-color: #7c3aed; outline: rgb(124, 58, 237) solid 3px !important; outline-offset: 2px !important; cursor: crosshair !important;\">发送</button>",
+      "dom_path": "div.chat > div.chatRoom > div.inputWrapper > div > div.wrapper > div.footer > div.send > button.life",
+      "label": "发送按钮",
+      "group": "发送区",
+      "required": true,
+      "optional": false,
+      "description": "回复发送动作",
+      "color": "#0891b2",
+      "captured_at": "2026-05-23T14:04:56.852Z",
+      "page_url": "https://life.douyin.com/cs/web/?accountId=1858797317227848&conGroupId=13127910&groupId=1858797317227848&lifeAccountId=7613630133065156650",
+      "frame_title": "聊天窗口"
+    },
+    "sendButtonDisabledState": {
+      "primary": "button[class*=\"life\"][class*=\"sendBtn\"]",
+      "css_list": [
+        "button[type=\"button\"]",
+        "button[class*=\"life\"][class*=\"sendBtn\"]",
+        "button.life-im-pc-btn.life-im-pc-btn-size-sm.life-im-pc-btn-type-primary.life-im-pc-btn-shape-angle.life-im-pc-can-input-grouped.sendBtn-pCL1uW",
+        "div > div[class*=\"wrapper\"] > div[class*=\"footer\"] > div[class*=\"send\"] > button[class*=\"life\"]"
+      ],
+      "xpath": "//button[contains(@class,\"life\")]",
+      "text_xpath": "//button[contains(normalize-space(.),\"发送\")]",
+      "tag": "button",
+      "id": null,
+      "classes": [
+        "life-im-pc-btn",
+        "life-im-pc-btn-size-sm",
+        "life-im-pc-btn-type-primary",
+        "life-im-pc-btn-shape-angle",
+        "life-im-pc-can-input-grouped",
+        "sendBtn-pCL1uW"
+      ],
+      "stable_classes": [
+        "life",
+        "sendBtn"
+      ],
+      "attributes": [
+        {
+          "name": "type",
+          "value": "button"
+        }
+      ],
+      "text": "发送",
+      "root_type": "document",
+      "sample_html": "<button type=\"button\" class=\"life-im-pc-btn life-im-pc-btn-size-sm life-im-pc-btn-type-primary life-im-pc-btn-shape-angle life-im-pc-can-input-grouped sendBtn-pCL1uW rpa-collector-locked\" elementtiming=\"element-timing\" style=\"--rpa-lock-color: #0891b2; outline: rgb(8, 145, 178) solid 3px !important; outline-offset: 2px !important; cursor: crosshair !important;\">发送</button>",
+      "dom_path": "div.chat > div.chatRoom > div.inputWrapper > div > div.wrapper > div.footer > div.send > button.life",
+      "label": "发送按钮禁用态",
+      "group": "发送区",
+      "required": false,
+      "optional": true,
+      "description": "判断发送按钮不可用原因",
+      "color": "#0e7490",
+      "captured_at": "2026-05-23T14:05:21.431Z",
+      "page_url": "https://life.douyin.com/cs/web/?accountId=1858797317227848&conGroupId=13127910&groupId=1858797317227848&lifeAccountId=7613630133065156650",
+      "frame_title": "聊天窗口"
+    }
+  }
+}
