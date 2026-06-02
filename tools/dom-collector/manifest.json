@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "RPA DOM 采集器",
-  "version": "1.9.0",
-  "description": "可视化采集客服平台 DOM 选择器，生成 RPA 插件可用的 JSON 配置",
+  "name": "Chatsift DOM 调研工具",
+  "version": "1.0.0",
+  "description": "可视化点选客服平台 DOM 选择器，生成 Chatsift adapter 调研用 JSON",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",

@@ -4,7 +4,7 @@
   if (window.__PRA_DOM_COLLECTOR__) return
   window.__PRA_DOM_COLLECTOR__ = true
 
-  var STORAGE_KEY = 'rpaDomCollectorState'
+  var STORAGE_KEY = 'chatsiftDomCollectorState'
   var isCollecting = false
   var currentTarget = null
   var pendingTarget = null
@@ -18,34 +18,20 @@
   var lastPickTarget = null
 
   var ELEMENT_TYPES = [
-    { key: 'contactList', label: '会话列表容器', color: '#3b82f6', group: '会话列表', required: true, description: '用于 detect 和 observer 绑定' },
-    { key: 'contactItem', label: '单个会话条目', color: '#10b981', group: '会话列表', required: true, description: '用于点击切换目标会话' },
-    { key: 'sessionPreviewText', label: '会话末条消息预览', color: '#38bdf8', group: '会话列表', required: true, description: 'DiffEngine 四信号之一' },
-    { key: 'sessionTimestamp', label: '会话时间戳', color: '#60a5fa', group: '会话列表', optional: true, description: 'DiffEngine 四信号之一，页面无时间时可选' },
-    { key: 'sessionUnreadCount', label: '未读数字文本', color: '#f43f5e', group: '会话列表', optional: true, description: '未读数量，区别于红点存在性' },
-    { key: 'unreadBadge', label: '未读消息角标', color: '#ef4444', group: '会话列表', optional: true, description: '未读红点/数字触发点' },
-    { key: 'sessionAvatar', label: '会话头像', color: '#a78bfa', group: '会话身份', optional: true, description: '辅助生成会话签名' },
-    { key: 'sessionUserIdNode', label: '用户ID/主页节点', color: '#c084fc', group: '会话身份', optional: true, description: '优先采 data-id、链接或稳定用户标识' },
-    { key: 'activeContactItem', label: '当前选中会话', color: '#22c55e', group: '会话校验', required: true, description: '用于 verifySession 防串号' },
-    { key: 'activeSessionMarker', label: '选中态标识', color: '#16a34a', group: '会话校验', required: true, description: '选中态 class/aria/data 标识' },
-    { key: 'sessionTitle', label: '会话标题/昵称', color: '#84cc16', group: '会话校验', required: true, description: '用于确认已切到目标会话' },
-    { key: 'loadingIndicator', label: '会话加载中标识', color: '#f97316', group: '会话校验', optional: true, description: '用于等待会话切换稳定' },
-    { key: 'messageList', label: '消息列表容器', color: '#fb923c', group: '消息区', required: true, description: '限定消息扫描范围' },
-    { key: 'messageItem', label: '单条消息容器', color: '#f59e0b', group: '消息区', required: true, description: '消息方向、时间、内容的父容器' },
-    { key: 'messageText', label: '用户消息气泡', color: '#d97706', group: '消息区', required: true, description: '用户侧文本消息' },
-    { key: 'selfMessageText', label: '自己消息气泡', color: '#14b8a6', group: '消息区', required: true, description: '避免把自己回复当成用户消息' },
-    { key: 'messageTimestamp', label: '消息时间', color: '#0ea5e9', group: '消息区', optional: true, description: '消息级时间戳' },
-    { key: 'messageSenderName', label: '消息发送人/昵称', color: '#06b6d4', group: '消息区', optional: true, description: '多人/群聊或复杂客服页辅助识别' },
-    { key: 'messageSystemText', label: '系统提示消息', color: '#64748b', group: '消息区', optional: true, description: '系统提示、时间分割、状态文本' },
-    { key: 'messageProductCard', label: '商品/咨询卡片', color: '#f97316', group: '消息区', optional: true, description: '咨询商品或卡片消息' },
-    { key: 'messageImage', label: '图片消息', color: '#8b5cf6', group: '消息区', optional: true, description: '图片消息识别' },
-    { key: 'inputBox', label: '输入框', color: '#7c3aed', group: '发送区', required: true, description: '回复输入目标' },
-    { key: 'sendButton', label: '发送按钮', color: '#0891b2', group: '发送区', required: true, description: '回复发送动作' },
-    { key: 'sendButtonDisabledState', label: '发送按钮禁用态', color: '#0e7490', group: '发送区', optional: true, description: '判断发送按钮不可用原因' },
-    { key: 'inputDisabledHint', label: '输入不可用提示', color: '#475569', group: '异常态', optional: true, description: '输入框不可用/禁言/关闭原因' },
-    { key: 'closedHint', label: '会话关闭提示', color: '#64748b', group: '异常态', optional: true, description: '会话关闭或超时不可回复' },
-    { key: 'loginDialog', label: '登录失效弹窗', color: '#dc2626', group: '异常态', optional: true, description: 'LoginMonitor 掉线判断' },
-    { key: 'historyLoadTrigger', label: '加载历史入口', color: '#4f46e5', group: '异常态', optional: true, description: '加载更多历史消息' },
+    { key: 'sessionTitle', label: '客户昵称', color: '#84cc16', group: 'A 会话级', required: true, description: '会话标题或客户昵称节点，整对话采一次' },
+    { key: 'agentAccount', label: '客服账号', color: '#22c55e', group: 'A 会话级', required: true, description: '当前接待客服账号节点，整对话采一次' },
+    { key: 'sessionTab', label: '会话Tab', color: '#38bdf8', group: 'A 会话级', optional: true, description: '当前咨询、历史咨询或同类会话 tab 节点' },
+    { key: 'sourceTag', label: '来源标签', color: '#60a5fa', group: 'A 会话级', optional: true, description: '经营源、自然流量等来源标签节点' },
+    { key: 'leadStatusTag', label: '留资状态标签', color: '#a78bfa', group: 'A 会话级', optional: true, description: '已留资、未留资等状态标签节点' },
+    { key: 'loginDialog', label: '登录态', color: '#dc2626', group: 'A 会话级', optional: true, description: '登录失效弹窗或登录态识别节点' },
+    { key: 'closedHint', label: '会话关闭态', color: '#64748b', group: 'A 会话级', optional: true, description: '会话关闭、超时或不可继续处理的状态节点' },
+    { key: 'messageItem', label: '消息容器', color: '#f59e0b', group: 'B 消息级', required: true, description: '单条消息根节点，逐条遍历的锚' },
+    { key: 'messageText', label: '用户消息文本', color: '#d97706', group: 'B 消息级', required: true, description: '用户侧文本气泡节点，用于方向推导' },
+    { key: 'selfMessageText', label: '自己消息文本', color: '#14b8a6', group: 'B 消息级', required: true, description: '客服侧文本气泡节点，用于方向推导' },
+    { key: 'messageTypeAnchor', label: '消息类型判别锚', color: '#8b5cf6', group: 'B 消息级', optional: true, description: '图片、卡片、系统消息等类型区分节点' },
+    { key: 'messageSenderName', label: '发送者名', color: '#06b6d4', group: 'B 消息级', optional: true, description: '消息上方发送者名节点' },
+    { key: 'historyLoadTrigger', label: '加载历史触发器', color: '#4f46e5', group: 'B 消息级', optional: true, description: '加载更多历史消息的入口或触发节点' },
+    { key: 'timeSeparator', label: '时间分隔条', color: '#0ea5e9', group: 'C 段落级', required: true, description: '居中的时间分隔节点，作为段落锚点' },
   ]
 
   init()

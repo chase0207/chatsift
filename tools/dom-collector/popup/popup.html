@@ -2,15 +2,15 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <title>RPA DOM 采集器</title>
+  <title>Chatsift DOM 调研工具</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
   <div class="container">
     <header>
       <div>
-        <h1>RPA DOM 采集器</h1>
-        <p>采集客服/直播平台关键 DOM 选择器</p>
+        <h1>Chatsift DOM 调研工具</h1>
+        <p>点选平台页面 DOM，导出只读 selectors.json</p>
       </div>
       <button id="authButton" class="badge" type="button">登录</button>
     </header>
@@ -31,13 +31,13 @@
     </div>
 
     <div class="helper-card">
-      使用说明：该功能仅限开发人员使用。同一个“平台-页面”的点位会合并导出为一个 JSON。
+      使用说明：该工具只生成选择器，不采集消息、不发送消息。同一个“平台-页面”的 ABC 点位会合并导出为一个 JSON。
     </div>
 
     <section class="progress-section">
       <div class="section-head">
         <h2>采集进度</h2>
-        <span id="progressCount">0/28</span>
+        <span id="progressCount">0/14</span>
       </div>
       <ul id="progressList"></ul>
     </section>

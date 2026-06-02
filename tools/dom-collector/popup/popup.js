@@ -1,40 +1,26 @@
-var STORAGE_KEY = 'rpaDomCollectorState'
-var PLATFORM_KEY = 'rpaDomCollectorPlatform'
-var PAGE_KEY = 'rpaDomCollectorPage'
-var AUTH_KEY = 'rpaDomCollectorAuth'
+var STORAGE_KEY = 'chatsiftDomCollectorState'
+var PLATFORM_KEY = 'chatsiftDomCollectorPlatform'
+var PAGE_KEY = 'chatsiftDomCollectorPage'
+var AUTH_KEY = 'chatsiftDomCollectorAuth'
 
 var platformOptions = []
 var pageOptions = []
 
 var ELEMENT_TYPES = [
-  { key: 'contactList', label: '会话列表容器', group: '会话列表', required: true, description: '用于 detect 和 observer 绑定' },
-  { key: 'contactItem', label: '单个会话条目', group: '会话列表', required: true, description: '用于点击切换目标会话' },
-  { key: 'sessionPreviewText', label: '会话末条消息预览', group: '会话列表', required: true, description: 'DiffEngine 四信号之一' },
-  { key: 'sessionTimestamp', label: '会话时间戳', group: '会话列表', optional: true, description: 'DiffEngine 四信号之一，页面无时间时可选' },
-  { key: 'sessionUnreadCount', label: '未读数字文本', group: '会话列表', optional: true, description: '未读数量，区别于红点存在性' },
-  { key: 'unreadBadge', label: '未读消息角标', group: '会话列表', optional: true, description: '未读红点/数字触发点' },
-  { key: 'sessionAvatar', label: '会话头像', group: '会话身份', optional: true, description: '辅助生成会话签名' },
-  { key: 'sessionUserIdNode', label: '用户ID/主页节点', group: '会话身份', optional: true, description: '优先采 data-id、链接或稳定用户标识' },
-  { key: 'activeContactItem', label: '当前选中会话', group: '会话校验', required: true, description: '用于 verifySession 防串号' },
-  { key: 'activeSessionMarker', label: '选中态标识', group: '会话校验', required: true, description: '选中态 class/aria/data 标识' },
-  { key: 'sessionTitle', label: '会话标题/昵称', group: '会话校验', required: true, description: '用于确认已切到目标会话' },
-  { key: 'loadingIndicator', label: '会话加载中标识', group: '会话校验', optional: true, description: '用于等待会话切换稳定' },
-  { key: 'messageList', label: '消息列表容器', group: '消息区', required: true, description: '限定消息扫描范围' },
-  { key: 'messageItem', label: '单条消息容器', group: '消息区', required: true, description: '消息方向、时间、内容的父容器' },
-  { key: 'messageText', label: '用户消息气泡', group: '消息区', required: true, description: '用户侧文本消息' },
-  { key: 'selfMessageText', label: '自己消息气泡', group: '消息区', required: true, description: '避免把自己回复当成用户消息' },
-  { key: 'messageTimestamp', label: '消息时间', group: '消息区', optional: true, description: '消息级时间戳' },
-  { key: 'messageSenderName', label: '消息发送人/昵称', group: '消息区', optional: true, description: '多人/群聊或复杂客服页辅助识别' },
-  { key: 'messageSystemText', label: '系统提示消息', group: '消息区', optional: true, description: '系统提示、时间分割、状态文本' },
-  { key: 'messageProductCard', label: '商品/咨询卡片', group: '消息区', optional: true, description: '咨询商品或卡片消息' },
-  { key: 'messageImage', label: '图片消息', group: '消息区', optional: true, description: '图片消息识别' },
-  { key: 'inputBox', label: '输入框', group: '发送区', required: true, description: '回复输入目标' },
-  { key: 'sendButton', label: '发送按钮', group: '发送区', required: true, description: '回复发送动作' },
-  { key: 'sendButtonDisabledState', label: '发送按钮禁用态', group: '发送区', optional: true, description: '判断发送按钮不可用原因' },
-  { key: 'inputDisabledHint', label: '输入不可用提示', group: '异常态', optional: true, description: '输入框不可用/禁言/关闭原因' },
-  { key: 'closedHint', label: '会话关闭提示', group: '异常态', optional: true, description: '会话关闭或超时不可回复' },
-  { key: 'loginDialog', label: '登录失效弹窗', group: '异常态', optional: true, description: 'LoginMonitor 掉线判断' },
-  { key: 'historyLoadTrigger', label: '加载历史入口', group: '异常态', optional: true, description: '加载更多历史消息' },
+  { key: 'sessionTitle', label: '客户昵称', group: 'A 会话级', required: true, description: '会话标题或客户昵称节点，整对话采一次' },
+  { key: 'agentAccount', label: '客服账号', group: 'A 会话级', required: true, description: '当前接待客服账号节点，整对话采一次' },
+  { key: 'sessionTab', label: '会话Tab', group: 'A 会话级', optional: true, description: '当前咨询、历史咨询或同类会话 tab 节点' },
+  { key: 'sourceTag', label: '来源标签', group: 'A 会话级', optional: true, description: '经营源、自然流量等来源标签节点' },
+  { key: 'leadStatusTag', label: '留资状态标签', group: 'A 会话级', optional: true, description: '已留资、未留资等状态标签节点' },
+  { key: 'loginDialog', label: '登录态', group: 'A 会话级', optional: true, description: '登录失效弹窗或登录态识别节点' },
+  { key: 'closedHint', label: '会话关闭态', group: 'A 会话级', optional: true, description: '会话关闭、超时或不可继续处理的状态节点' },
+  { key: 'messageItem', label: '消息容器', group: 'B 消息级', required: true, description: '单条消息根节点，逐条遍历的锚' },
+  { key: 'messageText', label: '用户消息文本', group: 'B 消息级', required: true, description: '用户侧文本气泡节点，用于方向推导' },
+  { key: 'selfMessageText', label: '自己消息文本', group: 'B 消息级', required: true, description: '客服侧文本气泡节点，用于方向推导' },
+  { key: 'messageTypeAnchor', label: '消息类型判别锚', group: 'B 消息级', optional: true, description: '图片、卡片、系统消息等类型区分节点' },
+  { key: 'messageSenderName', label: '发送者名', group: 'B 消息级', optional: true, description: '消息上方发送者名节点' },
+  { key: 'historyLoadTrigger', label: '加载历史触发器', group: 'B 消息级', optional: true, description: '加载更多历史消息的入口或触发节点' },
+  { key: 'timeSeparator', label: '时间分隔条', group: 'C 段落级', required: true, description: '居中的时间分隔节点，作为段落锚点' },
 ]
 
 var CORE_VALIDATE_TYPES = ELEMENT_TYPES.filter(function (type) { return type.required }).map(function (type) { return type.key })
@@ -68,11 +54,11 @@ async function toggleAuth() {
     pageOptions = []
     renderPlatformOptions('')
     await updateAuthButton()
-    setMessage('已退出 DOM 采集器')
+    setMessage('已退出 Chatsift DOM 调研工具')
     return
   }
 
-  var serverUrl = window.prompt('管理后台地址', 'https://admin.kongyuekeji.com')
+  var serverUrl = window.prompt('Chatsift 管理后台接口地址', 'http://127.0.0.1:3100')
   if (!serverUrl) return
   var username = window.prompt('账号', 'admin')
   if (!username) return
@@ -200,7 +186,7 @@ function normalizePlatformTree(rows) {
       hosts: platformUrl,
     })
     ;(row.pages || []).forEach(function (page) {
-      var pageKey = String(page.page_code || page.id || '').trim()
+      var pageKey = derivePageKey(page)
       if (!pageKey) return
       pages.push({
         key: pageKey,
@@ -217,16 +203,25 @@ function normalizePlatformTree(rows) {
   }
 }
 
+function derivePageKey(page) {
+  var name = String(page.page_name || '').trim()
+  var url = String(page.url || '').trim()
+  if (name.indexOf('抖音私信') !== -1 || url.indexOf('clue_private_message') !== -1) return 'private-message'
+  if (name.indexOf('来客私信') !== -1) return 'laike-message'
+  if (name.indexOf('飞鸽') !== -1) return 'feige'
+  return String(page.page_key || page.page_code || page.id || name || '').trim()
+}
+
 async function loadPlatformTree() {
   var auth = (await chrome.storage.local.get(AUTH_KEY))[AUTH_KEY]
   if (!auth || !auth.token || !auth.serverUrl) {
     platformOptions = []
     pageOptions = []
-    setMessage('请先登录 DOM 采集器')
+    setMessage('请先登录 Chatsift DOM 调研工具')
     return
   }
   try {
-    var res = await fetch(auth.serverUrl.replace(/\/$/, '') + '/api/platforms', {
+    var res = await fetch(auth.serverUrl.replace(/\/$/, '') + '/api/platforms?enabled=1', {
       headers: { Authorization: 'Bearer ' + auth.token },
     })
     var json = await res.json()
@@ -234,7 +229,7 @@ async function loadPlatformTree() {
     var normalized = normalizePlatformTree(json.data || [])
     platformOptions = normalized.platforms
     pageOptions = normalized.pages
-    setMessage(platformOptions.length ? '已拉取管理后台平台-页面树' : '管理后台暂无平台-页面数据')
+    setMessage(platformOptions.length ? '已拉取 Chatsift 平台-页面树' : 'Chatsift 暂无平台-页面数据')
   } catch (err) {
     platformOptions = []
     pageOptions = []
@@ -555,7 +550,7 @@ async function exportJson() {
   }
 
   var output = {
-    schema_version: 'dom-collector.v1.9',
+    schema_version: 'chatsift-dom-collector.v1',
     platform_name: platform.platform_name,
     platform_key: platform.platform_key,
     page_name: page.page_name,
