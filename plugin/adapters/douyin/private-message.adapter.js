@@ -218,6 +218,7 @@
     var currentAnchor = null
     var anchorOffset = 0
     var lastOccurredAt = 0
+    var pendingDivider = ''
     var list = []
     items.forEach(function (el) {
       var text = _extractMessageText(el)
@@ -226,6 +227,8 @@
         var anchor = _parseOccurredAt(systemText, collectAt)
         currentAnchor = anchor.ok ? anchor : null
         anchorOffset = 0
+        // 抖音时间分隔条原文(仅时间类),挂到其后第一条消息,展示端原样还原,与平台一致
+        if (anchor.ok) pendingDivider = String(systemText || '').trim()
         return
       }
       var preciseTimeText = _extractPreciseMessageTime(el)
@@ -248,8 +251,10 @@
           time_text: timeText || '',
           time_source: preciseTimeText ? 'precise-invisible' : occurred.source,
           time_estimated: occurred.estimated,
+          divider_text: pendingDivider || undefined,
         },
       })
+      pendingDivider = ''
     })
     return list
   }

@@ -7,6 +7,7 @@
     @update:model-value="emit('update:modelValue', $event)"
     @open="fetchMessages"
   >
+    <div v-if="messages.length" class="chat-header">用户：{{ customerName }}</div>
     <div ref="messageListRef" v-loading="loading" class="message-list">
       <el-empty v-if="!messages.length && !loading" description="暂无消息" />
       <template v-for="item in renderItems" :key="item.msg.id">
@@ -20,6 +21,7 @@
             :class="item.msg.direction === 'outbound' ? 'outbound' : 'inbound'"
             :title="item.hoverTime"
           >
+            <div v-if="item.nick" class="message-sender-name">{{ item.nick }}</div>
             <div class="message-content">{{ item.msg.content_text || item.msg.content_url || `[${item.msg.content_type || 'unknown'}]` }}</div>
           </div>
         </div>
@@ -43,31 +45,23 @@ const loading = ref(false)
 const messages = ref([])
 const messageListRef = ref(null)
 
-const SEP_GAP_MS = 5 * 60 * 1000
-function tsOf(v) {
-  if (!v) return null
-  const d = new Date(String(v).includes('T') ? v : String(v).replace(' ', 'T'))
-  return Number.isNaN(d.getTime()) ? null : d.getTime()
-}
-// 抖音式展示:不在每条上显示昵称/时间;按时间间隔(>5min)或跨天插入时间分隔条;
-// 有精确时间的消息(raw_snapshot.time_estimated===false)hover 才显示具体时间,拿不到的不显示。
+// 分隔条与抖音平台一致:直接展示采集到的抖音时间分隔条(raw_snapshot.divider_text),
+// 不自己按阈值合成。outbound 显示客服昵称(可能多客服接待),inbound 不显示昵称。
+// 精确时间(raw_snapshot.time_estimated===false)hover 才显示。
 const renderItems = computed(() => {
-  const list = messages.value || []
-  const items = []
-  let lastTs = null
-  let lastDay = null
-  for (const m of list) {
-    const ts = tsOf(m.occurred_at)
-    const day = ts ? new Date(ts).toDateString() : null
-    let sep = null
-    if (lastTs === null || (ts !== null && ts - lastTs >= SEP_GAP_MS) || (day && day !== lastDay)) {
-      sep = formatDate(m.occurred_at).slice(0, 16)
-    }
+  return (messages.value || []).map((m) => {
     const precise = !!(m.raw_snapshot && m.raw_snapshot.time_estimated === false)
-    items.push({ msg: m, sep, hoverTime: precise ? formatDate(m.occurred_at) : '' })
-    if (ts !== null) { lastTs = ts; lastDay = day }
-  }
-  return items
+    return {
+      msg: m,
+      sep: (m.raw_snapshot && m.raw_snapshot.divider_text) || null,
+      hoverTime: precise ? formatDate(m.occurred_at) : '',
+      nick: m.direction === 'outbound' ? (m.sender_nickname || '客服') : '',
+    }
+  })
+})
+const customerName = computed(() => {
+  const inb = (messages.value || []).find((m) => m.direction === 'inbound' && m.sender_nickname)
+  return inb ? inb.sender_nickname : '用户'
 })
 
 async function fetchMessages() {
@@ -114,5 +108,7 @@ function formatDate(value) {
 .message-bubble.outbound { background: var(--rpa-brand-soft, #eef0ff); }
 .message-time-sep { text-align: center; margin: 12px 0 8px; }
 .message-time-sep span { display: inline-block; font-size: 12px; color: #9ca3af; background: rgba(15, 23, 42, 0.05); padding: 2px 10px; border-radius: 10px; }
+.chat-header { padding: 4px 2px 12px; font-weight: 600; color: var(--rpa-ink, #0f172a); border-bottom: 1px solid var(--rpa-border, #e5e7eb); margin-bottom: 10px; }
+.message-sender-name { font-size: 12px; color: #6b7280; margin-bottom: 4px; }
 .message-content { white-space: pre-wrap; word-break: break-word; line-height: 1.6; color: var(--rpa-ink, #0f172a); }
 </style>
