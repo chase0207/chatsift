@@ -75,16 +75,23 @@
 
   function synthMessageId(args) {
     args = args || {}
-    var occurredAt = args.occurredAt || args.occurred_at || new Date().toISOString()
-    var d = new Date(occurredAt)
-    var minute = isNaN(d.getTime())
-      ? String(occurredAt).slice(0, 16)
-      : d.toISOString().slice(0, 16)
+    // 去重键优先用稳定的"出现序号"(seq):同一屏重复采集 → 同 id → 去重;
+    // 客户真重复发同一句 → 不同 seq → 保留。仅在无 seq 时回退到旧的"时间到分钟"。
+    var keyPart
+    if (args.seq !== undefined && args.seq !== null) {
+      keyPart = 'seq:' + args.seq
+    } else {
+      var occurredAt = args.occurredAt || args.occurred_at || new Date().toISOString()
+      var d = new Date(occurredAt)
+      keyPart = isNaN(d.getTime())
+        ? String(occurredAt).slice(0, 16)
+        : d.toISOString().slice(0, 16)
+    }
     var raw = [
       args.conversationId || args.conversation_id || '',
       args.direction || '',
       args.text || args.content || '',
-      minute,
+      keyPart,
     ].join('|')
     return 'syn_' + simpleHash(raw)
   }

@@ -61,6 +61,20 @@
     var events = (rawMessages || [])
       .map(function (m) { return adapter.toConversationEvent(m, info) })
       .filter(function (event) { return event && event.content_text })
+    // 用稳定的"会话+方向+内容+出现序号"重算 message_id,替代依赖 occurred_at 的旧键。
+    // occurred_at 跨采集轮不稳定(尤其 outbound 无精确时间)会导致同消息每轮换 id 重复入库。
+    var _seqMap = {}
+    events.forEach(function (event) {
+      var k = (event.conversation_id || '') + '|' + (event.direction || '') + '|' + event.content_text
+      var seq = _seqMap[k] || 0
+      _seqMap[k] = seq + 1
+      event.message_id = Dom.synthMessageId({
+        conversationId: event.conversation_id,
+        direction: event.direction,
+        text: event.content_text,
+        seq: seq,
+      })
+    })
     var result = await Collector.collect(events)
     Logger.info && Logger.info('LegacyCollector', 'collectMessageSession', {
       adapter: adapter.adapterKey,
