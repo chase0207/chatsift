@@ -29,6 +29,14 @@
       'unknown'
   }
 
+  function _readAccountNickname() {
+    // 登录客服(agent)账号名:抖音私信顶部账号区 [class*="imUserName"]
+    // (W13 按客服昵称分组用;adapter 已把 outbound sender_nickname 取自 accountNickname)
+    return Dom.getText(Dom.queryFirst([
+      '[class*="imUserName"]',
+    ])) || ''
+  }
+
   function _buildSessionInfo(adapter) {
     var nickname = _readNickname(adapter)
     var pageKey = adapter && adapter.pageKey ? adapter.pageKey : 'douyin'
@@ -37,6 +45,7 @@
     return {
       conversationId: 'douyin_' + pageKey.replace(/[^a-z0-9]+/ig, '_') + '_' + Dom.simpleHash(seed),
       nickname: nickname,
+      accountNickname: _readAccountNickname(),
       pageKey: pageKey,
     }
   }
