@@ -186,26 +186,8 @@ async function openPermissions(row) {
 
 async function handleSavePermissions() {
   if (!permTreeRef.value || !permRoleId.value) return
-  var checked = permTreeRef.value.getCheckedKeys(false, false)
-  var halfChecked = permTreeRef.value.getHalfCheckedKeys()
-  function flattenIds(nodes, ids) {
-    if (!nodes) return
-    for (var i = 0; i < nodes.length; i++) {
-      if (ids.indexOf(nodes[i].id) === -1) ids.push(nodes[i].id)
-      flattenIds(nodes[i].children, ids)
-    }
-  }
-  var menuIds = []
-  var allMenus = menuTree.value || []
-  var allIds = checked.concat(halfChecked)
-  allIds.forEach(function (targetId) {
-    ;(function search(nodes) {
-      for (var i = 0; i < nodes.length; i++) {
-        if (nodes[i].id === targetId) { flattenIds([nodes[i]], menuIds); return }
-        if (nodes[i].children) search(nodes[i].children)
-      }
-    })(allMenus)
-  })
+  // 标准 el-tree 权限保存:勾选节点 + 半选父节点(分组),精确反映勾选,不展开未勾选后代
+  var menuIds = permTreeRef.value.getCheckedKeys(false).concat(permTreeRef.value.getHalfCheckedKeys())
   try {
     await setRolePermissions(permRoleId.value, menuIds)
     ElMessage.success('权限已保存')

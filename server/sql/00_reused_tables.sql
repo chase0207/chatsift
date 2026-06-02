@@ -185,7 +185,8 @@ UPDATE menus SET parent_id=@sys, sort_order=2 WHERE permission_code='role:list';
 UPDATE menus SET parent_id=@sys, sort_order=3 WHERE permission_code='menu:list';
 UPDATE menus SET parent_id=@sys, sort_order=4 WHERE permission_code='platform:list';
 UPDATE menus SET parent_id=@sys, sort_order=5 WHERE permission_code='plugin:list';
-INSERT IGNORE INTO role_has_permissions (role_id, menu_id) VALUES (1,@kefu),(1,@sys),(2,@kefu);
+-- 分组(客服管理/系统设置)改由服务端 menu.tree 自动补全祖先,非超管无需单独授权分组,避免 el-tree 父组勾选误导
+INSERT IGNORE INTO role_has_permissions (role_id, menu_id) VALUES (1,@kefu),(1,@sys);
 
 -- W13 消息聚合(只读三栏页),客服管理组首位
 INSERT IGNORE INTO menus (parent_id, name, icon, route, component, type, permission_code, sort_order, status)

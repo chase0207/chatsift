@@ -59,6 +59,27 @@ exports.tree = async (req, res) => {
     sql += ` ORDER BY m.sort_order`
 
     var [rows] = await pool.query(sql, params)
+
+    // 非超管:补全已授权菜单的祖先分组,避免子菜单因父组未单独授权被 buildTree 丢弃
+    if (!isSuper && rows.length) {
+      var haveIds = {}
+      rows.forEach(function (r) { haveIds[r.id] = true })
+      var [allMenus] = await pool.query('SELECT id, parent_id FROM menus WHERE status = 1')
+      var parentOf = {}
+      allMenus.forEach(function (m) { parentOf[m.id] = m.parent_id })
+      var needIds = {}
+      rows.forEach(function (r) {
+        var p = parentOf[r.id]
+        while (p && !haveIds[p] && !needIds[p]) { needIds[p] = true; p = parentOf[p] }
+      })
+      var needList = Object.keys(needIds)
+      if (needList.length) {
+        var [anc] = await pool.query('SELECT DISTINCT m.* FROM menus m WHERE m.id IN (?) AND m.status = 1', [needList])
+        rows = rows.concat(anc)
+        rows.sort(function (a, b) { return (a.sort_order || 0) - (b.sort_order || 0) })
+      }
+    }
+
     res.json({ code: 0, data: buildTree(rows) })
   } catch (err) {
     console.error('[menu.tree]', err)
