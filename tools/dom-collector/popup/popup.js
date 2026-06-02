@@ -18,7 +18,8 @@ var ELEMENT_TYPES = [
   { key: 'messageText', label: '用户消息文本', group: 'B 消息级', required: true, description: '用户侧文本气泡节点，用于方向推导' },
   { key: 'selfMessageText', label: '自己消息文本', group: 'B 消息级', required: true, description: '客服侧文本气泡节点，用于方向推导' },
   { key: 'messageTypeAnchor', label: '消息类型判别锚', group: 'B 消息级', optional: true, description: '图片、卡片、系统消息等类型区分节点' },
-  { key: 'messageSenderName', label: '发送者名', group: 'B 消息级', optional: true, description: '消息上方发送者名节点' },
+  { key: 'messageSenderName', label: '用户发送者名', group: 'B 消息级', optional: true, description: '用户消息上方发送者名节点' },
+  { key: 'selfMessageSenderName', label: '自己发送者名', group: 'B 消息级', optional: true, description: '客服侧消息上方发送者名节点' },
   { key: 'historyLoadTrigger', label: '加载历史触发器', group: 'B 消息级', optional: true, description: '加载更多历史消息的入口或触发节点' },
   { key: 'timeSeparator', label: '时间分隔条', group: 'C 段落级', required: true, description: '居中的时间分隔节点，作为段落锚点' },
 ]

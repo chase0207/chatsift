@@ -50,7 +50,8 @@
 | `messageText` | 用户消息文本 | 必采 | 用户侧文本气泡节点 |
 | `selfMessageText` | 自己消息文本 | 必采 | 客服侧文本气泡节点 |
 | `messageTypeAnchor` | 消息类型判别锚 | 建议 | 图片、卡片、系统消息等区分节点 |
-| `messageSenderName` | 发送者名 | 建议 | 消息上方发送者名节点 |
+| `messageSenderName` | 用户发送者名 | 建议 | 用户消息上方发送者名节点 |
+| `selfMessageSenderName` | 自己发送者名 | 建议 | 客服侧消息上方发送者名节点 |
 | `historyLoadTrigger` | 加载历史触发器 | 保留 | 加载更多历史消息入口 |
 
 ### C 段落级

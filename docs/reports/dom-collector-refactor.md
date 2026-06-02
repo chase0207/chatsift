@@ -76,7 +76,8 @@ diff -qr /Users/caihongyang/vscode/chat_rpa/dom-collector /Users/caihongyang/vsc
 | `messageText` | 用户消息文本 | 必采 |
 | `selfMessageText` | 自己消息文本 | 必采 |
 | `messageTypeAnchor` | 消息类型判别锚 | 建议 |
-| `messageSenderName` | 发送者名 | 建议 |
+| `messageSenderName` | 用户发送者名 | 建议 |
+| `selfMessageSenderName` | 自己发送者名 | 建议 |
 | `historyLoadTrigger` | 加载历史触发器 | 保留 |
 
 ### C 段落级
@@ -185,7 +186,7 @@ rg "send|发送|reply|输入框|\\.click\\(" tools/dom-collector
 
 结果只剩:
 
-- `messageSenderName` / “发送者名”:消息级只读点位。
+- `messageSenderName`/`selfMessageSenderName`:消息级只读点位。
 - `chrome.runtime.onMessage`、`sendResponse`、`chrome.tabs.sendMessage`:Chrome 扩展内部通信。
 - `a.click()`:导出 JSON 的浏览器下载动作。
 
