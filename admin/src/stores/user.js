@@ -28,6 +28,16 @@ export const useUserStore = defineStore('user', () => {
     return res
   }
 
+  // 用当前 token 拉最新 userinfo,刷新权限/角色,使其与菜单树同源(避免改授权后 F5 仍是旧权限)
+  async function refreshUserInfo() {
+    const res = await authApi.getUserInfo()
+    if (res && res.data) {
+      userInfo.value = res.data
+      localStorage.setItem('userInfo', JSON.stringify(res.data))
+    }
+    return res
+  }
+
   async function doRefreshToken() {
     const res = await authApi.refresh(refreshToken.value)
     token.value = res.data.token
@@ -45,5 +55,5 @@ export const useUserStore = defineStore('user', () => {
     localStorage.removeItem('userInfo')
   }
 
-  return { token, refreshToken, userInfo, isLoggedIn, permissions, hasPerm, login, logout, doRefreshToken }
+  return { token, refreshToken, userInfo, isLoggedIn, permissions, hasPerm, login, logout, doRefreshToken, refreshUserInfo }
 })
