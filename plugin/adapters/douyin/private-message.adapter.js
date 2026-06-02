@@ -162,76 +162,113 @@
 
   async function getMessages(session) {
     void session
-    if (/life\.douyin\.com\/cs\/web\/clue_private_message/.test(location.href || '')) {
-      var items = Dom.queryAll('div[class*="my-4"]').filter(Dom.isVisible)
-      var collectAt = new Date()
-      var currentAnchor = null
-      var anchorOffset = 0
-      var lastOccurredAt = 0
-      var list = []
-      items.forEach(function (el) {
-        var text = _extractMessageText(el)
-        if (!text) {
-          var systemText = Dom.getText(el)
-          var anchor = _parseOccurredAt(systemText, collectAt)
-          currentAnchor = anchor.ok ? anchor : null
-          anchorOffset = 0
-          return
-        }
-        var preciseTimeText = _extractPreciseMessageTime(el)
-        var timeText = preciseTimeText || _extractMessageTime(el)
-        var occurred = _resolveOccurredAt(timeText, currentAnchor, anchorOffset, collectAt, lastOccurredAt)
-        if (!timeText && currentAnchor) anchorOffset += 1
-        lastOccurredAt = occurred.ms
-        var direction = _isOutbound(el) ? 'outbound' : 'inbound'
-        list.push({
-          direction: direction,
-          owner: direction === 'outbound' ? 'self' : 'user',
-          message_type: 'user_text',
-          type: 'text',
-          content: text,
-          timestamp: occurred.iso,
-          time_meta: occurred,
-          raw_payload: {
-            selector: 'life-message-item',
-            rect: Dom.readRect(el),
-            time_text: timeText || '',
-            time_source: preciseTimeText ? 'precise-invisible' : occurred.source,
-            time_estimated: occurred.estimated,
-          },
-        })
-      })
+    var collectAt = new Date()
+    // life.douyin.com 私信页(含 clue 与非 clue): 消息行 div.my-4 + 隐藏精确时间,统一走精确时间扫描
+    var lifeItems = Dom.queryAll('div[class*="my-4"]').filter(Dom.isVisible)
+    if (lifeItems.length) {
+      var lifeList = _scanLifeMessages(lifeItems, collectAt)
       Tracer.log({
         lk_code: LK.MSG_SCAN, stage: Stage.MESSAGE, status: Status.SUCCESS,
         message: 'douyin-private life messages scanned',
-        detail:  { total: list.length },
+        detail:  { total: lifeList.length },
       })
-      return list
+      return lifeList
     }
-    var incoming = Dom.queryAll(SELECTORS.incomingBubble).filter(Dom.isVisible)
-    var outgoing = Dom.queryAll(SELECTORS.selfBubble).filter(Dom.isVisible)
+    // 老版气泡结构(im.douyin 等)兜底: 逐条尽力提取精确/相对时间,取不到才标 estimated,不冒充采集当刻
+    var bubbleNodes = _collectBubbleNodes()
+    var currentAnchor = null
+    var anchorOffset = 0
+    var lastOccurredAt = 0
     var messages = []
-    incoming.forEach(function (el) {
-      var textEl = Dom.queryFirst(SELECTORS.bubbleText, el) || el
+    bubbleNodes.forEach(function (el) {
+      var text = _extractMessageText(el) || Dom.getText(el)
+      if (!text) return
+      var preciseTimeText = _extractPreciseMessageTime(el)
+      var timeText = preciseTimeText || _extractMessageTime(el)
+      var occurred = _resolveOccurredAt(timeText, currentAnchor, anchorOffset, collectAt, lastOccurredAt)
+      if (!timeText && currentAnchor) anchorOffset += 1
+      lastOccurredAt = occurred.ms
+      var direction = _isOutbound(el) ? 'outbound' : 'inbound'
       messages.push({
-        direction: 'inbound', owner: 'user', message_type: 'user_text',
-        content: Dom.getText(textEl),
-        raw_payload: { selector: 'incomingBubble' },
-      })
-    })
-    outgoing.forEach(function (el) {
-      messages.push({
-        direction: 'outbound', owner: 'self', message_type: 'self_reply',
-        content: Dom.getText(el),
-        raw_payload: { selector: 'selfBubble' },
+        direction: direction,
+        owner: direction === 'outbound' ? 'self' : 'user',
+        message_type: direction === 'outbound' ? 'self_reply' : 'user_text',
+        type: 'text',
+        content: text,
+        timestamp: occurred.iso,
+        time_meta: occurred,
+        raw_payload: {
+          selector: direction === 'outbound' ? 'selfBubble' : 'incomingBubble',
+          rect: Dom.readRect(el),
+          time_text: timeText || '',
+          time_source: preciseTimeText ? 'precise-invisible' : occurred.source,
+          time_estimated: occurred.estimated,
+        },
       })
     })
     Tracer.log({
       lk_code: LK.MSG_SCAN, stage: Stage.MESSAGE, status: Status.SUCCESS,
-      message: 'douyin-private messages scanned',
-      detail:  { inbound: incoming.length, outbound: outgoing.length },
+      message: 'douyin-private bubble messages scanned',
+      detail:  { total: messages.length },
     })
     return messages
+  }
+
+  function _scanLifeMessages(items, collectAt) {
+    var currentAnchor = null
+    var anchorOffset = 0
+    var lastOccurredAt = 0
+    var list = []
+    items.forEach(function (el) {
+      var text = _extractMessageText(el)
+      if (!text) {
+        var systemText = Dom.getText(el)
+        var anchor = _parseOccurredAt(systemText, collectAt)
+        currentAnchor = anchor.ok ? anchor : null
+        anchorOffset = 0
+        return
+      }
+      var preciseTimeText = _extractPreciseMessageTime(el)
+      var timeText = preciseTimeText || _extractMessageTime(el)
+      var occurred = _resolveOccurredAt(timeText, currentAnchor, anchorOffset, collectAt, lastOccurredAt)
+      if (!timeText && currentAnchor) anchorOffset += 1
+      lastOccurredAt = occurred.ms
+      var direction = _isOutbound(el) ? 'outbound' : 'inbound'
+      list.push({
+        direction: direction,
+        owner: direction === 'outbound' ? 'self' : 'user',
+        message_type: 'user_text',
+        type: 'text',
+        content: text,
+        timestamp: occurred.iso,
+        time_meta: occurred,
+        raw_payload: {
+          selector: 'life-message-item',
+          rect: Dom.readRect(el),
+          time_text: timeText || '',
+          time_source: preciseTimeText ? 'precise-invisible' : occurred.source,
+          time_estimated: occurred.estimated,
+        },
+      })
+    })
+    return list
+  }
+
+  function _collectBubbleNodes() {
+    var incoming = Dom.queryAll(SELECTORS.incomingBubble).filter(Dom.isVisible)
+    var outgoing = Dom.queryAll(SELECTORS.selfBubble).filter(Dom.isVisible)
+    var nodes = []
+    incoming.concat(outgoing).forEach(function (el) {
+      if (nodes.indexOf(el) === -1) nodes.push(el)
+    })
+    nodes.sort(function (a, b) {
+      if (a === b || !a.compareDocumentPosition) return 0
+      var pos = a.compareDocumentPosition(b)
+      if (pos & 4) return -1 // DOCUMENT_POSITION_FOLLOWING: b 在 a 之后
+      if (pos & 2) return 1  // DOCUMENT_POSITION_PRECEDING: b 在 a 之前
+      return 0
+    })
+    return nodes
   }
 
   function _extractMessageText(el) {
@@ -335,19 +372,24 @@
 
   function _resolveOccurredAt(timeText, anchor, anchorOffset, collectAt, lastOccurredAt) {
     var parsed = _parseOccurredAt(timeText, collectAt)
-    var result
+    // 有真实时间(客户隐藏精确时间): 采用之;仅当 ≤ 上一条才单调校正防倒挂
     if (timeText && parsed.ok) {
-      result = parsed
-    } else if (!timeText && anchor && anchor.ok) {
-      result = _timeResult(new Date(anchor.ms + (anchorOffset + 1) * 1000), 'anchor', true, anchor.raw)
-    } else {
-      result = _timeResult(collectAt, 'fallback', true, timeText || '')
-      result.ok = false
+      if (lastOccurredAt && parsed.ms <= lastOccurredAt) {
+        return _timeResult(new Date(lastOccurredAt + 1000), parsed.source + '+monotonic', true, parsed.raw)
+      }
+      return parsed
     }
-    if (lastOccurredAt && result.ms <= lastOccurredAt) {
-      result = _timeResult(new Date(lastOccurredAt + 1000), result.source + '+monotonic', true, result.raw)
+    // 读不到真实时间(客服消息、或读不到隐藏时间的客户消息): 继承上一条 +1s 保证排序,绝不用采集当刻冒充
+    if (lastOccurredAt) {
+      return _timeResult(new Date(lastOccurredAt + 1000), 'inherited', true, timeText || '')
     }
-    return result
+    // 会话开头无上一条: 退分隔条锚点,再退采集当刻
+    if (anchor && anchor.ok) {
+      return _timeResult(new Date(anchor.ms + (anchorOffset + 1) * 1000), 'anchor', true, anchor.raw)
+    }
+    var fb = _timeResult(collectAt, 'fallback', true, timeText || '')
+    fb.ok = false
+    return fb
   }
 
   function _normalizeHour(hour, period) {

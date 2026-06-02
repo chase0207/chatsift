@@ -11,6 +11,20 @@
 | 版本 | 日期 | 变更摘要 | 触发来源 |
 |---|---|---|---|
 | v1.0.0 | 2026-06-01 | 初版:列出 MISSING/CONFLICT/UNDOCUMENTED | 用户任务3 |
+| v1.1.0 | 2026-06-01 | 标注各条处置:U9 已修、C1-C7/U1-U3 回写 api-spec、M1 缓做、U4/U5/U7/U8/U10 进清理周、U3 待优化 | 审计处置 |
+
+## 处置状态(v1.1.0)
+
+| 条目 | 处置 | 说明 |
+|---|---|---|
+| U9 | 已修复(待真实验收) | private-message.adapter.js:有 my-4 走精确时间扫描(含非 clue 的 life 页),老气泡兜底逐条复用精确/相对时间提取,取不到才标 `time_estimated=true`/`time_source=fallback`,不冒充采集当刻。模拟回归 10/10。**真实时间准确率≥95% 仍需 Chase 连同 W12.6 重采验证**。C 类,未自行 commit。 |
+| C1-C7 | 已回写 | `v1-api-spec.md` v1.1.0:漏斗三环、by-page 改名、completeness 6 字段占比口径、pricing payload、heartbeat/dom-config 占位、analysis_jobs DB 轮询、词表口径。以代码为准。 |
+| U1/U2/U3 | 已回写 | api-spec 补 `/leads/recent`、`intent-distribution/lead-level/trend`、会话/线索列表新增查询参数。 |
+| M1 | 缓做 | 价格表 Excel 导入空 stub,业务暂不急,api-spec 已标"未实现"。 |
+| M2 | 随 C2 解决 | platform-comparison 即 by-page,已回写。 |
+| U4/U5/U7/U8/U10 | 进清理周 | 重复投诉正则、两套词表、build.js 死引用、失效 avatar resolver、admin 残留 api 封装。本批不动,待统一清理周。 |
+| U3(性能) | 待优化 | `diagnosis_color` 全表取出→内存过滤无 LIMIT,数据量大有隐患。真实数据增长后再优化,现记录不改。 |
+| M3/M4 | — 本批未处置 | M3 日志中心孤儿页、M4 分析双队列(设计本就允许缺席),待 Chase 定。 |
 
 > 读法:
 > - **MISSING** = 文档说有、代码没有(或只有空壳)。
