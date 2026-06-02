@@ -30,6 +30,21 @@ async function list(req, res) {
     )`
     params.push(`%${req.query.keyword}%`)
   }
+  if (req.query.agent) {
+    where += ` AND EXISTS (
+      SELECT 1 FROM messages m
+      WHERE m.conversation_id = c.id AND m.tenant_id = c.tenant_id
+        AND m.direction = 'outbound' AND m.sender_nickname = ?
+    )`
+    params.push(req.query.agent)
+  }
+  if (req.query.workorder_type) {
+    where += ` AND EXISTS (
+      SELECT 1 FROM workorders w
+      WHERE w.conversation_id = c.id AND w.tenant_id = c.tenant_id AND w.workorder_type = ?
+    )`
+    params.push(req.query.workorder_type)
+  }
 
   try {
     if (req.query.diagnosis_color) {
@@ -143,4 +158,31 @@ function withDiagnosis(rows) {
   })
 }
 
-module.exports = { list, detail, messages }
+// 筛选项(从真实会话数据派生:平台/页面/客服),供聚合页三级联动
+async function facets(req, res) {
+  const tenant = tenantId(req)
+  try {
+    const [platforms] = await pool.query(
+      "SELECT DISTINCT platform FROM conversations WHERE tenant_id = ? AND platform IS NOT NULL AND platform <> '' ORDER BY platform",
+      [tenant]
+    )
+    const [pages] = await pool.query(
+      "SELECT DISTINCT platform, platform_page FROM conversations WHERE tenant_id = ? AND platform_page IS NOT NULL AND platform_page <> '' ORDER BY platform, platform_page",
+      [tenant]
+    )
+    const [agents] = await pool.query(
+      `SELECT DISTINCT c.platform, c.platform_page, m.sender_nickname AS agent
+       FROM messages m JOIN conversations c ON c.id = m.conversation_id AND c.tenant_id = m.tenant_id
+       WHERE m.tenant_id = ? AND m.direction = 'outbound'
+         AND m.sender_nickname IS NOT NULL AND m.sender_nickname <> ''
+       ORDER BY agent LIMIT 500`,
+      [tenant]
+    )
+    ok(res, { platforms: platforms.map((r) => r.platform), pages, agents })
+  } catch (err) {
+    console.error('[v1.conversations.facets]', err)
+    fail(res, 500, 5000, '服务器内部错误')
+  }
+}
+
+module.exports = { list, detail, messages, facets }

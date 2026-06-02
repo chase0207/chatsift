@@ -1,120 +1,141 @@
 <template>
-  <div class="aggregate">
-    <!-- 左:会话列表 -->
-    <div class="col col-left">
-      <div class="col-head">会话</div>
-      <div class="filters">
-        <el-input v-model="filters.nickname" placeholder="昵称" size="small" clearable @keyup.enter="reload" />
-        <el-input v-model="filters.keyword" placeholder="消息内容" size="small" clearable @keyup.enter="reload" />
-        <div class="filter-row">
-          <el-select v-model="filters.diagnosis_color" placeholder="诊断色" size="small" clearable @change="reload" style="flex:1">
-            <el-option v-for="o in diagnosisOptions" :key="o.value" :label="o.label" :value="o.value" />
-          </el-select>
-          <el-button size="small" type="primary" @click="reload">查询</el-button>
-        </div>
+  <div class="aggregate-page">
+    <!-- 顶部筛选栏:平台→页面→客服 三级联动 + 用户/消息/工单/诊断色 -->
+    <div class="filter-bar">
+      <div class="fb-item"><label>平台</label>
+        <el-select v-model="sel.platform" @change="onPlatformChange" style="width:130px" placeholder="平台">
+          <el-option v-for="p in platformOptions" :key="p" :label="platformLabel(p)" :value="p" />
+        </el-select>
       </div>
-      <div v-loading="listLoading" class="conv-list">
-        <el-empty v-if="!conversations.length && !listLoading" description="无会话" :image-size="50" />
-        <div
-          v-for="c in conversations"
-          :key="c.id"
-          class="conv-item"
-          :class="{ active: c.id === activeId }"
-          @click="selectConversation(c.id)"
-        >
-          <span class="dot" :class="'dot-' + diagnosisMain(c)" />
-          <div class="conv-main">
-            <div class="conv-name">{{ c.customer_nickname || '未知客户' }}</div>
-            <div class="conv-sub">
-              <el-tag size="small" :type="intentMap[c.intent_label]?.type || 'info'">{{ intentMap[c.intent_label]?.label || '未识别' }}</el-tag>
-              <span class="conv-stage">{{ stageMap[c.current_stage] || c.current_stage || '-' }} · {{ c.completeness_score || 0 }}%</span>
+      <div class="fb-item"><label>页面</label>
+        <el-select v-model="sel.page" @change="onPageChange" style="width:150px" placeholder="页面">
+          <el-option v-for="pg in pageOptions" :key="pg" :label="pageLabel(pg)" :value="pg" />
+        </el-select>
+      </div>
+      <div class="fb-item"><label>客服</label>
+        <el-select v-model="sel.agent" @change="reload" clearable placeholder="全部" style="width:180px">
+          <el-option v-for="a in agentOptions" :key="a" :label="a" :value="a" />
+        </el-select>
+      </div>
+      <div class="fb-item"><label>用户</label>
+        <el-input v-model="sel.nickname" placeholder="搜索用户昵称" clearable style="width:150px" @keyup.enter="reload" />
+      </div>
+      <div class="fb-item"><label>消息</label>
+        <el-input v-model="sel.keyword" placeholder="搜索关键词" clearable style="width:150px" @keyup.enter="reload" />
+      </div>
+      <div class="fb-item"><label>工单</label>
+        <el-select v-model="sel.worktype" clearable placeholder="全部" style="width:120px" @change="reload">
+          <el-option v-for="o in workorderOptions" :key="o.value" :label="o.label" :value="o.value" />
+        </el-select>
+      </div>
+      <div class="fb-item"><label>诊断色</label>
+        <el-select v-model="sel.color" clearable placeholder="全部" style="width:120px" @change="reload">
+          <el-option v-for="o in diagnosisOptions" :key="o.value" :label="o.label" :value="o.value" />
+        </el-select>
+      </div>
+      <el-button type="primary" @click="reload">查询</el-button>
+    </div>
+
+    <div class="aggregate">
+      <!-- 左:会话列表 -->
+      <div class="col col-left">
+        <div class="col-head">会话</div>
+        <div v-loading="listLoading" class="conv-list">
+          <el-empty v-if="!conversations.length && !listLoading" description="无会话" :image-size="50" />
+          <div
+            v-for="c in conversations"
+            :key="c.id"
+            class="conv-item"
+            :class="{ active: c.id === activeId }"
+            @click="selectConversation(c.id)"
+          >
+            <span class="dot" :class="'dot-' + diagnosisMain(c)" />
+            <div class="conv-main">
+              <div class="conv-name">{{ c.customer_nickname || '未知客户' }}</div>
+              <div class="conv-sub">
+                <el-tag size="small" :type="intentMap[c.intent_label]?.type || 'info'">{{ intentMap[c.intent_label]?.label || '未识别' }}</el-tag>
+                <span class="conv-stage">{{ stageMap[c.current_stage] || c.current_stage || '-' }} · {{ c.completeness_score || 0 }}%</span>
+              </div>
             </div>
           </div>
         </div>
+        <div class="list-pager">
+          <el-pagination small layout="prev, pager, next" :total="total" :page-size="pageSize" :current-page="page" @current-change="onPage" />
+        </div>
       </div>
-      <div class="list-pager">
-        <el-pagination
-          small
-          layout="prev, pager, next"
-          :total="total"
-          :page-size="pageSize"
-          :current-page="page"
-          @current-change="onPage"
-        />
-      </div>
-    </div>
 
-    <!-- 中:消息流(纯只读,无任何发送入口) -->
-    <div class="col col-mid">
-      <div class="col-head">{{ activeConv.customer_nickname ? '消息 · ' + activeConv.customer_nickname : '消息' }}</div>
-      <div ref="msgRef" v-loading="msgLoading" class="message-list">
-        <el-empty v-if="!activeId" description="选择左侧会话查看对话" :image-size="80" />
-        <el-empty v-else-if="!messages.length && !msgLoading" description="暂无消息" :image-size="80" />
-        <template v-for="item in renderItems" :key="item.msg.id">
-          <div v-if="item.sep" class="message-time-sep"><span>{{ item.sep }}</span></div>
-          <div class="message-row" :class="item.msg.direction === 'outbound' ? 'message-row-right' : 'message-row-left'">
-            <div
-              class="message-bubble"
-              :class="item.msg.direction === 'outbound' ? 'outbound' : 'inbound'"
-              :title="item.hoverTime"
-            >
-              <div v-if="item.nick" class="message-sender-name">{{ item.nick }}</div>
-              <div class="message-content">{{ item.msg.content_text || item.msg.content_url || `[${item.msg.content_type || 'unknown'}]` }}</div>
+      <!-- 中:消息流(纯只读,无任何发送入口) -->
+      <div class="col col-mid">
+        <div class="col-head">{{ activeConv.customer_nickname ? '消息 · ' + activeConv.customer_nickname : '消息' }}</div>
+        <div ref="msgRef" v-loading="msgLoading" class="message-list">
+          <el-empty v-if="!activeId" description="选择左侧会话查看对话" :image-size="80" />
+          <el-empty v-else-if="!messages.length && !msgLoading" description="暂无消息" :image-size="80" />
+          <template v-for="item in renderItems" :key="item.msg.id">
+            <div v-if="item.sep" class="message-time-sep"><span>{{ item.sep }}</span></div>
+            <div class="message-row" :class="item.msg.direction === 'outbound' ? 'message-row-right' : 'message-row-left'">
+              <div
+                class="message-bubble"
+                :class="item.msg.direction === 'outbound' ? 'outbound' : 'inbound'"
+                :title="item.hoverTime"
+              >
+                <div v-if="item.nick" class="message-sender-name">{{ item.nick }}</div>
+                <div class="message-content">{{ item.msg.content_text || item.msg.content_url || `[${item.msg.content_type || 'unknown'}]` }}</div>
+              </div>
             </div>
-          </div>
-        </template>
+          </template>
+        </div>
       </div>
-    </div>
 
-    <!-- 右:客户全貌(纯只读) -->
-    <div class="col col-right">
-      <div class="col-head">客户全貌</div>
-      <div v-if="!activeId" class="right-empty"><el-empty description="选择会话查看全貌" :image-size="80" /></div>
-      <div v-else v-loading="detailLoading" class="right-body">
-        <div class="block">
-          <div class="block-title">意向 / 阶段 / 完整度</div>
-          <el-space wrap>
-            <el-tag :type="intentMap[activeConv.intent_label]?.type || 'info'">{{ intentMap[activeConv.intent_label]?.label || '未识别' }}</el-tag>
-            <el-tag>{{ stageMap[activeConv.current_stage] || activeConv.current_stage || '-' }}</el-tag>
-          </el-space>
-          <el-progress :percentage="Number(activeConv.completeness_score || 0)" :stroke-width="8" style="margin-top:8px" />
-        </div>
-
-        <div v-if="lead" class="block">
-          <div class="block-title">线索</div>
-          <el-space wrap>
-            <el-tag :type="leadLevelType(lead.lead_level)">{{ leadLevelLabel(lead.lead_level) }}</el-tag>
-            <span class="muted">评分 {{ lead.lead_score }}</span>
-            <span class="muted">状态 {{ leadStatusLabel(lead.status) }}</span>
-          </el-space>
-        </div>
-
-        <div class="block">
-          <div class="block-title">诊断标签</div>
-          <el-space wrap>
-            <el-tag v-for="t in diagnosisTags(activeConv)" :key="t.field + t.label" :type="t.color" effect="plain" size="small">{{ t.label }}</el-tag>
-            <span v-if="!diagnosisTags(activeConv).length" class="muted">-</span>
-          </el-space>
-        </div>
-
-        <div class="block">
-          <div class="block-title">字段诊断</div>
-          <div v-for="row in fieldRows" :key="row.field" class="fv-row">
-            <span class="fv-label">{{ row.label }}</span>
-            <span class="fv-value" :title="row.value">{{ row.value }}</span>
-            <el-tag size="small" :type="statusType(row.status)">{{ statusLabel(row.status) }}</el-tag>
+      <!-- 右:客户全貌(纯只读) -->
+      <div class="col col-right">
+        <div class="col-head">客户全貌</div>
+        <div v-if="!activeId" class="right-empty"><el-empty description="选择会话查看全貌" :image-size="80" /></div>
+        <div v-else v-loading="detailLoading" class="right-body">
+          <div class="block">
+            <div class="block-title">意向 / 阶段 / 完整度</div>
+            <el-space wrap>
+              <el-tag :type="intentMap[activeConv.intent_label]?.type || 'info'">{{ intentMap[activeConv.intent_label]?.label || '未识别' }}</el-tag>
+              <el-tag>{{ stageMap[activeConv.current_stage] || activeConv.current_stage || '-' }}</el-tag>
+            </el-space>
+            <el-progress :percentage="Number(activeConv.completeness_score || 0)" :stroke-width="8" style="margin-top:8px" />
           </div>
-          <div v-if="!fieldRows.length" class="muted">暂无字段</div>
-        </div>
 
-        <div class="block">
-          <div class="block-title">关联工单</div>
-          <div v-for="w in workorders" :key="w.id" class="wo-row">
-            <el-tag size="small" type="info">{{ woTypeLabel(w.workorder_type) }}</el-tag>
-            <span class="wo-title" :title="w.title">{{ w.title || '#' + w.id }}</span>
-            <span class="muted">{{ w.status }}</span>
+          <div v-if="lead" class="block">
+            <div class="block-title">线索</div>
+            <el-space wrap>
+              <el-tag :type="leadLevelType(lead.lead_level)">{{ leadLevelLabel(lead.lead_level) }}</el-tag>
+              <span class="muted">评分 {{ lead.lead_score }}</span>
+              <span class="muted">状态 {{ leadStatusLabel(lead.status) }}</span>
+            </el-space>
           </div>
-          <div v-if="!workorders.length" class="muted">无工单</div>
+
+          <div class="block">
+            <div class="block-title">诊断标签</div>
+            <el-space wrap>
+              <el-tag v-for="t in diagnosisTags(activeConv)" :key="t.field + t.label" :type="t.color" effect="plain" size="small">{{ t.label }}</el-tag>
+              <span v-if="!diagnosisTags(activeConv).length" class="muted">-</span>
+            </el-space>
+          </div>
+
+          <div class="block">
+            <div class="block-title">字段诊断</div>
+            <div v-for="row in fieldRows" :key="row.field" class="fv-row">
+              <span class="fv-label">{{ row.label }}</span>
+              <span class="fv-value" :title="row.value">{{ row.value }}</span>
+              <el-tag size="small" :type="statusType(row.status)">{{ statusLabel(row.status) }}</el-tag>
+            </div>
+            <div v-if="!fieldRows.length" class="muted">暂无字段</div>
+          </div>
+
+          <div class="block">
+            <div class="block-title">关联工单</div>
+            <div v-for="w in workorders" :key="w.id" class="wo-row">
+              <el-tag size="small" type="info">{{ woTypeLabel(w.workorder_type) }}</el-tag>
+              <span class="wo-title" :title="w.title">{{ w.title || '#' + w.id }}</span>
+              <span class="muted">{{ w.status }}</span>
+            </div>
+            <div v-if="!workorders.length" class="muted">无工单</div>
+          </div>
         </div>
       </div>
     </div>
@@ -124,7 +145,7 @@
 <script setup>
 import { computed, nextTick, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { listConversations, getConversation, getMessages } from '../api/conversations'
+import { listConversations, getConversation, getMessages, getConversationFacets } from '../api/conversations'
 import { getLead } from '../api/leads'
 import {
   diagnosisOptions, diagnosisTags, diagnosisMain, fieldValidityRows, statusType, statusLabel,
@@ -140,8 +161,27 @@ const stageMap = { new: '新会话', collecting: '收集中', completing: '补�
 const woTypeMap = { inquiry: '线索跟进', appointment: '预约确认', complaint: '投诉处理', pricing: '报价回复' }
 const leadLevelMap = { high: '高意向', mid: '中意向', low: '低意向' }
 const leadStatusMap = { new: '新线索', following: '跟进中', converted: '已成交', lost: '已流失' }
+const platformNameMap = { douyin: '抖音', xiaohongshu: '小红书', kuaishou: '快手', meituan: '美团', taobao: '淘宝/天猫', wechat: '微信/视频号' }
+const pageNameMap = { 'private-message': '抖音私信', 'laike-message': '来客私信', feige: '飞鸽' }
+const workorderOptions = [
+  { label: '线索跟进', value: 'inquiry' },
+  { label: '预约确认', value: 'appointment' },
+  { label: '投诉处理', value: 'complaint' },
+  { label: '报价回复', value: 'pricing' },
+]
 
-const filters = ref({ nickname: '', keyword: '', diagnosis_color: '' })
+const facets = ref({ platforms: [], pages: [], agents: [] })
+const sel = ref({ platform: '', page: '', agent: '', nickname: '', keyword: '', worktype: '', color: '' })
+
+const platformOptions = computed(() => facets.value.platforms || [])
+const pageOptions = computed(() => (facets.value.pages || []).filter((p) => p.platform === sel.value.platform).map((p) => p.platform_page))
+const agentOptions = computed(() => (facets.value.agents || [])
+  .filter((a) => a.platform === sel.value.platform && a.platform_page === sel.value.page)
+  .map((a) => a.agent))
+
+function platformLabel(p) { return platformNameMap[p] || p }
+function pageLabel(pg) { return pageNameMap[pg] || pg }
+
 const conversations = ref([])
 const total = ref(0)
 const page = ref(1)
@@ -184,16 +224,34 @@ function formatDate(value) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
 }
 
+async function loadFacets() {
+  try {
+    const res = await getConversationFacets()
+    facets.value = res.data || { platforms: [], pages: [], agents: [] }
+    // 默认:第一个平台 + 该平台第一个页面 + 客服全部
+    sel.value.platform = facets.value.platforms[0] || ''
+    sel.value.page = pageOptions.value[0] || ''
+    sel.value.agent = ''
+  } catch (_) { /* 无 facets 不阻塞,仍可加载全部会话 */ }
+}
+
 async function loadList() {
   listLoading.value = true
   try {
     const params = { page: page.value, page_size: pageSize }
-    if (filters.value.nickname) params.nickname = filters.value.nickname
-    if (filters.value.keyword) params.keyword = filters.value.keyword
-    if (filters.value.diagnosis_color) params.diagnosis_color = filters.value.diagnosis_color
+    if (sel.value.platform) params.platform = sel.value.platform
+    if (sel.value.page) params.platform_page = sel.value.page
+    if (sel.value.agent) params.agent = sel.value.agent
+    if (sel.value.nickname) params.nickname = sel.value.nickname
+    if (sel.value.keyword) params.keyword = sel.value.keyword
+    if (sel.value.worktype) params.workorder_type = sel.value.worktype
+    if (sel.value.color) params.diagnosis_color = sel.value.color
     const res = await listConversations(params)
     conversations.value = res.data?.list || []
     total.value = res.data?.total || 0
+    if (conversations.value.length && !conversations.value.some((c) => c.id === activeId.value)) {
+      selectConversation(conversations.value[0].id)
+    }
   } catch (err) {
     ElMessage.error(err?.response?.data?.message || '加载会话列表失败')
   } finally {
@@ -203,6 +261,8 @@ async function loadList() {
 
 function reload() { page.value = 1; loadList() }
 function onPage(p) { page.value = p; loadList() }
+function onPlatformChange() { sel.value.page = pageOptions.value[0] || ''; sel.value.agent = ''; reload() }
+function onPageChange() { sel.value.agent = ''; reload() }
 
 async function selectConversation(id) {
   activeId.value = id
@@ -240,18 +300,24 @@ function scrollToBottom() {
   if (el) el.scrollTop = el.scrollHeight
 }
 
-loadList()
+async function init() {
+  await loadFacets()
+  await loadList()
+}
+init()
 </script>
 
 <style scoped>
-.aggregate { display: flex; gap: 12px; height: calc(100vh - 96px); }
+.aggregate-page { display: flex; flex-direction: column; gap: 12px; height: calc(100vh - 88px); }
+.filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; background: #fff; border: 1px solid var(--rpa-border, #e5e7eb); border-radius: 8px; padding: 12px 16px; }
+.fb-item { display: flex; align-items: center; gap: 6px; }
+.fb-item label { font-size: 13px; color: var(--rpa-ink-2, #475569); white-space: nowrap; }
+.aggregate { display: flex; gap: 12px; flex: 1 1 auto; min-height: 0; }
 .col { background: #fff; border: 1px solid var(--rpa-border, #e5e7eb); border-radius: 8px; display: flex; flex-direction: column; min-height: 0; }
-.col-left { width: 320px; flex: 0 0 320px; }
+.col-left { width: 300px; flex: 0 0 300px; }
 .col-mid { flex: 1 1 auto; min-width: 0; }
 .col-right { width: 360px; flex: 0 0 360px; }
 .col-head { padding: 10px 14px; font-weight: 600; border-bottom: 1px solid var(--rpa-border, #e5e7eb); color: var(--rpa-ink, #0f172a); }
-.filters { padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; border-bottom: 1px solid var(--rpa-border, #e5e7eb); }
-.filter-row { display: flex; gap: 8px; }
 .conv-list { flex: 1 1 auto; overflow-y: auto; }
 .conv-item { display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #f1f5f9; }
 .conv-item:hover { background: #f8fafc; }
