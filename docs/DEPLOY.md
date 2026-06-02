@@ -111,6 +111,12 @@ J. 稳定运行观察后,再清理 chat_rpa 旧目录与数据卷(最终弃用)
 - 真实主机名 `VM-0-13-opencloudos`(非 chat-rpa-prod);登录 `ssh -i <Ubuntu.pem> root@124.222.146.193`。
 - **遗留**:插件 serverUrl 需指到 `https://admin.kongyuekeji.com` 才往生产传数据;Phase 3(删 chat_rpa 旧目录)稳定后再做。
 
+### 6.2 test 环境上线记录(2026-06-02)
+- 目录 `/opt/chatsift-test`,compose `docker-compose.test.yml --env-file .env.test`(机密服务器生成、JWT 与 prod 不同)。
+- 容器 `chatsift-mysql-test` + `chatsift-server-test`,server 绑 `127.0.0.1:3101`,库 `chatsift_test`,网络 `chatsift-net-test`,数据 `deploy/data-test/mysql`——与 prod 全隔离。
+- 入口 `test-admin.kongyuekeji.com`:nginx `html_test-admin.kongyuekeji.com.conf` root→`/opt/chatsift-test/admin/dist`、`/api`→`3101`(已备份原配置,证书复用)。
+- 验证:域名 /api/health code0、冒烟 PASS=6/0。常用:`cd /opt/chatsift-test/deploy && docker compose -f docker-compose.test.yml --env-file .env.test up -d`;重置 test 库可 `down` + `rm -rf data-test/mysql` + `up`。
+
 ## 7. 回滚
 - 上线不稳:`docker compose down` chatsift,chat_rpa 旧目录/数据卷在 §3-C 暂保留时可 `up` 回退(故 chat_rpa 数据卷在 chatsift 稳定前不要删)。
 - 版本回滚:`git checkout vX.Y.Z` 旧 tag → 重新 build/up(库迁移只增不改,旧版本兼容旧表)。
