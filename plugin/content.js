@@ -3561,8 +3561,10 @@
       '[class*="title"]',
     ],
     sessionTitle: [
+      // 客户昵称:会话头 msgTitle 里的 name(来客 life.douyin 实测 span.name-*)
       'div[class*="msgTitle"] span[class*="name"]',
-      'div[class*="userInfo"] [class*="name"]',
+      'div[class*="msgTitle"] [class*="name"]',
+      // 不再退回 div.userInfo —— 该布局下那是"登录客服自己"的信息区,会误读成客服名
       '[class*="conversation-header"] [class*="title"]',
       '[class*="header-title"]',
     ],
@@ -4305,7 +4307,7 @@
     return ctx.sessionTitle ||
       Dom.getText(Dom.queryFirst([
         'div[class*="msgTitle"] span[class*="name"]',
-        'div[class*="userInfo"] [class*="name"]',
+        // 不再退回 div.userInfo —— 该布局下那是"登录客服自己"的信息区,会误读成客服名
         'div[class*="conversationName"]',
         '[class*="sessionTitle"]',
       ])) ||
@@ -4313,22 +4315,40 @@
   }
 
   function _readAccountNickname() {
-    // 登录客服(agent)账号名:抖音私信顶部账号区 [class*="imUserName"]
-    // (W13 按客服昵称分组用;adapter 已把 outbound sender_nickname 取自 accountNickname)
-    return Dom.getText(Dom.queryFirst([
+    // 登录客服(agent)账号名。优先旧版 [class*="imUserName"];
+    // life.douyin 来客布局取 outbound 行 p.text-right.text-gray-2 文本(内含时间 span,需剔除)
+    var el = Dom.queryFirst([
       '[class*="imUserName"]',
-    ])) || ''
+      'p[class*="text-right"][class*="text-gray"]',
+      'p[class*="text-right"]',
+    ])
+    if (!el) return ''
+    if (el.childNodes) {
+      var name = ''
+      for (var i = 0; i < el.childNodes.length; i++) {
+        if (el.childNodes[i].nodeType === 3) name += el.childNodes[i].textContent || ''
+      }
+      name = String(name || '').trim()
+      if (name) return name
+    }
+    return String(Dom.getText(el) || '').trim()
   }
 
   function _buildSessionInfo(adapter) {
     var nickname = _readNickname(adapter)
     var pageKey = adapter && adapter.pageKey ? adapter.pageKey : 'douyin'
     if (!nickname || nickname === 'unknown') return null
+    var account = _readAccountNickname()
+    // 防护:客户昵称若等于登录客服账号名,判为误读(否则所有会话会折叠成一条"客服会话")
+    if (account && nickname === account) {
+      Logger.warn && Logger.warn('LegacyCollector', 'skip collect: nickname equals agent account (likely misread)')
+      return null
+    }
     var seed = [pageKey, nickname].join('|')
     return {
       conversationId: 'douyin_' + pageKey.replace(/[^a-z0-9]+/ig, '_') + '_' + Dom.simpleHash(seed),
       nickname: nickname,
-      accountNickname: _readAccountNickname(),
+      accountNickname: account,
       pageKey: pageKey,
     }
   }
