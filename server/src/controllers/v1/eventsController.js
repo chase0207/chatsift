@@ -44,6 +44,9 @@ async function batch(req, res) {
         [tenant, platform, platformConversationId]
       )
 
+      // 客户昵称只取 inbound(客户)消息的发送者,绝不被 outbound(客服)覆盖
+      const inboundNickname = direction === 'inbound' ? (event.sender_nickname || null) : null
+
       if (conversationRows.length) {
         conversationId = conversationRows[0].id
         await conn.query(
@@ -57,7 +60,7 @@ async function batch(req, res) {
            WHERE id = ?`,
           [
             event.platform_page || null,
-            event.sender_nickname || null,
+            inboundNickname,
             event.customer_platform_uid || event.platform_uid || null,
             occurredAt,
             occurredAt,
@@ -78,7 +81,7 @@ async function batch(req, res) {
             platform,
             event.platform_page || null,
             platformConversationId,
-            event.sender_nickname || null,
+            inboundNickname,
             event.customer_platform_uid || event.platform_uid || null,
             1,
             occurredAt,
