@@ -37,8 +37,10 @@
       '[class*="title"]',
     ],
     sessionTitle: [
+      // 客户昵称:会话头 msgTitle 里的 name(来客 life.douyin 实测 span.name-*)
       'div[class*="msgTitle"] span[class*="name"]',
-      'div[class*="userInfo"] [class*="name"]',
+      'div[class*="msgTitle"] [class*="name"]',
+      // 不再退回 div.userInfo —— 该布局下那是"登录客服自己"的信息区,会误读成客服名
       '[class*="conversation-header"] [class*="title"]',
       '[class*="header-title"]',
     ],
