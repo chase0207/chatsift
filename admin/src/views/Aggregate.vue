@@ -51,11 +51,11 @@
           >
             <span class="dot" :class="'dot-' + diagnosisMain(c)" />
             <div class="conv-main">
-              <div class="conv-name">{{ c.customer_nickname || '未知客户' }}</div>
-              <div class="conv-sub">
-                <el-tag size="small" :type="intentMap[c.intent_label]?.type || 'info'">{{ intentMap[c.intent_label]?.label || '未识别' }}</el-tag>
-                <span class="conv-stage">{{ stageMap[c.current_stage] || c.current_stage || '-' }} · {{ c.completeness_score || 0 }}%</span>
+              <div class="conv-top">
+                <span class="conv-name">{{ c.customer_nickname || '未知客户' }}</span>
+                <span class="conv-time">{{ relativeTime(c.last_message_at) }}</span>
               </div>
+              <div class="conv-last-text">{{ lastMsgPreview(c) }}</div>
             </div>
           </div>
         </div>
@@ -181,6 +181,25 @@ const agentOptions = computed(() => (facets.value.agents || [])
 
 function platformLabel(p) { return platformNameMap[p] || p }
 function pageLabel(pg) { return pageNameMap[pg] || pg }
+
+const contentTypeLabel = { image: '[图片]', card: '[卡片]', file: '[文件]', video: '[视频]', audio: '[语音]', emoji: '[表情]' }
+function lastMsgPreview(c) {
+  if (c.last_message_text) return c.last_message_text
+  if (c.last_message_type) return contentTypeLabel[c.last_message_type] || '[' + c.last_message_type + ']'
+  return ''
+}
+function relativeTime(value) {
+  if (!value) return ''
+  const t = new Date(String(value).replace(' ', 'T')).getTime()
+  if (Number.isNaN(t)) return ''
+  const diff = Date.now() - t
+  if (diff < 60000) return '刚刚'
+  const min = Math.floor(diff / 60000)
+  if (min < 60) return min + '分钟前'
+  const hr = Math.floor(min / 60)
+  if (hr < 24) return hr + '小时前'
+  return Math.floor(hr / 24) + '天前'
+}
 
 const conversations = ref([])
 const total = ref(0)
@@ -328,9 +347,10 @@ init()
 .dot-success { background: #67c23a; }
 .dot-info { background: #c0c4cc; }
 .conv-main { min-width: 0; flex: 1; }
-.conv-name { font-size: 14px; color: var(--rpa-ink, #0f172a); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.conv-sub { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
-.conv-stage { font-size: 12px; color: #94a3b8; }
+.conv-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.conv-name { flex: 1; min-width: 0; font-size: 14px; color: var(--rpa-ink, #0f172a); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conv-time { flex: 0 0 auto; font-size: 12px; color: #94a3b8; }
+.conv-last-text { margin-top: 4px; font-size: 13px; color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .list-pager { padding: 8px; border-top: 1px solid var(--rpa-border, #e5e7eb); text-align: center; }
 .message-list { flex: 1 1 auto; overflow-y: auto; padding: 12px 16px; }
 .message-row { display: flex; margin-bottom: 14px; }
