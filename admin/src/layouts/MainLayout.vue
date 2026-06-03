@@ -95,6 +95,7 @@ import { useUserStore } from '../stores/user'
 import pkg from '../../package.json'
 import { getMenuTree } from '../api/menus'
 import { recentLeads } from '../api/leads'
+import { filterMenuTree } from '../utils/entry'
 import {
   House, User, Connection, Monitor, Document, Files, Grid, ChatLineSquare, ChatDotRound,
   Fold, Expand, ArrowDown, SwitchButton, Key, Menu as MenuIcon, Reading, Setting,
@@ -139,7 +140,7 @@ async function loadMenus() {
   try {
     var res = await getMenuTree()
     if (res.code === 0) {
-      menuTree.value = res.data || []
+      menuTree.value = filterMenuTree(res.data || [])
       // 构建路由→标题映射
       var map = {}
       function walk(items) {
