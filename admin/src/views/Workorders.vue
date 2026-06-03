@@ -31,10 +31,13 @@
 
     <el-card shadow="never" style="margin-top:16px">
       <el-table :data="tableData" v-loading="loading" stripe :row-class-name="rowClassName">
-        <el-table-column label="标题" min-width="220">
+        <el-table-column label="标题" min-width="200">
           <template #default="{ row }">
             <span style="font-weight:600">{{ row.title || '-' }}</span>
           </template>
+        </el-table-column>
+        <el-table-column label="客户" min-width="130">
+          <template #default="{ row }">{{ row.customer_nickname || '-' }}</template>
         </el-table-column>
         <el-table-column label="类型" width="120">
           <template #default="{ row }">
@@ -84,6 +87,7 @@
       <div v-loading="detailLoading">
         <el-descriptions :column="2" border>
           <el-descriptions-item label="标题">{{ current.title || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="客户">{{ current.customer_nickname || '-' }}</el-descriptions-item>
           <el-descriptions-item label="类型">{{ typeMap[current.workorder_type] || current.workorder_type || '-' }}</el-descriptions-item>
           <el-descriptions-item label="优先级">P{{ current.priority || '-' }}</el-descriptions-item>
           <el-descriptions-item label="完整度">{{ current.completeness_score || 0 }}%</el-descriptions-item>
