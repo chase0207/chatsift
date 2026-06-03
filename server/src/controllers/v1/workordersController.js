@@ -5,31 +5,34 @@ async function list(req, res) {
   const tenant = tenantId(req)
   const { page, pageSize, offset } = paging(req.query)
   const params = [tenant]
-  let where = 'WHERE tenant_id = ?'
+  let where = 'WHERE w.tenant_id = ?'
 
   for (const key of ['workorder_type', 'status', 'assigned_to', 'priority']) {
     if (req.query[key]) {
-      where += ` AND ${key} = ?`
+      where += ` AND w.${key} = ?`
       params.push(req.query[key])
     }
   }
   if (req.query.overdue === 'true') {
-    where += ' AND status <> ? AND sla_due_at IS NOT NULL AND sla_due_at < NOW()'
+    where += ' AND w.status <> ? AND w.sla_due_at IS NOT NULL AND w.sla_due_at < NOW()'
     params.push('done')
   }
 
   try {
-    const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM workorders ${where}`, params)
+    const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM workorders w ${where}`, params)
     const [rows] = await pool.query(
-      `SELECT id, conversation_id, lead_id, workorder_type, title, payload,
-              completeness_score, missing_fields, suggestion, priority,
-              DATE_FORMAT(sla_due_at, '%Y-%m-%d %H:%i:%s') AS sla_due_at,
-              status, assigned_to,
-              DATE_FORMAT(assigned_at, '%Y-%m-%d %H:%i:%s') AS assigned_at,
-              DATE_FORMAT(completed_at, '%Y-%m-%d %H:%i:%s') AS completed_at,
-              DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at
-       FROM workorders ${where}
-       ORDER BY priority ASC, id DESC LIMIT ? OFFSET ?`,
+      `SELECT w.id, w.conversation_id, w.lead_id, w.workorder_type, w.title, w.payload,
+              w.completeness_score, w.missing_fields, w.suggestion, w.priority,
+              DATE_FORMAT(w.sla_due_at, '%Y-%m-%d %H:%i:%s') AS sla_due_at,
+              w.status, w.assigned_to,
+              DATE_FORMAT(w.assigned_at, '%Y-%m-%d %H:%i:%s') AS assigned_at,
+              DATE_FORMAT(w.completed_at, '%Y-%m-%d %H:%i:%s') AS completed_at,
+              DATE_FORMAT(w.created_at, '%Y-%m-%d %H:%i:%s') AS created_at,
+              c.customer_nickname
+       FROM workorders w
+       LEFT JOIN conversations c ON c.id = w.conversation_id AND c.tenant_id = w.tenant_id
+       ${where}
+       ORDER BY w.priority ASC, w.id DESC LIMIT ? OFFSET ?`,
       [...params, pageSize, offset]
     )
     ok(res, {
@@ -47,7 +50,10 @@ async function list(req, res) {
 async function detail(req, res) {
   try {
     const [rows] = await pool.query(
-      'SELECT * FROM workorders WHERE tenant_id = ? AND id = ? LIMIT 1',
+      `SELECT w.*, c.customer_nickname
+       FROM workorders w
+       LEFT JOIN conversations c ON c.id = w.conversation_id AND c.tenant_id = w.tenant_id
+       WHERE w.tenant_id = ? AND w.id = ? LIMIT 1`,
       [tenantId(req), req.params.id]
     )
     if (!rows.length) return fail(res, 404, 2001, '工单不存在')
