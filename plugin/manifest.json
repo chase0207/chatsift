@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Chatsift · 会话筛选助手",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "多平台会话静默采集，智能筛选高价值线索",
   "permissions": [
     "storage",
