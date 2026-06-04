@@ -44,3 +44,9 @@ tmp/
 docs/architecture/chatsift *.md
 docs/architecture/* 2.md
 docs/architecture/* 3.md
+
+# 本地 agent 配置 / 运行时数据(2026-06-04, .DS_Store 已在上方编辑器段)
+.agents/
+.claude/
+skills-lock.json
+data/
