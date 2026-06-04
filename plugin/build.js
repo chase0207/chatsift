@@ -39,7 +39,6 @@ const MODULES = [
 
   // ── V1.9 Runtime 基础（依赖 shared）─────────────────────────
   'runtime/feature-flags.js',             // M1: Feature Flag 中心（必须在 adapter-registry 之前）
-  'runtime/adapter-runtime.js',           // 历史模块，window.PRAAdapterRuntime
   'runtime/runtime-state-machine.js',     // M1: 状态机（依赖 RpaConstants）
   'runtime/lk-tracer.js',                 // M1: LK Trace
   'runtime/adapter-registry.js',          // W5: Adapter 注册与采集分发
@@ -52,10 +51,6 @@ const MODULES = [
   'runtime/recovery-manager.js',          // M2: reload 恢复
   'runtime/session-identity-resolver.js', // M3: session_id 提取器
   'shared/adapter-helpers.js',            // M3: adapter 辅助方法（依赖 session-identity-resolver）
-
-  // ── Adapter base（被 adapters/** 共同依赖）──────────────────────
-  'adapters/base/dom-utils.js',           // M3
-  'adapters/base/adapter-helpers.js',     // M3
 
   'runtime/runtime-manager.js',           // M1+M2: legacy runtime 骨架保留
 
@@ -86,11 +81,6 @@ const MODULES = [
 
   // ── V1.9-QA RPC Bridge（chrome.runtime.onMessage 桥，Playwright/main-world 调用） ─
   'runtime/rpc-bridge.js',
-
-  // ── V1.x 主逻辑（迁移期过渡）────────────────────────────────────
-  // 迁移完成前，V1.x 的平台适配器代码保留在 content_legacy.js。
-  // M3 验收后逐步将平台代码拆入 adapters/**.adapter.js，content_legacy.js 持续瘦身。
-  'content_legacy.js',
 ]
 
 // ── 构建 ─────────────────────────────────────────────────────────
