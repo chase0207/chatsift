@@ -50,3 +50,6 @@ docs/architecture/* 3.md
 .claude/
 skills-lock.json
 data/
+
+# 非 chatsift 产物(其他任务误落本仓,2026-06-04)
+outputs/
