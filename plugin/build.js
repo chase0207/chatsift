@@ -72,6 +72,7 @@ const MODULES = [
   'adapters/kuaishou/customer-service.adapter.js',
   'adapters/meituan/jingyingbao.adapter.js',
 
+  'runtime/position-tracker.js',          // W17: 锚点窗口 position(legacy-collector 依赖,须在其前)
   'runtime/legacy-collector.js',          // W4: flag 切换到只读采集链路
 
   // ── M6 自检脚本（最后注册，便于 DevTools 一行调用） ──────────────

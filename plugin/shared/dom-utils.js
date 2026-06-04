@@ -75,8 +75,12 @@
 
   function synthMessageId(args) {
     args = args || {}
-    // 去重键优先用稳定的"出现序号"(seq):同一屏重复采集 → 同 id → 去重;
-    // 客户真重复发同一句 → 不同 seq → 保留。仅在无 seq 时回退到旧的"时间到分钟"。
+    // W17:位置标识优先。message_id = syn_hash(conversationId|position),纯位置不含内容/方向(D5)。
+    // 同会话同 position → 同 hash → 跨采集幂等(去重靠位置不靠内容)。
+    if (args.position !== undefined && args.position !== null) {
+      return 'syn_' + simpleHash((args.conversationId || args.conversation_id || '') + '|pos:' + args.position)
+    }
+    // 旧路径(seq/时间到分钟)保留兼容,W17 采集链路已不再走。
     var keyPart
     if (args.seq !== undefined && args.seq !== null) {
       keyPart = 'seq:' + args.seq
