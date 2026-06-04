@@ -2,6 +2,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useUserStore } from '../stores/user'
 import { ElMessage } from 'element-plus'
+import { routeAllowed, defaultPath, entryMode } from '../utils/entry'
 
 const routes = [
   {
@@ -48,7 +49,12 @@ router.beforeEach((to, _from, next) => {
     return next({ path: '/login', query: { redirect: to.fullPath } })
   }
   if (to.path === '/login' && store.isLoggedIn) {
-    return next('/dashboard')
+    return next(defaultPath(entryMode()))
+  }
+  // W16 入口域名过滤: 平台(admin)/租户(mychat) 各自只放行对应路由(dev/未知域名='all'不过滤)
+  if (store.isLoggedIn && to.path !== '/login' && !routeAllowed(to.path)) {
+    const dp = defaultPath(entryMode())
+    if (to.path !== dp) return next(dp)
   }
   // 权限检查：非超级管理员，检查是否有该路由的权限
   if (store.isLoggedIn && to.path !== '/login' && to.path !== '/dashboard') {

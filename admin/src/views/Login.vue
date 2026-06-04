@@ -60,6 +60,7 @@ import { ref, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { User, Lock } from '@element-plus/icons-vue'
 import { useUserStore } from '../stores/user'
+import { entryMode, defaultPath } from '../utils/entry'
 
 const router  = useRouter()
 const route   = useRoute()
@@ -83,7 +84,18 @@ async function handleLogin() {
   errorMsg.value = ''
   try {
     await store.login(form.username, form.password)
-    const redirect = route.query.redirect || '/dashboard'
+    // W16: 内部用户(超管)不允许登录 mychat 外部业务端;数据隔离仍靠后端 tenant_id
+    if (entryMode() === 'tenant' && store.userInfo?.is_super) {
+      await store.logout()
+      errorMsg.value = '内部账号请使用管理后台(admin)登录'
+      return
+    }
+    if (entryMode() === 'platform' && !store.userInfo?.is_super) {
+      await store.logout()
+      errorMsg.value = '外部账号请使用业务端(mychat)登录'
+      return
+    }
+    const redirect = route.query.redirect || defaultPath(entryMode())
     router.push(redirect)
   } catch (err) {
     errorMsg.value = err?.response?.data?.message || '登录失败，请检查账号密码'

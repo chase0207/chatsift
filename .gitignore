@@ -37,3 +37,10 @@ coverage/
 # Chatsift 临时文件
 tmp/
 *.tmp
+
+# W16(2026-06-03): 历史文档副本(带空格命名)与二进制归档,不入库;下划线正式文档保留
+*.zip
+*.pdf
+docs/architecture/chatsift *.md
+docs/architecture/* 2.md
+docs/architecture/* 3.md
