@@ -1,0 +1,18 @@
+周次	一句话概括
+W1	搭服务端骨架：8 张核心表、v1 路由/controller、events batch 入库与去重。
+W2	做 analyzer worker：DB 轮询、串行处理、防重入、规则版 intent engine。
+W3	做分析流水线扩展：goal/completeness/workorder 等引擎接入 pipeline。
+W4	做插件只读采集链路：ConversationEvent、EventQueue/Uploader、feature flag、抖音私信采集。
+W4.5	修 /api/platforms 500 与平台 key 归一化工具，保留插件兜底。
+W5	删除旧发送链路：保留只读采集，清理 adapter sendReply/self-check 发送依赖。
+W6	打通 admin 登录与 3100 接口，并做会话中心/工单中心前端页面。
+W6.5	修同一客户会话被拆分与 completeness 全量 inbound 取数问题。
+W7	做 lead engine 和线索中心：租车业务规则、线索评分、customer_name。
+W8	接 DeepSeek/OpenAI 兼容 LLM 与租户级配额配置，规则命中不调 LLM。
+W9	做运营分析接口/页面，并修 dashboard stats 查询表。
+W10	做字段有效性校验：field_validity、规则/AI 校验、租车字段有效性。
+W11	做诊断颜色与快速复核：按 W10 field_validity 实时生成红橙绿灰标签。
+W12	做准实时提醒：后台轮询高价值线索/投诉/完整预约并主动通知。
+W12.5	追认并修正 W12 口径：intent 最近 20 条 inbound、投诉优先、插件启动刷新匹配页。
+W12.6	修消息时间/顺序：invisible 精确时间、latest 消息抽取、会话记录默认看最新。
+W13-W16 我没有在这段主线里按“周任务”完整负责；仓库里有对应提交/报告，但从当前上下文看更像后续并行或其他 agent 接手后的工作，我不把它们算作我负责。
