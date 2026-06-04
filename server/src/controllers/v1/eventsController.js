@@ -93,20 +93,22 @@ async function batch(req, res) {
 
       const [messageResult] = await conn.query(
         `INSERT INTO messages
-         (tenant_id, conversation_id, platform_message_id, direction, sender_nickname,
-          content_type, content_text, content_url, raw_snapshot, occurred_at, analyzed_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?,NULL)`,
+         (tenant_id, conversation_id, platform_message_id, direction, position, sender_nickname,
+          content_type, content_text, content_url, raw_snapshot, occurred_at, segment_at, analyzed_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,NULL)`,
         [
           tenant,
           conversationId,
           platformMessageId,
           direction,
+          event.position != null ? event.position : null,
           event.sender_nickname || null,
           event.content_type || 'text',
           event.content_text || null,
           event.content_url || null,
           jsonValue(event.raw_snapshot),
           occurredAt,
+          toMysqlDate(event.segment_at) || null,
         ]
       )
 

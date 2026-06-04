@@ -133,11 +133,12 @@ async function messages(req, res) {
     )
     const latest = req.query.latest === '1' || req.query.latest === 'true'
     const [rows] = await pool.query(
-      `SELECT id, direction, sender_nickname, content_type, content_text, content_url, raw_snapshot,
-              DATE_FORMAT(occurred_at, '%Y-%m-%d %H:%i:%s') AS occurred_at
+      `SELECT id, direction, position, sender_nickname, content_type, content_text, content_url, raw_snapshot,
+              DATE_FORMAT(occurred_at, '%Y-%m-%d %H:%i:%s') AS occurred_at,
+              DATE_FORMAT(segment_at, '%Y-%m-%d %H:%i:%s') AS segment_at
        FROM messages
        WHERE tenant_id = ? AND conversation_id = ?
-       ORDER BY occurred_at ${latest ? 'DESC' : 'ASC'}, id ${latest ? 'DESC' : 'ASC'}
+       ORDER BY segment_at ${latest ? 'DESC' : 'ASC'}, position ${latest ? 'DESC' : 'ASC'}, id ${latest ? 'DESC' : 'ASC'}
        LIMIT ? OFFSET ?`,
       [tenant, req.params.id, pageSize, offset]
     )

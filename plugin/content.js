@@ -3749,6 +3749,7 @@
     var anchorOffset = 0
     var lastOccurredAt = 0
     var pendingDivider = ''
+    var currentSegmentIso = null
     var list = []
     items.forEach(function (el) {
       var text = _extractMessageText(el)
@@ -3758,7 +3759,8 @@
         currentAnchor = anchor.ok ? anchor : null
         anchorOffset = 0
         // 抖音时间分隔条原文(仅时间类),挂到其后第一条消息,展示端原样还原,与平台一致
-        if (anchor.ok) pendingDivider = String(systemText || '').trim()
+        // W17:段时间条(抖音超5分钟一条)解析为 segment_at,段内消息同值,作段间排序键(纯排序,非真实时间)
+        if (anchor.ok) { pendingDivider = String(systemText || '').trim(); currentSegmentIso = anchor.iso }
         return
       }
       var preciseTimeText = _extractPreciseMessageTime(el)
@@ -3776,6 +3778,7 @@
         agent_name: direction === 'outbound' ? _extractAgentName(el) : '',
         timestamp: occurred.iso,
         time_meta: occurred,
+        segment_at: currentSegmentIso,
         raw_payload: {
           selector: 'life-message-item',
           rect: Dom.readRect(el),
@@ -3783,6 +3786,7 @@
           time_source: preciseTimeText ? 'precise-invisible' : occurred.source,
           time_estimated: occurred.estimated,
           divider_text: pendingDivider || undefined,
+          segment_at: currentSegmentIso || undefined,
         },
       })
       pendingDivider = ''
@@ -3994,6 +3998,7 @@
       content_text: content,
       content_url: rawMsg.url || null,
       occurred_at: occurredAt,
+      segment_at: rawMsg.segment_at || null,
       raw_snapshot: rawMsg.raw_payload || null,
     }
   }
