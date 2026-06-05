@@ -448,9 +448,12 @@
     var normalized = classifyMessage(rawMsg)
     var direction = (normalized && normalized.direction) || rawMsg.direction || 'inbound'
     var content = rawMsg.content || rawMsg.text || ''
-    var occurredAt = rawMsg.time_meta && rawMsg.time_meta.iso
-      ? rawMsg.time_meta.iso
-      : _normalizeOccurredAt(rawMsg.timestamp || rawMsg.time || rawMsg.occurred_at)
+    // W17:outbound 无精确时间 → occurred_at=NULL,不存合成假时间;inbound 保持 W12.6 精确时间逻辑
+    var occurredAt = direction === 'outbound'
+      ? null
+      : (rawMsg.time_meta && rawMsg.time_meta.iso
+          ? rawMsg.time_meta.iso
+          : _normalizeOccurredAt(rawMsg.timestamp || rawMsg.time || rawMsg.occurred_at))
     var fallbackName = sessionInfo.nickname || ''
     if (!fallbackName || fallbackName === 'unknown') return null
     var conversationId = sessionInfo.conversationId || sessionInfo.conversation_id || sessionInfo.session_id || 'douyin-private-' + Dom.simpleHash(fallbackName)

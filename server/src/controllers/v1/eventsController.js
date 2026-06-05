@@ -20,9 +20,12 @@ async function batch(req, res) {
       const platformConversationId = event.conversation_id || event.platform_conversation_id
       const platformMessageId = event.message_id || event.platform_message_id
       const direction = event.direction
-      const occurredAt = toMysqlDate(event.occurred_at)
+      const occurredAt = toMysqlDate(event.occurred_at)   // W17:outbound 为 null(不存合成假时间)
+      const segmentAt = toMysqlDate(event.segment_at)
+      const msgTime = occurredAt || segmentAt             // 会话级时间跟踪:有精确用精确,否则退段时间
 
-      if (!platform || !platformConversationId || !platformMessageId || !direction || !occurredAt) {
+      // W17:放开"无 occurred_at 即 reject"(D4),允许 outbound occurred_at=NULL 正常入库
+      if (!platform || !platformConversationId || !platformMessageId || !direction) {
         rejected += 1
         continue
       }
@@ -54,17 +57,19 @@ async function batch(req, res) {
            SET platform_page = COALESCE(?, platform_page),
                customer_nickname = COALESCE(?, customer_nickname),
                customer_platform_uid = COALESCE(?, customer_platform_uid),
-               last_message_at = GREATEST(COALESCE(last_message_at, ?), ?),
-               last_inbound_at = CASE WHEN ? = 'inbound' THEN GREATEST(COALESCE(last_inbound_at, ?), ?) ELSE last_inbound_at END,
+               last_message_at = CASE WHEN ? IS NOT NULL THEN GREATEST(COALESCE(last_message_at, ?), ?) ELSE last_message_at END,
+               last_inbound_at = CASE WHEN ? = 'inbound' AND ? IS NOT NULL THEN GREATEST(COALESCE(last_inbound_at, ?), ?) ELSE last_inbound_at END,
                message_count = message_count + 1
            WHERE id = ?`,
           [
             event.platform_page || null,
             inboundNickname,
             event.customer_platform_uid || event.platform_uid || null,
-            occurredAt,
-            occurredAt,
+            msgTime,
+            msgTime,
+            msgTime,
             direction,
+            occurredAt,
             occurredAt,
             occurredAt,
             conversationId,
@@ -84,7 +89,7 @@ async function batch(req, res) {
             inboundNickname,
             event.customer_platform_uid || event.platform_uid || null,
             1,
-            occurredAt,
+            msgTime,
             direction === 'inbound' ? occurredAt : null,
           ]
         )
@@ -108,7 +113,7 @@ async function batch(req, res) {
           event.content_url || null,
           jsonValue(event.raw_snapshot),
           occurredAt,
-          toMysqlDate(event.segment_at) || null,
+          segmentAt,
         ]
       )
 
