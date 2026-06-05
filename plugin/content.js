@@ -4539,7 +4539,8 @@
   async function collectMessageSession(sessionInfo) {
     var adapter = Registry.resolve(location)
     if (!adapter) {
-      Logger.warn && Logger.warn('LegacyCollector', 'no adapter matched current page')
+      // 非匹配页(切到别的抖音页)优雅跳过,降 debug 免刷扩展错误页
+      Logger.debug && Logger.debug('LegacyCollector', 'no adapter matched current page')
       return { ok: false, reason: 'adapter-missing' }
     }
     if (typeof adapter.getMessages !== 'function' || typeof adapter.toConversationEvent !== 'function') {
@@ -4548,7 +4549,8 @@
     }
     var baseInfo = _buildSessionInfo(adapter)
     if (!baseInfo) {
-      Logger.warn && Logger.warn('LegacyCollector', 'skip collect: nickname missing')
+      // 无打开会话/昵称 DOM 未出来时优雅跳过,降 debug 免刷扩展错误页
+      Logger.debug && Logger.debug('LegacyCollector', 'skip collect: nickname missing')
       return { ok: false, reason: 'nickname-missing' }
     }
     var info = Object.assign(baseInfo, sessionInfo || {})
