@@ -53,7 +53,7 @@ const renderItems = computed(() => {
     return {
       msg: m,
       sep: (m.raw_snapshot && m.raw_snapshot.divider_text) || null,
-      hoverTime: precise ? formatDate(m.occurred_at) : '',
+      hoverTime: (precise && m.occurred_at) ? formatDate(m.occurred_at) : '',
       nick: m.direction === 'outbound' ? (m.sender_nickname || '客服') : '',
     }
   })

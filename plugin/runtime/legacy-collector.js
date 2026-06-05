@@ -6,8 +6,9 @@
   var Collector = window.RpaEventCollector
   var Uploader = window.RpaEventUploader
   var Dom = window.RpaDomUtils
+  var PositionTracker = window.RpaPositionTracker
   var Logger = window.RpaLogger || console
-  if (!Flags || !Registry || !Collector || !Uploader || !Dom) {
+  if (!Flags || !Registry || !Collector || !Uploader || !Dom || !PositionTracker) {
     throw new Error('[W4] legacy collector dependencies missing')
   }
 
@@ -71,7 +72,8 @@
   async function collectMessageSession(sessionInfo) {
     var adapter = Registry.resolve(location)
     if (!adapter) {
-      Logger.warn && Logger.warn('LegacyCollector', 'no adapter matched current page')
+      // 非匹配页(切到别的抖音页)优雅跳过,降 debug 免刷扩展错误页
+      Logger.debug && Logger.debug('LegacyCollector', 'no adapter matched current page')
       return { ok: false, reason: 'adapter-missing' }
     }
     if (typeof adapter.getMessages !== 'function' || typeof adapter.toConversationEvent !== 'function') {
@@ -80,7 +82,8 @@
     }
     var baseInfo = _buildSessionInfo(adapter)
     if (!baseInfo) {
-      Logger.warn && Logger.warn('LegacyCollector', 'skip collect: nickname missing')
+      // 无打开会话/昵称 DOM 未出来时优雅跳过,降 debug 免刷扩展错误页
+      Logger.debug && Logger.debug('LegacyCollector', 'skip collect: nickname missing')
       return { ok: false, reason: 'nickname-missing' }
     }
     var info = Object.assign(baseInfo, sessionInfo || {})
@@ -88,18 +91,13 @@
     var events = (rawMessages || [])
       .map(function (m) { return adapter.toConversationEvent(m, info) })
       .filter(function (event) { return event && event.content_text })
-    // 用稳定的"会话+方向+内容+出现序号"重算 message_id,替代依赖 occurred_at 的旧键。
-    // occurred_at 跨采集轮不稳定(尤其 outbound 无精确时间)会导致同消息每轮换 id 重复入库。
-    var _seqMap = {}
+    // W17:锚点窗口对齐赋"会话内 position"(纯位置,持久化于 chrome.storage,跨采集幂等),
+    // message_id = syn_hash(conversationId|position),不含内容/方向(D5)。替代旧 _seqMap 内容去重。
+    await PositionTracker.assign(baseInfo.conversationId, events)
     events.forEach(function (event) {
-      var k = (event.conversation_id || '') + '|' + (event.direction || '') + '|' + event.content_text
-      var seq = _seqMap[k] || 0
-      _seqMap[k] = seq + 1
       event.message_id = Dom.synthMessageId({
         conversationId: event.conversation_id,
-        direction: event.direction,
-        text: event.content_text,
-        seq: seq,
+        position: event.position,
       })
     })
     var result = await Collector.collect(events)

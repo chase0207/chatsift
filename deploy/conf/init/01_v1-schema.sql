@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS conversations (
   intent_source            VARCHAR(16)  DEFAULT NULL          COMMENT 'rule/llm/default',
   current_stage            VARCHAR(32)  DEFAULT 'new'         COMMENT '推进阶段:new/collecting/completing/done',
   completeness_score       TINYINT UNSIGNED DEFAULT 0         COMMENT '完整度评分 0-100',
+  field_validity           JSON         DEFAULT NULL           COMMENT '各字段有效性 valid/invalid/unknown及原因',
   message_count            INT UNSIGNED DEFAULT 0             COMMENT '消息总数(冗余,加速列表)',
   last_message_at          DATETIME     DEFAULT NULL          COMMENT '最后一条消息时间',
   last_inbound_at          DATETIME     DEFAULT NULL          COMMENT '最后一条用户消息时间(判断待回复)',
@@ -53,17 +54,21 @@ CREATE TABLE IF NOT EXISTS messages (
   id                  BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   tenant_id           INT UNSIGNED NOT NULL,
   conversation_id     BIGINT UNSIGNED NOT NULL,
-  platform_message_id VARCHAR(128) NOT NULL                   COMMENT '平台侧消息ID,用于去重',
+  platform_message_id VARCHAR(128) NOT NULL                   COMMENT '平台侧消息ID(W17起=syn_hash(conversationId|position)),用于去重',
   direction           ENUM('inbound','outbound') NOT NULL     COMMENT 'inbound=用户发来 outbound=客服发出',
+  position            INT UNSIGNED DEFAULT NULL               COMMENT 'W17 会话内位置号(锚点窗口续编;身份+段内排序;纯位置不含内容)',
   sender_nickname     VARCHAR(128) DEFAULT NULL,
   content_type        VARCHAR(16)  DEFAULT 'text'             COMMENT 'text/image/card/system',
   content_text        TEXT         DEFAULT NULL,
   content_url         VARCHAR(512) DEFAULT NULL               COMMENT '图片/卡片等的URL',
   raw_snapshot        JSON         DEFAULT NULL               COMMENT '可选DOM快照,审计用',
-  occurred_at         DATETIME     NOT NULL                   COMMENT '消息在平台发生的时间',
+  occurred_at         DATETIME     DEFAULT NULL               COMMENT '消息精确时间;inbound存到秒,outbound无精确时间存NULL(W17废弃+1s合成)',
+  segment_at          DATETIME     DEFAULT NULL               COMMENT 'W17 所属时间条(段)时间;段间排序键;纯排序辅助,不展示、非真实时间',
   analyzed_at         DATETIME     DEFAULT NULL               COMMENT '分析完成时间,NULL=待分析',
   uploaded_at         DATETIME     DEFAULT CURRENT_TIMESTAMP  COMMENT '上报入库时间',
-  UNIQUE KEY uk_tenant_msg (tenant_id, platform_message_id),
+  UNIQUE KEY uk_tenant_msg     (tenant_id, platform_message_id),
+  UNIQUE KEY uk_conv_position  (tenant_id, conversation_id, position),
+  KEY idx_conv_sort        (conversation_id, segment_at, position),
   KEY idx_conv_time        (conversation_id, occurred_at),
   KEY idx_pending_analyze  (analyzed_at),
   FULLTEXT KEY ft_content  (content_text)
@@ -78,6 +83,7 @@ CREATE TABLE IF NOT EXISTS leads (
   tenant_id            INT UNSIGNED NOT NULL,
   primary_conversation_id BIGINT UNSIGNED DEFAULT NULL        COMMENT '主会话(首次产生线索的会话)',
   customer_nickname    VARCHAR(128) DEFAULT NULL,
+  customer_name        VARCHAR(64)  DEFAULT NULL              COMMENT '客户真实姓名(预约留的,区别于抖音昵称)',
   customer_platform_uid VARCHAR(128) DEFAULT NULL             COMMENT '平台用户ID,合并依据',
   customer_phone       VARCHAR(32)  DEFAULT NULL,
   customer_wechat      VARCHAR(64)  DEFAULT NULL,
@@ -237,6 +243,7 @@ INSERT INTO intent_rules (tenant_id, intent_label, rule_type, pattern, priority,
 --   intent-rule:config    意图规则配置
 --   price:manage          价格表管理
 --   llm:config            LLM配置
+--   analytics:view        运营分析
 -- 新增后台菜单:
 --   会话中心 / 线索中心 / 工单中心 / 运营分析 / 系统设置(意图规则/价格表/LLM)
 -- ============================================================

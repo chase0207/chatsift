@@ -55,8 +55,8 @@ async function list(req, res) {
                 DATE_FORMAT(c.last_message_at, '%Y-%m-%d %H:%i:%s') AS last_message_at,
                 DATE_FORMAT(c.last_inbound_at, '%Y-%m-%d %H:%i:%s') AS last_inbound_at,
                 DATE_FORMAT(c.created_at, '%Y-%m-%d %H:%i:%s') AS created_at,
-                (SELECT lm.content_text FROM messages lm WHERE lm.conversation_id = c.id AND lm.tenant_id = c.tenant_id ORDER BY lm.occurred_at DESC, lm.id DESC LIMIT 1) AS last_message_text,
-                (SELECT lm.content_type FROM messages lm WHERE lm.conversation_id = c.id AND lm.tenant_id = c.tenant_id ORDER BY lm.occurred_at DESC, lm.id DESC LIMIT 1) AS last_message_type
+                (SELECT lm.content_text FROM messages lm WHERE lm.conversation_id = c.id AND lm.tenant_id = c.tenant_id ORDER BY lm.segment_at DESC, lm.position DESC, lm.id DESC LIMIT 1) AS last_message_text,
+                (SELECT lm.content_type FROM messages lm WHERE lm.conversation_id = c.id AND lm.tenant_id = c.tenant_id ORDER BY lm.segment_at DESC, lm.position DESC, lm.id DESC LIMIT 1) AS last_message_type
          FROM conversations c ${where}
          ORDER BY c.last_message_at DESC, c.id DESC`,
         params
@@ -78,8 +78,8 @@ async function list(req, res) {
               DATE_FORMAT(c.last_message_at, '%Y-%m-%d %H:%i:%s') AS last_message_at,
               DATE_FORMAT(c.last_inbound_at, '%Y-%m-%d %H:%i:%s') AS last_inbound_at,
               DATE_FORMAT(c.created_at, '%Y-%m-%d %H:%i:%s') AS created_at,
-              (SELECT lm.content_text FROM messages lm WHERE lm.conversation_id = c.id AND lm.tenant_id = c.tenant_id ORDER BY lm.occurred_at DESC, lm.id DESC LIMIT 1) AS last_message_text,
-              (SELECT lm.content_type FROM messages lm WHERE lm.conversation_id = c.id AND lm.tenant_id = c.tenant_id ORDER BY lm.occurred_at DESC, lm.id DESC LIMIT 1) AS last_message_type
+              (SELECT lm.content_text FROM messages lm WHERE lm.conversation_id = c.id AND lm.tenant_id = c.tenant_id ORDER BY lm.segment_at DESC, lm.position DESC, lm.id DESC LIMIT 1) AS last_message_text,
+              (SELECT lm.content_type FROM messages lm WHERE lm.conversation_id = c.id AND lm.tenant_id = c.tenant_id ORDER BY lm.segment_at DESC, lm.position DESC, lm.id DESC LIMIT 1) AS last_message_type
        FROM conversations c ${where}
        ORDER BY c.last_message_at DESC, c.id DESC
        LIMIT ? OFFSET ?`,
@@ -133,11 +133,12 @@ async function messages(req, res) {
     )
     const latest = req.query.latest === '1' || req.query.latest === 'true'
     const [rows] = await pool.query(
-      `SELECT id, direction, sender_nickname, content_type, content_text, content_url, raw_snapshot,
-              DATE_FORMAT(occurred_at, '%Y-%m-%d %H:%i:%s') AS occurred_at
+      `SELECT id, direction, position, sender_nickname, content_type, content_text, content_url, raw_snapshot,
+              DATE_FORMAT(occurred_at, '%Y-%m-%d %H:%i:%s') AS occurred_at,
+              DATE_FORMAT(segment_at, '%Y-%m-%d %H:%i:%s') AS segment_at
        FROM messages
        WHERE tenant_id = ? AND conversation_id = ?
-       ORDER BY occurred_at ${latest ? 'DESC' : 'ASC'}, id ${latest ? 'DESC' : 'ASC'}
+       ORDER BY segment_at ${latest ? 'DESC' : 'ASC'}, position ${latest ? 'DESC' : 'ASC'}, id ${latest ? 'DESC' : 'ASC'}
        LIMIT ? OFFSET ?`,
       [tenant, req.params.id, pageSize, offset]
     )

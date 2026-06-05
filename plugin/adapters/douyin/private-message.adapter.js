@@ -221,6 +221,7 @@
     var anchorOffset = 0
     var lastOccurredAt = 0
     var pendingDivider = ''
+    var currentSegmentIso = null
     var list = []
     items.forEach(function (el) {
       var text = _extractMessageText(el)
@@ -230,7 +231,8 @@
         currentAnchor = anchor.ok ? anchor : null
         anchorOffset = 0
         // 抖音时间分隔条原文(仅时间类),挂到其后第一条消息,展示端原样还原,与平台一致
-        if (anchor.ok) pendingDivider = String(systemText || '').trim()
+        // W17:段时间条(抖音超5分钟一条)解析为 segment_at,段内消息同值,作段间排序键(纯排序,非真实时间)
+        if (anchor.ok) { pendingDivider = String(systemText || '').trim(); currentSegmentIso = anchor.iso }
         return
       }
       var preciseTimeText = _extractPreciseMessageTime(el)
@@ -248,6 +250,7 @@
         agent_name: direction === 'outbound' ? _extractAgentName(el) : '',
         timestamp: occurred.iso,
         time_meta: occurred,
+        segment_at: currentSegmentIso,
         raw_payload: {
           selector: 'life-message-item',
           rect: Dom.readRect(el),
@@ -255,10 +258,29 @@
           time_source: preciseTimeText ? 'precise-invisible' : occurred.source,
           time_estimated: occurred.estimated,
           divider_text: pendingDivider || undefined,
+          segment_at: currentSegmentIso || undefined,
         },
       })
       pendingDivider = ''
     })
+    // W17-A:无 segment_at 的段(无时间条),取段内首条 inbound 的 occurred_at 作兜底排序值(纯排序);
+    // 整段无 inbound→维持 null(由 position 兜底)。标 segment_fallback 便于排查(C)。
+    var s = 0
+    while (s < list.length) {
+      if (list[s].segment_at != null) { s++; continue }
+      var e = s
+      while (e < list.length && list[e].segment_at == null) e++
+      var fb = null
+      for (var f = s; f < e; f++) {
+        if (list[f].direction === 'inbound' && list[f].time_meta && list[f].time_meta.iso) { fb = list[f].time_meta.iso; break }
+      }
+      if (fb) for (var g = s; g < e; g++) {
+        list[g].segment_at = fb
+        list[g].raw_payload.segment_at = fb
+        list[g].raw_payload.segment_fallback = 'inbound-occurred'
+      }
+      s = e
+    }
     return list
   }
 
@@ -444,9 +466,12 @@
     var normalized = classifyMessage(rawMsg)
     var direction = (normalized && normalized.direction) || rawMsg.direction || 'inbound'
     var content = rawMsg.content || rawMsg.text || ''
-    var occurredAt = rawMsg.time_meta && rawMsg.time_meta.iso
-      ? rawMsg.time_meta.iso
-      : _normalizeOccurredAt(rawMsg.timestamp || rawMsg.time || rawMsg.occurred_at)
+    // W17:outbound 无精确时间 → occurred_at=NULL,不存合成假时间;inbound 保持 W12.6 精确时间逻辑
+    var occurredAt = direction === 'outbound'
+      ? null
+      : (rawMsg.time_meta && rawMsg.time_meta.iso
+          ? rawMsg.time_meta.iso
+          : _normalizeOccurredAt(rawMsg.timestamp || rawMsg.time || rawMsg.occurred_at))
     var fallbackName = sessionInfo.nickname || ''
     if (!fallbackName || fallbackName === 'unknown') return null
     var conversationId = sessionInfo.conversationId || sessionInfo.conversation_id || sessionInfo.session_id || 'douyin-private-' + Dom.simpleHash(fallbackName)
@@ -466,6 +491,7 @@
       content_text: content,
       content_url: rawMsg.url || null,
       occurred_at: occurredAt,
+      segment_at: rawMsg.segment_at || null,
       raw_snapshot: rawMsg.raw_payload || null,
     }
   }

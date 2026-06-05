@@ -351,8 +351,12 @@
 
   function synthMessageId(args) {
     args = args || {}
-    // 去重键优先用稳定的"出现序号"(seq):同一屏重复采集 → 同 id → 去重;
-    // 客户真重复发同一句 → 不同 seq → 保留。仅在无 seq 时回退到旧的"时间到分钟"。
+    // W17:位置标识优先。message_id = syn_hash(conversationId|position),纯位置不含内容/方向(D5)。
+    // 同会话同 position → 同 hash → 跨采集幂等(去重靠位置不靠内容)。
+    if (args.position !== undefined && args.position !== null) {
+      return 'syn_' + simpleHash((args.conversationId || args.conversation_id || '') + '|pos:' + args.position)
+    }
+    // 旧路径(seq/时间到分钟)保留兼容,W17 采集链路已不再走。
     var keyPart
     if (args.seq !== undefined && args.seq !== null) {
       keyPart = 'seq:' + args.seq
@@ -3745,6 +3749,7 @@
     var anchorOffset = 0
     var lastOccurredAt = 0
     var pendingDivider = ''
+    var currentSegmentIso = null
     var list = []
     items.forEach(function (el) {
       var text = _extractMessageText(el)
@@ -3754,7 +3759,8 @@
         currentAnchor = anchor.ok ? anchor : null
         anchorOffset = 0
         // 抖音时间分隔条原文(仅时间类),挂到其后第一条消息,展示端原样还原,与平台一致
-        if (anchor.ok) pendingDivider = String(systemText || '').trim()
+        // W17:段时间条(抖音超5分钟一条)解析为 segment_at,段内消息同值,作段间排序键(纯排序,非真实时间)
+        if (anchor.ok) { pendingDivider = String(systemText || '').trim(); currentSegmentIso = anchor.iso }
         return
       }
       var preciseTimeText = _extractPreciseMessageTime(el)
@@ -3772,6 +3778,7 @@
         agent_name: direction === 'outbound' ? _extractAgentName(el) : '',
         timestamp: occurred.iso,
         time_meta: occurred,
+        segment_at: currentSegmentIso,
         raw_payload: {
           selector: 'life-message-item',
           rect: Dom.readRect(el),
@@ -3779,10 +3786,29 @@
           time_source: preciseTimeText ? 'precise-invisible' : occurred.source,
           time_estimated: occurred.estimated,
           divider_text: pendingDivider || undefined,
+          segment_at: currentSegmentIso || undefined,
         },
       })
       pendingDivider = ''
     })
+    // W17-A:无 segment_at 的段(无时间条),取段内首条 inbound 的 occurred_at 作兜底排序值(纯排序);
+    // 整段无 inbound→维持 null(由 position 兜底)。标 segment_fallback 便于排查(C)。
+    var s = 0
+    while (s < list.length) {
+      if (list[s].segment_at != null) { s++; continue }
+      var e = s
+      while (e < list.length && list[e].segment_at == null) e++
+      var fb = null
+      for (var f = s; f < e; f++) {
+        if (list[f].direction === 'inbound' && list[f].time_meta && list[f].time_meta.iso) { fb = list[f].time_meta.iso; break }
+      }
+      if (fb) for (var g = s; g < e; g++) {
+        list[g].segment_at = fb
+        list[g].raw_payload.segment_at = fb
+        list[g].raw_payload.segment_fallback = 'inbound-occurred'
+      }
+      s = e
+    }
     return list
   }
 
@@ -3968,9 +3994,12 @@
     var normalized = classifyMessage(rawMsg)
     var direction = (normalized && normalized.direction) || rawMsg.direction || 'inbound'
     var content = rawMsg.content || rawMsg.text || ''
-    var occurredAt = rawMsg.time_meta && rawMsg.time_meta.iso
-      ? rawMsg.time_meta.iso
-      : _normalizeOccurredAt(rawMsg.timestamp || rawMsg.time || rawMsg.occurred_at)
+    // W17:outbound 无精确时间 → occurred_at=NULL,不存合成假时间;inbound 保持 W12.6 精确时间逻辑
+    var occurredAt = direction === 'outbound'
+      ? null
+      : (rawMsg.time_meta && rawMsg.time_meta.iso
+          ? rawMsg.time_meta.iso
+          : _normalizeOccurredAt(rawMsg.timestamp || rawMsg.time || rawMsg.occurred_at))
     var fallbackName = sessionInfo.nickname || ''
     if (!fallbackName || fallbackName === 'unknown') return null
     var conversationId = sessionInfo.conversationId || sessionInfo.conversation_id || sessionInfo.session_id || 'douyin-private-' + Dom.simpleHash(fallbackName)
@@ -3990,6 +4019,7 @@
       content_text: content,
       content_url: rawMsg.url || null,
       occurred_at: occurredAt,
+      segment_at: rawMsg.segment_at || null,
       raw_snapshot: rawMsg.raw_payload || null,
     }
   }
@@ -4280,6 +4310,158 @@
 })()
 
 // ============================================================
+// MODULE: runtime/position-tracker.js
+// ============================================================
+
+/*
+ * W17 位置标识:锚点窗口对齐(替代旧 _seqMap)
+ *
+ * 目标:给每条消息一个"会话内位置号 position"(纯位置不含内容),满足:
+ *   - 幂等:同一条消息跨采集 → 锚点匹配 → position 不变(D5 message_id 幂等的基础)
+ *   - 有几条存几条:重复连发(1/1/1)各自 position 不同 → 都保留
+ *   - 稳定:chrome.storage 持久化每会话已采序列,掉线/重启后续编不从头乱编
+ *
+ * 排序不靠 position(滚动加载的旧段 position 反而更大);段间排序靠 segment_at(见 Task3)。
+ * position 只做"身份(去重)+段内相对序"。
+ *
+ * 纯函数 computeAssignments / findOffset 不依赖 window/chrome,便于 node 单测。
+ */
+;(function () {
+  'use strict'
+
+  // 自包含的 key 哈希(仅用于已采序列内部匹配,与 message_id 的 Dom.simpleHash 无关)
+  function keyOf(direction, content) {
+    var s = (direction === 'outbound' ? 'o' : 'i') + '' + String(content == null ? '' : content)
+    var h = 5381
+    for (var i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0
+    return (h >>> 0).toString(36)
+  }
+
+  // 在已采序列 Sk 中为当前 DOM 序列 cur 找对齐偏移:cur[i] 对应 Sk[off + i]
+  // 取连续锚点窗口(先宽后窄 5→4→3),从 cur 末尾向前扫,返回"唯一匹配"的偏移;歧义/无重叠返回 null
+  function findOffset(cur, Sk) {
+    var sizes = [5, 4, 3]
+    for (var w = 0; w < sizes.length; w++) {
+      var W = sizes[w]
+      if (cur.length < W || Sk.length < W) continue
+      for (var a = cur.length - W; a >= 0; a--) {
+        var found = -1
+        var dup = false
+        for (var m = 0; m + W <= Sk.length; m++) {
+          var ok = true
+          for (var x = 0; x < W; x++) {
+            if (Sk[m + x] !== cur[a + x]) { ok = false; break }
+          }
+          if (ok) {
+            if (found === -1) found = m
+            else { dup = true; break }
+          }
+        }
+        if (found !== -1 && !dup) return found - a
+      }
+    }
+    return null
+  }
+
+  // 输入:cur = 当前 DOM 序列的 key 数组(按 DOM 顺序);state = {nextPos, seq:[{k,p}]}(seq 按时间顺序)
+  // 输出:{positions:[每条的position], state:新state, mode}
+  function computeAssignments(cur, state) {
+    state = state || { nextPos: 0, seq: [] }
+    var seq = (state.seq || []).slice()
+    var nextPos = state.nextPos || 0
+    var positions = new Array(cur.length)
+
+    // 冷启动:首次采该会话
+    if (seq.length === 0) {
+      var newSeq0 = []
+      for (var i0 = 0; i0 < cur.length; i0++) {
+        positions[i0] = nextPos++
+        newSeq0.push({ k: cur[i0], p: positions[i0] })
+      }
+      return { positions: positions, state: { nextPos: nextPos, seq: newSeq0 }, mode: 'cold' }
+    }
+
+    var Sk = seq.map(function (e) { return e.k })
+    var off = findOffset(cur, Sk)
+
+    // 降级:无唯一锚点(无重叠/冷滚动/全重复歧义)→ 全部续编新 position,追加进 seq(时序由 segment_at 解决)
+    if (off === null) {
+      var addD = []
+      for (var iD = 0; iD < cur.length; iD++) {
+        positions[iD] = nextPos++
+        addD.push({ k: cur[iD], p: positions[iD] })
+      }
+      return { positions: positions, state: { nextPos: nextPos, seq: seq.concat(addD) }, mode: 'degrade' }
+    }
+
+    // 已对齐:cur[i] ↔ Sk[off+i]
+    var prepend = []   // off+i<0:滚动加载出的更早消息(新身份)
+    var appendNew = [] // off+i>=len:底部新到消息
+    for (var i = 0; i < cur.length; i++) {
+      var sIdx = off + i
+      if (sIdx >= 0 && sIdx < seq.length && seq[sIdx].k === cur[i]) {
+        positions[i] = seq[sIdx].p                       // 命中:复用旧 position(幂等)
+      } else if (sIdx < 0) {
+        positions[i] = nextPos++; prepend.push({ k: cur[i], p: positions[i] })
+      } else if (sIdx >= seq.length) {
+        positions[i] = nextPos++; appendNew.push({ k: cur[i], p: positions[i] })
+      } else {
+        positions[i] = nextPos++                         // 区间内错配(撤回/编辑/错位):给新身份,绝不误并
+      }
+    }
+    var newSeq = prepend.concat(seq, appendNew)
+    return { positions: positions, state: { nextPos: nextPos, seq: newSeq }, mode: 'aligned', off: off }
+  }
+
+  // ---- chrome.storage 持久化封装(浏览器运行时) ----
+  var STORAGE_PREFIX = 'w17_pos_'
+
+  function _get(key) {
+    return new Promise(function (resolve) {
+      try {
+        chrome.storage.local.get([key], function (r) { resolve((r && r[key]) || null) })
+      } catch (_) { resolve(null) }
+    })
+  }
+  function _set(key, val) {
+    return new Promise(function (resolve) {
+      try {
+        chrome.storage.local.set({ [key]: val }, function () { resolve() })
+      } catch (_) { resolve() }
+    })
+  }
+
+  // 给一批 events(同会话,按 DOM 顺序)赋 position;就地写 event.position 并返回 events
+  async function assign(conversationId, events) {
+    if (!events || !events.length) return events
+    var key = STORAGE_PREFIX + conversationId
+    var state = await _get(key)
+    var cur = events.map(function (e) { return keyOf(e.direction, e.content_text) })
+    var out = computeAssignments(cur, state)
+    for (var i = 0; i < events.length; i++) {
+      events[i].position = out.positions[i]
+      // W17-C:记录 position 来源(锚点 pass mode),便于排查 + 阶段二判 position 可信度
+      var rs = events[i].raw_snapshot || (events[i].raw_snapshot = {})
+      rs.position_source = out.mode               // cold / aligned / degrade
+      if (out.off !== undefined) rs.anchor_off = out.off
+    }
+    await _set(key, out.state)
+    return events
+  }
+
+  var api = {
+    keyOf: keyOf,
+    findOffset: findOffset,
+    computeAssignments: computeAssignments,
+    assign: assign,
+    STORAGE_PREFIX: STORAGE_PREFIX,
+  }
+
+  if (typeof window !== 'undefined') window.RpaPositionTracker = api
+  if (typeof module !== 'undefined' && module.exports) module.exports = api
+})()
+
+// ============================================================
 // MODULE: runtime/legacy-collector.js
 // ============================================================
 
@@ -4291,8 +4473,9 @@
   var Collector = window.RpaEventCollector
   var Uploader = window.RpaEventUploader
   var Dom = window.RpaDomUtils
+  var PositionTracker = window.RpaPositionTracker
   var Logger = window.RpaLogger || console
-  if (!Flags || !Registry || !Collector || !Uploader || !Dom) {
+  if (!Flags || !Registry || !Collector || !Uploader || !Dom || !PositionTracker) {
     throw new Error('[W4] legacy collector dependencies missing')
   }
 
@@ -4356,7 +4539,8 @@
   async function collectMessageSession(sessionInfo) {
     var adapter = Registry.resolve(location)
     if (!adapter) {
-      Logger.warn && Logger.warn('LegacyCollector', 'no adapter matched current page')
+      // 非匹配页(切到别的抖音页)优雅跳过,降 debug 免刷扩展错误页
+      Logger.debug && Logger.debug('LegacyCollector', 'no adapter matched current page')
       return { ok: false, reason: 'adapter-missing' }
     }
     if (typeof adapter.getMessages !== 'function' || typeof adapter.toConversationEvent !== 'function') {
@@ -4365,7 +4549,8 @@
     }
     var baseInfo = _buildSessionInfo(adapter)
     if (!baseInfo) {
-      Logger.warn && Logger.warn('LegacyCollector', 'skip collect: nickname missing')
+      // 无打开会话/昵称 DOM 未出来时优雅跳过,降 debug 免刷扩展错误页
+      Logger.debug && Logger.debug('LegacyCollector', 'skip collect: nickname missing')
       return { ok: false, reason: 'nickname-missing' }
     }
     var info = Object.assign(baseInfo, sessionInfo || {})
@@ -4373,18 +4558,13 @@
     var events = (rawMessages || [])
       .map(function (m) { return adapter.toConversationEvent(m, info) })
       .filter(function (event) { return event && event.content_text })
-    // 用稳定的"会话+方向+内容+出现序号"重算 message_id,替代依赖 occurred_at 的旧键。
-    // occurred_at 跨采集轮不稳定(尤其 outbound 无精确时间)会导致同消息每轮换 id 重复入库。
-    var _seqMap = {}
+    // W17:锚点窗口对齐赋"会话内 position"(纯位置,持久化于 chrome.storage,跨采集幂等),
+    // message_id = syn_hash(conversationId|position),不含内容/方向(D5)。替代旧 _seqMap 内容去重。
+    await PositionTracker.assign(baseInfo.conversationId, events)
     events.forEach(function (event) {
-      var k = (event.conversation_id || '') + '|' + (event.direction || '') + '|' + event.content_text
-      var seq = _seqMap[k] || 0
-      _seqMap[k] = seq + 1
       event.message_id = Dom.synthMessageId({
         conversationId: event.conversation_id,
-        direction: event.direction,
-        text: event.content_text,
-        seq: seq,
+        position: event.position,
       })
     })
     var result = await Collector.collect(events)
