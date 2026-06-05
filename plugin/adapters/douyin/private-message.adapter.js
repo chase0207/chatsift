@@ -263,6 +263,24 @@
       })
       pendingDivider = ''
     })
+    // W17-A:无 segment_at 的段(无时间条),取段内首条 inbound 的 occurred_at 作兜底排序值(纯排序);
+    // 整段无 inbound→维持 null(由 position 兜底)。标 segment_fallback 便于排查(C)。
+    var s = 0
+    while (s < list.length) {
+      if (list[s].segment_at != null) { s++; continue }
+      var e = s
+      while (e < list.length && list[e].segment_at == null) e++
+      var fb = null
+      for (var f = s; f < e; f++) {
+        if (list[f].direction === 'inbound' && list[f].time_meta && list[f].time_meta.iso) { fb = list[f].time_meta.iso; break }
+      }
+      if (fb) for (var g = s; g < e; g++) {
+        list[g].segment_at = fb
+        list[g].raw_payload.segment_at = fb
+        list[g].raw_payload.segment_fallback = 'inbound-occurred'
+      }
+      s = e
+    }
     return list
   }
 

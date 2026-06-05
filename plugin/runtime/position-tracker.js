@@ -123,7 +123,13 @@
     var state = await _get(key)
     var cur = events.map(function (e) { return keyOf(e.direction, e.content_text) })
     var out = computeAssignments(cur, state)
-    for (var i = 0; i < events.length; i++) events[i].position = out.positions[i]
+    for (var i = 0; i < events.length; i++) {
+      events[i].position = out.positions[i]
+      // W17-C:记录 position 来源(锚点 pass mode),便于排查 + 阶段二判 position 可信度
+      var rs = events[i].raw_snapshot || (events[i].raw_snapshot = {})
+      rs.position_source = out.mode               // cold / aligned / degrade
+      if (out.off !== undefined) rs.anchor_off = out.off
+    }
     await _set(key, out.state)
     return events
   }
