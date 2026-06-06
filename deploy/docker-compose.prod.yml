@@ -21,6 +21,7 @@ services:
       # init SQL 单一真源 = server/sql/;新增 migration 时这里追加一行,并保证 check-version.sh 计数一致
       - ../server/sql/00_reused_tables.sql:/docker-entrypoint-initdb.d/01-reused.sql:ro
       - ../server/sql/v1-schema.sql:/docker-entrypoint-initdb.d/02-v1-schema.sql:ro
+      - ../server/sql/02_w19_tenant_asset.sql:/docker-entrypoint-initdb.d/03-w19-tenant.sql:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-p${MYSQL_ROOT_PASSWORD}"]
       interval: 10s
