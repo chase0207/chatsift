@@ -1,13 +1,13 @@
 const pool = require('../../config/db')
-const { ok, fail, tenantId, paging, jsonValue, parseJsonField, toMysqlDate } = require('./_shared')
+const { ok, fail, scope, paging, jsonValue, parseJsonField, toMysqlDate } = require('./_shared')
 const { buildDiagnosis } = require('../../v1/diagnosis')
 const rules = require('../../v1/business-rules')
 
 async function list(req, res) {
-  const tenant = tenantId(req)
   const { page, pageSize, offset } = paging(req.query)
-  const params = [tenant]
-  let where = 'WHERE l.tenant_id = ?'
+  const s = await scope(req, { tenantCol: 'l.tenant_id', saCol: 'l.service_account_id' })
+  const params = [...s.params]
+  let where = 'WHERE 1=1' + s.sql
 
   for (const key of ['status', 'lead_level', 'assigned_to', 'city']) {
     if (req.query[key]) {
@@ -62,9 +62,10 @@ async function list(req, res) {
 
 async function detail(req, res) {
   try {
+    const s = await scope(req, { tenantCol: 'tenant_id', saCol: 'service_account_id' })
     const [rows] = await pool.query(
-      'SELECT * FROM leads WHERE tenant_id = ? AND id = ? LIMIT 1',
-      [tenantId(req), req.params.id]
+      `SELECT * FROM leads WHERE id = ?${s.sql} LIMIT 1`,
+      [req.params.id, ...s.params]
     )
     if (!rows.length) return fail(res, 404, 2001, '线索不存在')
     const lead = { ...rows[0], tags: parseJsonField(rows[0].tags, []) }
@@ -74,18 +75,18 @@ async function detail(req, res) {
               completeness_score, field_validity, message_count,
               DATE_FORMAT(last_message_at, '%Y-%m-%d %H:%i:%s') AS last_message_at
        FROM conversations
-       WHERE tenant_id = ? AND id = ?
+       WHERE id = ?${s.sql}
        LIMIT 1`,
-      [tenantId(req), lead.primary_conversation_id]
+      [lead.primary_conversation_id, ...s.params]
     )
     const [workorders] = await pool.query(
       `SELECT id, conversation_id, workorder_type, title, completeness_score,
               missing_fields, suggestion, priority, status,
               DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at
        FROM workorders
-       WHERE tenant_id = ? AND conversation_id = ?
+       WHERE conversation_id = ?${s.sql}
        ORDER BY id DESC`,
-      [tenantId(req), lead.primary_conversation_id]
+      [lead.primary_conversation_id, ...s.params]
     )
     const conversation = conversations[0]
       ? { ...conversations[0], field_validity: parseJsonField(conversations[0].field_validity, {}) }
@@ -108,19 +109,17 @@ async function detail(req, res) {
 }
 
 async function recent(req, res) {
-  const tenant = tenantId(req)
   const since = toMysqlDate(req.query.since) || toMysqlDate(new Date(Date.now() - 30 * 60 * 1000))
   const minLevel = req.query.min_level || 'high'
-  const params = [tenant, since]
   try {
+    const s = await scope(req, { tenantCol: 'l.tenant_id', saCol: 'l.service_account_id' })
     const [rows] = await pool.query(
       `${leadListSql()}
-       WHERE l.tenant_id = ?
-         AND l.status = 'new'
-         AND l.updated_at >= ?
+       WHERE l.status = 'new'
+         AND l.updated_at >= ?${s.sql}
        ORDER BY l.updated_at DESC
        LIMIT 50`,
-      params
+      [since, ...s.params]
     )
     const list = withDiagnosis(rows)
       .filter((row) => shouldNotify(row, minLevel))
@@ -217,9 +216,10 @@ async function update(req, res) {
   if (!fields.length) return fail(res, 400, 1003, '没有可更新字段')
 
   try {
+    const s = await scope(req, { tenantCol: 'tenant_id', saCol: 'service_account_id' })
     const [result] = await pool.query(
-      `UPDATE leads SET ${fields.join(', ')} WHERE tenant_id = ? AND id = ?`,
-      [...values, tenantId(req), req.params.id]
+      `UPDATE leads SET ${fields.join(', ')} WHERE id = ?${s.sql}`,
+      [...values, req.params.id, ...s.params]
     )
     if (!result.affectedRows) return fail(res, 404, 2001, '线索不存在')
     ok(res)
@@ -231,11 +231,12 @@ async function update(req, res) {
 
 async function convert(req, res) {
   try {
+    const s = await scope(req, { tenantCol: 'tenant_id', saCol: 'service_account_id' })
     const [result] = await pool.query(
       `UPDATE leads
        SET status = 'converted', last_followed_at = NOW()
-       WHERE tenant_id = ? AND id = ?`,
-      [tenantId(req), req.params.id]
+       WHERE id = ?${s.sql}`,
+      [req.params.id, ...s.params]
     )
     if (!result.affectedRows) return fail(res, 404, 2001, '线索不存在')
     ok(res)

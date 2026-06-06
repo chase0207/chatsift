@@ -1,11 +1,11 @@
 const pool = require('../../config/db')
-const { ok, fail, tenantId, paging, jsonValue, parseJsonField } = require('./_shared')
+const { ok, fail, scope, paging, jsonValue, parseJsonField } = require('./_shared')
 
 async function list(req, res) {
-  const tenant = tenantId(req)
   const { page, pageSize, offset } = paging(req.query)
-  const params = [tenant]
-  let where = 'WHERE w.tenant_id = ?'
+  const s = await scope(req, { tenantCol: 'w.tenant_id', saCol: 'w.service_account_id' })
+  const params = [...s.params]
+  let where = 'WHERE 1=1' + s.sql
 
   for (const key of ['workorder_type', 'status', 'assigned_to', 'priority']) {
     if (req.query[key]) {
@@ -49,12 +49,13 @@ async function list(req, res) {
 
 async function detail(req, res) {
   try {
+    const s = await scope(req, { tenantCol: 'w.tenant_id', saCol: 'w.service_account_id' })
     const [rows] = await pool.query(
       `SELECT w.*, c.customer_nickname
        FROM workorders w
        LEFT JOIN conversations c ON c.id = w.conversation_id AND c.tenant_id = w.tenant_id
-       WHERE w.tenant_id = ? AND w.id = ? LIMIT 1`,
-      [tenantId(req), req.params.id]
+       WHERE w.id = ?${s.sql} LIMIT 1`,
+      [req.params.id, ...s.params]
     )
     if (!rows.length) return fail(res, 404, 2001, '工单不存在')
     ok(res, normalize(rows[0]))
@@ -86,9 +87,10 @@ async function update(req, res) {
   if (!fields.length) return fail(res, 400, 1003, '没有可更新字段')
 
   try {
+    const s = await scope(req, { tenantCol: 'tenant_id', saCol: 'service_account_id' })
     const [result] = await pool.query(
-      `UPDATE workorders SET ${fields.join(', ')} WHERE tenant_id = ? AND id = ?`,
-      [...values, tenantId(req), req.params.id]
+      `UPDATE workorders SET ${fields.join(', ')} WHERE id = ?${s.sql}`,
+      [...values, req.params.id, ...s.params]
     )
     if (!result.affectedRows) return fail(res, 404, 2001, '工单不存在')
     ok(res)
@@ -101,11 +103,12 @@ async function update(req, res) {
 async function assign(req, res) {
   if (!req.body.assigned_to) return fail(res, 400, 1003, 'assigned_to 不能为空')
   try {
+    const s = await scope(req, { tenantCol: 'tenant_id', saCol: 'service_account_id' })
     const [result] = await pool.query(
       `UPDATE workorders
        SET assigned_to = ?, assigned_at = NOW(), status = 'assigned'
-       WHERE tenant_id = ? AND id = ?`,
-      [req.body.assigned_to, tenantId(req), req.params.id]
+       WHERE id = ?${s.sql}`,
+      [req.body.assigned_to, req.params.id, ...s.params]
     )
     if (!result.affectedRows) return fail(res, 404, 2001, '工单不存在')
     ok(res)

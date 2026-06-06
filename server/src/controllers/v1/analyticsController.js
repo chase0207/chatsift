@@ -1,5 +1,5 @@
 const pool = require('../../config/db')
-const { ok, fail, tenantId } = require('./_shared')
+const { ok, fail, scope: applyScope } = require('./_shared')
 const rules = require('../../v1/business-rules')
 
 const contactValidSql = "JSON_UNQUOTE(JSON_EXTRACT(c.field_validity, '$.contact.status')) = 'valid'"
@@ -7,10 +7,11 @@ const appointmentValidSql = rules.appointmentFields
   .map((field) => `JSON_UNQUOTE(JSON_EXTRACT(c.field_validity, '$.${field}.status')) = 'valid'`)
   .join(' AND ')
 
-function buildConversationScope(req, alias = 'c') {
-  const params = [tenantId(req)]
+async function buildConversationScope(req, alias = 'c') {
   const prefix = alias ? `${alias}.` : ''
-  let where = `WHERE ${prefix}tenant_id = ?`
+  const s = await applyScope(req, { tenantCol: `${prefix}tenant_id`, saCol: `${prefix}service_account_id` })
+  const params = [...s.params]
+  let where = `WHERE 1=1${s.sql}`
 
   const from = req.query.from || defaultFrom()
   const to = req.query.to || defaultTo()
@@ -25,10 +26,11 @@ function buildConversationScope(req, alias = 'c') {
   return { where, params, from, to }
 }
 
-function buildLeadScope(req, alias = 'l') {
-  const params = [tenantId(req)]
+async function buildLeadScope(req, alias = 'l') {
   const prefix = alias ? `${alias}.` : ''
-  let where = `WHERE ${prefix}tenant_id = ?`
+  const s = await applyScope(req, { tenantCol: `${prefix}tenant_id`, saCol: `${prefix}service_account_id` })
+  const params = [...s.params]
+  let where = `WHERE 1=1${s.sql}`
 
   const from = req.query.from || defaultFrom()
   const to = req.query.to || defaultTo()
@@ -39,7 +41,7 @@ function buildLeadScope(req, alias = 'l') {
 }
 
 async function funnel(req, res) {
-  const scope = buildConversationScope(req)
+  const scope = await buildConversationScope(req)
   try {
     const [[row]] = await pool.query(
       `SELECT
@@ -60,7 +62,7 @@ async function funnel(req, res) {
 }
 
 async function intentDistribution(req, res) {
-  const scope = buildConversationScope(req)
+  const scope = await buildConversationScope(req)
   try {
     const [rows] = await pool.query(
       `SELECT COALESCE(c.intent_label, 'unknown') AS intent_label, COUNT(*) AS count
@@ -78,7 +80,7 @@ async function intentDistribution(req, res) {
 }
 
 async function leadLevel(req, res) {
-  const scope = buildLeadScope(req)
+  const scope = await buildLeadScope(req)
   try {
     const [rows] = await pool.query(
       `SELECT lead_level, count
@@ -99,7 +101,7 @@ async function leadLevel(req, res) {
 }
 
 async function byPage(req, res) {
-  const scope = buildConversationScope(req)
+  const scope = await buildConversationScope(req)
   try {
     const [rows] = await pool.query(
       `SELECT
@@ -123,7 +125,7 @@ async function byPage(req, res) {
 }
 
 async function trend(req, res) {
-  const scope = buildConversationScope(req)
+  const scope = await buildConversationScope(req)
   try {
     const [rows] = await pool.query(
       `SELECT

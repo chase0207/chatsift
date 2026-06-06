@@ -1,12 +1,12 @@
 const pool = require('../../config/db')
-const { ok, fail, tenantId, paging, dateRange, parseJsonField } = require('./_shared')
+const { ok, fail, scope, paging, dateRange, parseJsonField } = require('./_shared')
 const { buildDiagnosis } = require('../../v1/diagnosis')
 
 async function list(req, res) {
-  const tenant = tenantId(req)
   const { page, pageSize, offset } = paging(req.query)
-  const params = [tenant]
-  let where = 'WHERE c.tenant_id = ?'
+  const s = await scope(req, { tenantCol: 'c.tenant_id', saCol: 'c.service_account_id' })
+  const params = [...s.params]
+  let where = 'WHERE 1=1' + s.sql
 
   for (const key of ['platform', 'intent_label', 'current_stage']) {
     if (req.query[key]) {
@@ -93,20 +93,21 @@ async function list(req, res) {
 }
 
 async function detail(req, res) {
-  const tenant = tenantId(req)
   try {
+    const s = await scope(req, { tenantCol: 'c.tenant_id', saCol: 'c.service_account_id' })
     const [rows] = await pool.query(
       `SELECT c.*, l.id AS lead_id
        FROM conversations c
        LEFT JOIN leads l ON l.primary_conversation_id = c.id AND l.tenant_id = c.tenant_id
-       WHERE c.tenant_id = ? AND c.id = ?
+       WHERE c.id = ?${s.sql}
        LIMIT 1`,
-      [tenant, req.params.id]
+      [req.params.id, ...s.params]
     )
     if (!rows.length) return fail(res, 404, 2001, '会话不存在')
+    const sw = await scope(req, { tenantCol: 'tenant_id', saCol: 'service_account_id' })
     const [workorders] = await pool.query(
-      'SELECT id FROM workorders WHERE tenant_id = ? AND conversation_id = ? ORDER BY id DESC',
-      [tenant, req.params.id]
+      `SELECT id FROM workorders WHERE conversation_id = ?${sw.sql} ORDER BY id DESC`,
+      [req.params.id, ...sw.params]
     )
     const conversation = {
       ...rows[0],
@@ -124,12 +125,12 @@ async function detail(req, res) {
 }
 
 async function messages(req, res) {
-  const tenant = tenantId(req)
   const { page, pageSize, offset } = paging(req.query)
   try {
+    const s = await scope(req, { tenantCol: 'tenant_id', saCol: 'service_account_id' })
     const [[{ total }]] = await pool.query(
-      'SELECT COUNT(*) AS total FROM messages WHERE tenant_id = ? AND conversation_id = ?',
-      [tenant, req.params.id]
+      `SELECT COUNT(*) AS total FROM messages WHERE conversation_id = ?${s.sql}`,
+      [req.params.id, ...s.params]
     )
     const latest = req.query.latest === '1' || req.query.latest === 'true'
     const [rows] = await pool.query(
@@ -137,10 +138,10 @@ async function messages(req, res) {
               DATE_FORMAT(occurred_at, '%Y-%m-%d %H:%i:%s') AS occurred_at,
               DATE_FORMAT(segment_at, '%Y-%m-%d %H:%i:%s') AS segment_at
        FROM messages
-       WHERE tenant_id = ? AND conversation_id = ?
+       WHERE conversation_id = ?${s.sql}
        ORDER BY segment_at ${latest ? 'DESC' : 'ASC'}, position ${latest ? 'DESC' : 'ASC'}, id ${latest ? 'DESC' : 'ASC'}
        LIMIT ? OFFSET ?`,
-      [tenant, req.params.id, pageSize, offset]
+      [req.params.id, ...s.params, pageSize, offset]
     )
     const list = latest ? rows.reverse() : rows
     ok(res, {
@@ -165,23 +166,24 @@ function withDiagnosis(rows) {
 
 // 筛选项(从真实会话数据派生:平台/页面/客服),供聚合页三级联动
 async function facets(req, res) {
-  const tenant = tenantId(req)
   try {
+    const s = await scope(req, { tenantCol: 'tenant_id', saCol: 'service_account_id' })
     const [platforms] = await pool.query(
-      "SELECT DISTINCT platform FROM conversations WHERE tenant_id = ? AND platform IS NOT NULL AND platform <> '' ORDER BY platform",
-      [tenant]
+      `SELECT DISTINCT platform FROM conversations WHERE platform IS NOT NULL AND platform <> ''${s.sql} ORDER BY platform`,
+      [...s.params]
     )
     const [pages] = await pool.query(
-      "SELECT DISTINCT platform, platform_page FROM conversations WHERE tenant_id = ? AND platform_page IS NOT NULL AND platform_page <> '' ORDER BY platform, platform_page",
-      [tenant]
+      `SELECT DISTINCT platform, platform_page FROM conversations WHERE platform_page IS NOT NULL AND platform_page <> ''${s.sql} ORDER BY platform, platform_page`,
+      [...s.params]
     )
+    const sm = await scope(req, { tenantCol: 'm.tenant_id', saCol: 'm.service_account_id' })
     const [agents] = await pool.query(
       `SELECT DISTINCT c.platform, c.platform_page, m.sender_nickname AS agent
        FROM messages m JOIN conversations c ON c.id = m.conversation_id AND c.tenant_id = m.tenant_id
-       WHERE m.tenant_id = ? AND m.direction = 'outbound'
-         AND m.sender_nickname IS NOT NULL AND m.sender_nickname <> ''
+       WHERE m.direction = 'outbound'
+         AND m.sender_nickname IS NOT NULL AND m.sender_nickname <> ''${sm.sql}
        ORDER BY agent LIMIT 500`,
-      [tenant]
+      [...sm.params]
     )
     ok(res, { platforms: platforms.map((r) => r.platform), pages, agents })
   } catch (err) {
