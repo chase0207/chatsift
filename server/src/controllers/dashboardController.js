@@ -1,39 +1,20 @@
 const pool = require('../config/db')
-const { applyDataScope } = require('../utils/data-scope')
 
+// W19-E1:平台首页(/dashboard,反馈5 后仅平台方可见)→ 平台级计数,不按 tenant。
+//   移除 W19 前遗留的 data_scope/req.user.id 当 tenant 逻辑(避开 data_scope 跨租户泄漏坑);
+//   plugin/logs 仍用 utils/data-scope.js(user 级授权),本控制器不再依赖它。
 exports.stats = async (req, res) => {
   try {
-    const pluginScope = applyDataScope(req, { ownerColumn: 'user_id' })
-
-    const userCount = pluginScope.sql
-      ? 1
-      : (await pool.query('SELECT COUNT(*) AS cnt FROM users'))[0][0].cnt
-
-    const [[pluginRow]] = await pool.query(
-      `SELECT COUNT(*) AS cnt FROM plugins WHERE status = 1${pluginScope.sql}`,
-      pluginScope.params
+    const [[{ cnt: users }]]    = await pool.query('SELECT COUNT(*) AS cnt FROM users')
+    const [[{ cnt: plugins }]]  = await pool.query('SELECT COUNT(*) AS cnt FROM plugins WHERE status = 1')
+    const [[{ cnt: messages }]] = await pool.query(
+      "SELECT COUNT(*) AS cnt FROM messages WHERE DATE(occurred_at) = CURDATE()"
     )
-    const [[msgRow]] = await pool.query(
-      `SELECT COUNT(*) AS cnt FROM messages m
-       WHERE DATE(m.occurred_at) = CURDATE()${req.user?.data_scope === 'all' ? '' : ' AND m.tenant_id = ?'}`,
-      req.user?.data_scope === 'all' ? [] : [req.user.id]
-    )
-    const [[deviceRow]] = await pool.query(
-      `SELECT COUNT(DISTINCT platform, platform_page) AS cnt
-       FROM conversations
-       WHERE last_message_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)${req.user?.data_scope === 'all' ? '' : ' AND tenant_id = ?'}`,
-      req.user?.data_scope === 'all' ? [] : [req.user.id]
+    const [[{ cnt: devices }]]  = await pool.query(
+      'SELECT COUNT(DISTINCT platform, platform_page) AS cnt FROM conversations WHERE last_message_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)'
     )
 
-    res.json({
-      code: 0,
-      data: {
-        users:    userCount,
-        plugins:  pluginRow.cnt,
-        messages: msgRow.cnt,
-        devices:  deviceRow.cnt,
-      }
-    })
+    res.json({ code: 0, data: { users, plugins, messages, devices } })
   } catch (err) {
     console.error('[dashboard] stats error:', err)
     res.status(500).json({ code: 1, message: '获取统计数据失败' })
