@@ -17,7 +17,10 @@ const routes = [
     meta: { requiresAuth: true },
     children: [
       { path: 'dashboard', name: 'Dashboard', component: () => import('../views/Dashboard.vue') },
+      { path: 'home',      name: 'Home',      component: () => import('../views/Home.vue'), meta: { title: '首页' } },
       { path: 'users',     name: 'Users',     component: () => import('../views/Users.vue') },
+      { path: 'tenants',   name: 'Tenants',   component: () => import('../views/Tenants.vue'), meta: { title: '租户管理' } },
+      { path: 'service-accounts', name: 'ServiceAccounts', component: () => import('../views/ServiceAccounts.vue'), meta: { title: '客服账号' } },
       { path: 'plugins',      name: 'Plugins',   component: () => import('../views/Plugins.vue') },
       { path: 'myplugins',   redirect: '/plugins' },
       { path: 'platforms',  name: 'Platforms',  component: () => import('../views/Platforms.vue') },
@@ -73,7 +76,10 @@ router.beforeEach((to, _from, next) => {
 // 路由 → 权限编码映射表
 var routePermMap = {
   Dashboard: 'dashboard',
+  Home: 'home:view',
   Users: 'user:list',
+  Tenants: 'tenant:list',
+  ServiceAccounts: 'service-account:list',
   Plugins: 'plugin:list',
   Platforms: 'platform:list',
   Roles: 'role:list',

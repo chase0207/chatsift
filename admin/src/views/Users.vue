@@ -83,6 +83,17 @@
           <el-input v-model="form.password" type="password" show-password
             :placeholder="editingId ? '留空则不修改密码' : '请输入密码'" />
         </el-form-item>
+        <el-form-item v-if="isPlatform" label="账号类型" prop="user_type">
+          <el-select v-model="form.user_type" style="width:100%">
+            <el-option label="平台方(internal)" value="internal" />
+            <el-option label="租户方(external)" value="external" />
+          </el-select>
+        </el-form-item>
+        <el-form-item v-if="form.user_type === 'external'" label="所属租户" prop="tenant_id">
+          <el-select v-model="form.tenant_id" style="width:100%" placeholder="选择租户">
+            <el-option v-for="t in tenants" :key="t.id" :label="t.name" :value="t.id" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="角色" prop="role_id">
           <el-select v-model="form.role_id" style="width:100%" placeholder="选择角色">
             <el-option v-for="r in roles" :key="r.id" :label="r.name" :value="r.id" />
@@ -117,8 +128,11 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Search, Plus } from '@element-plus/icons-vue'
 import { getUserList, createUser, updateUser, deleteUser } from '../api/users'
-import { getRoles } from '../api/roles'
+import { getRoleList } from '../api/roles'
+import { getTenantOptions } from '../api/tenants'
+import { entryMode } from '../utils/entry'
 
+const isPlatform = entryMode() !== 'tenant'  // 平台入口才显示 user_type 选择
 const loading    = ref(false)
 const submitting = ref(false)
 const tableData  = ref([])
@@ -131,8 +145,9 @@ const dialogVisible = ref(false)
 const editingId     = ref(null)
 const formRef       = ref(null)
 
-const form = reactive({ username: '', password: '', role_id: null, status: 1, expire_at: null })
+const form = reactive({ username: '', password: '', role_id: null, status: 1, expire_at: null, user_type: 'external', tenant_id: null })
 const roles = ref([])
+const tenants = ref([])
 
 const rules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
@@ -172,6 +187,8 @@ function openDialog(row = null) {
     role_id:   row?.role_id   ?? null,
     status:    row?.status    ?? 1,
     expire_at: row?.expire_at || null,
+    user_type: row?.user_type || 'external',
+    tenant_id: row?.tenant_id ?? null,
   })
   dialogVisible.value = true
 }
@@ -208,7 +225,11 @@ async function handleDelete(id) {
   }
 }
 
-onMounted(() => { fetchList(); getRoles().then(res => { roles.value = res.data?.list || res.data || [] }).catch(() => {}) })
+onMounted(() => {
+  fetchList()
+  getRoleList().then(res => { roles.value = res.data?.list || res.data || [] }).catch(() => {})
+  getTenantOptions().then(res => { tenants.value = res.data || [] }).catch(() => {})
+})
 </script>
 
 <style scoped>
