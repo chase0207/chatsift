@@ -41,10 +41,11 @@ async function employees(req, res) {
     : (req.query.tenant_id ? parseInt(req.query.tenant_id) : null)
   if (!tenantId) return res.status(400).json({ code: 400, message: '缺少 tenant_id' })
   try {
+    // 仅客服(agent)可分配账号:租户超管按 design §5.4 看本租户全部、不受分配限制,故不列入
     const [rows] = await pool.query(
       `SELECT u.id, u.username, COALESCE(r.name,'') AS role_name, r.role_code
        FROM users u LEFT JOIN roles r ON r.id = u.role_id
-       WHERE u.tenant_id = ? AND u.user_type = 'external'
+       WHERE u.tenant_id = ? AND u.user_type = 'external' AND r.role_code = 'agent'
        ORDER BY u.id`,
       [tenantId]
     )
@@ -81,9 +82,14 @@ async function assign(req, res) {
     if (req.user.user_type === 'external' && sa.tenant_id !== req.user.tenant_id) {
       return res.status(403).json({ code: 403, message: '无权分配其他租户的客服账号' })
     }
-    const [[emp]] = await pool.query('SELECT tenant_id FROM users WHERE id = ? LIMIT 1', [employeeId])
+    const [[emp]] = await pool.query(
+      'SELECT u.tenant_id, r.role_code FROM users u LEFT JOIN roles r ON r.id = u.role_id WHERE u.id = ? LIMIT 1',
+      [employeeId]
+    )
     if (!emp) return res.status(404).json({ code: 404, message: '员工不存在' })
     if (emp.tenant_id !== sa.tenant_id) return res.status(400).json({ code: 400, message: '员工与客服账号不属同一租户' })
+    // 仅客服可被分配(超管看全租户,分配无意义)
+    if (emp.role_code !== 'agent') return res.status(400).json({ code: 400, message: '只能将账号分配给客服' })
     await pool.query(
       `INSERT IGNORE INTO employee_service_account (tenant_id, employee_id, service_account_id, assigned_by)
        VALUES (?,?,?,?)`,
