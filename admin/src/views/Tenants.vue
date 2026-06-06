@@ -111,7 +111,7 @@ import { ElMessage } from 'element-plus'
 import { Search, Plus } from '@element-plus/icons-vue'
 import { getTenantList, createTenant, updateTenant, deleteTenant } from '../api/tenants'
 import { createUser } from '../api/users'
-import { getRoleList } from '../api/roles'
+import { getRoleOptions } from '../api/roles'
 
 const loading    = ref(false)
 const submitting = ref(false)
@@ -229,9 +229,9 @@ async function submitAdmin() {
 
 onMounted(() => {
   fetchList()
-  getRoleList().then((res) => {
-    const list = res.data?.list || res.data || []
-    const ta = list.find((r) => r.role_code === 'tenant_admin')
+  // 平台方显式取租户角色(bootstrap 建租户管理员)
+  getRoleOptions('tenant').then((res) => {
+    const ta = (res.data || []).find((r) => r.role_code === 'tenant_admin')
     tenantAdminRoleId = ta ? ta.id : null
   }).catch(() => {})
 })

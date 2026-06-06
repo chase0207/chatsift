@@ -137,6 +137,12 @@ UPDATE roles SET role_code='platform_admin' WHERE name='平台管理员';
 UPDATE roles SET role_code='tenant_admin'   WHERE name='租户超级管理员';
 UPDATE roles SET role_code='agent'          WHERE name='客服';
 
+-- R1.2 roles 加 role_scope:显式区分内部角色 vs 租户角色(建用户按端筛选;未来自定义租户角色=tenant)
+ALTER TABLE roles ADD COLUMN role_scope VARCHAR(16) DEFAULT NULL
+  COMMENT '角色作用域 platform=内部角色 / tenant=租户角色' AFTER role_code;
+UPDATE roles SET role_scope='platform' WHERE role_code='platform_admin';
+UPDATE roles SET role_scope='tenant'   WHERE role_code IN ('tenant_admin','agent');
+
 -- Q2.1 platform_pages 加 page_key = adapter 实发 platform_page 串(对照 platforms.platform_key)
 ALTER TABLE platform_pages ADD COLUMN page_key VARCHAR(64) DEFAULT NULL
   COMMENT '页面键=adapter 实发 platform_page 串(采集 page→page_id 映射)' AFTER page_name,

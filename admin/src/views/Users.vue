@@ -85,7 +85,7 @@
         </el-form-item>
         <el-form-item label="角色" prop="role_id">
           <el-select v-model="form.role_id" style="width:100%" :placeholder="isPlatform ? '选择平台角色' : '选择租户角色'">
-            <el-option v-for="r in roleOptions" :key="r.id" :label="r.name" :value="r.id" />
+            <el-option v-for="r in roles" :key="r.id" :label="r.name" :value="r.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="状态" prop="status">
@@ -113,19 +113,16 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Search, Plus } from '@element-plus/icons-vue'
 import { getUserList, createUser, updateUser, deleteUser } from '../api/users'
-import { getRoleList } from '../api/roles'
+import { getRoleOptions } from '../api/roles'
 import { entryMode } from '../utils/entry'
 
 // W19-C2:按端固定身份。平台入口=建内部用户(平台角色);租户入口=建租户用户(租户角色)
+// 角色下拉由 /roles/options 按调用者作用域返回(平台→平台角色,租户→租户角色),前端无需再筛
 const isPlatform = entryMode() !== 'tenant'
-// 角色按层级过滤:平台入口只显示平台角色(platform_admin),租户入口只显示租户角色
-const roleOptions = computed(() =>
-  roles.value.filter((r) => isPlatform ? r.role_code === 'platform_admin' : r.role_code !== 'platform_admin')
-)
 const loading    = ref(false)
 const submitting = ref(false)
 const tableData  = ref([])
@@ -219,7 +216,7 @@ async function handleDelete(id) {
 
 onMounted(() => {
   fetchList()
-  getRoleList().then(res => { roles.value = res.data?.list || res.data || [] }).catch(() => {})
+  getRoleOptions().then(res => { roles.value = res.data || [] }).catch(() => {})
 })
 </script>
 
