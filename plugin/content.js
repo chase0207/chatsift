@@ -4002,7 +4002,9 @@
           : _normalizeOccurredAt(rawMsg.timestamp || rawMsg.time || rawMsg.occurred_at))
     var fallbackName = sessionInfo.nickname || ''
     if (!fallbackName || fallbackName === 'unknown') return null
-    var conversationId = sessionInfo.conversationId || sessionInfo.conversation_id || sessionInfo.session_id || 'douyin-private-' + Dom.simpleHash(fallbackName)
+    var conversationId = sessionInfo.conversationId || sessionInfo.conversation_id || sessionInfo.session_id ||
+      ('douyin-private-' + (sessionInfo.accountBizId ? sessionInfo.accountBizId + '-' : '') +
+       Dom.simpleHash((sessionInfo.accountBizId ? sessionInfo.accountBizId + '|' : '') + fallbackName))
     return {
       platform: 'douyin',
       platform_page: 'private-message',
@@ -4416,6 +4418,9 @@
   }
 
   // ---- chrome.storage 持久化封装(浏览器运行时) ----
+  // M24/B4-A:key = 'w17_pos_' + conversationId。B3 后 conversationId 已含 account_biz_id(商家账号=
+  // 租户专属),不同租户必不同账号 → 不同 conversationId → 不同 key,跨租户天然不串号,无需另加 tenant 前缀。
+  // (清库重采时连带清本地 w17_pos_* + EventQueue/seen —— 阶段E 执行清单。)
   var STORAGE_PREFIX = 'w17_pos_'
 
   function _get(key) {
@@ -4537,12 +4542,17 @@
       Logger.warn && Logger.warn('LegacyCollector', 'skip collect: nickname equals agent account (likely misread)')
       return null
     }
-    var seed = [pageKey, nickname].join('|')
+    var accountBizId = _readAccountBizId()
+    // B3:conversation_id 纳入 account_biz_id(商家账号)维度,防跨账号同名客户误并;
+    //     坐席(account_nickname)不进——同账号换坐席仍是同一会话(坐席体现在 service_account_id)。
+    //     有 bizId(private-message 真机恒有)→ 新口径;无(laike/feige 暂未抓)→ 退回旧口径,不破。
+    var seed = (accountBizId ? [pageKey, accountBizId, nickname] : [pageKey, nickname]).join('|')
+    var idBase = 'douyin_' + pageKey.replace(/[^a-z0-9]+/ig, '_') + (accountBizId ? '_' + accountBizId : '')
     return {
-      conversationId: 'douyin_' + pageKey.replace(/[^a-z0-9]+/ig, '_') + '_' + Dom.simpleHash(seed),
+      conversationId: idBase + '_' + Dom.simpleHash(seed),
       nickname: nickname,
       accountNickname: account,
-      accountBizId: _readAccountBizId(),
+      accountBizId: accountBizId,
       pageKey: pageKey,
     }
   }

@@ -68,12 +68,17 @@
       Logger.warn && Logger.warn('LegacyCollector', 'skip collect: nickname equals agent account (likely misread)')
       return null
     }
-    var seed = [pageKey, nickname].join('|')
+    var accountBizId = _readAccountBizId()
+    // B3:conversation_id 纳入 account_biz_id(商家账号)维度,防跨账号同名客户误并;
+    //     坐席(account_nickname)不进——同账号换坐席仍是同一会话(坐席体现在 service_account_id)。
+    //     有 bizId(private-message 真机恒有)→ 新口径;无(laike/feige 暂未抓)→ 退回旧口径,不破。
+    var seed = (accountBizId ? [pageKey, accountBizId, nickname] : [pageKey, nickname]).join('|')
+    var idBase = 'douyin_' + pageKey.replace(/[^a-z0-9]+/ig, '_') + (accountBizId ? '_' + accountBizId : '')
     return {
-      conversationId: 'douyin_' + pageKey.replace(/[^a-z0-9]+/ig, '_') + '_' + Dom.simpleHash(seed),
+      conversationId: idBase + '_' + Dom.simpleHash(seed),
       nickname: nickname,
       accountNickname: account,
-      accountBizId: _readAccountBizId(),
+      accountBizId: accountBizId,
       pageKey: pageKey,
     }
   }

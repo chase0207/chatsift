@@ -474,7 +474,9 @@
           : _normalizeOccurredAt(rawMsg.timestamp || rawMsg.time || rawMsg.occurred_at))
     var fallbackName = sessionInfo.nickname || ''
     if (!fallbackName || fallbackName === 'unknown') return null
-    var conversationId = sessionInfo.conversationId || sessionInfo.conversation_id || sessionInfo.session_id || 'douyin-private-' + Dom.simpleHash(fallbackName)
+    var conversationId = sessionInfo.conversationId || sessionInfo.conversation_id || sessionInfo.session_id ||
+      ('douyin-private-' + (sessionInfo.accountBizId ? sessionInfo.accountBizId + '-' : '') +
+       Dom.simpleHash((sessionInfo.accountBizId ? sessionInfo.accountBizId + '|' : '') + fallbackName))
     return {
       platform: 'douyin',
       platform_page: 'private-message',

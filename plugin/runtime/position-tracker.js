@@ -99,6 +99,9 @@
   }
 
   // ---- chrome.storage 持久化封装(浏览器运行时) ----
+  // M24/B4-A:key = 'w17_pos_' + conversationId。B3 后 conversationId 已含 account_biz_id(商家账号=
+  // 租户专属),不同租户必不同账号 → 不同 conversationId → 不同 key,跨租户天然不串号,无需另加 tenant 前缀。
+  // (清库重采时连带清本地 w17_pos_* + EventQueue/seen —— 阶段E 执行清单。)
   var STORAGE_PREFIX = 'w17_pos_'
 
   function _get(key) {
