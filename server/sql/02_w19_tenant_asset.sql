@@ -212,3 +212,9 @@ INSERT IGNORE INTO role_has_permissions (role_id, menu_id)
 SELECT r.id, m.id
 FROM roles r CROSS JOIN (SELECT id FROM menus WHERE permission_code IN ('user:list','user:create','user:update','user:delete')) m
 WHERE r.role_code = 'tenant_admin';
+
+-- 首页去重:租户超管沿用旧"普通用户"配置带了 /dashboard(平台首页),去掉 → 租户方只剩 /home,平台方只剩 /dashboard
+DELETE rp FROM role_has_permissions rp
+JOIN roles r ON r.id = rp.role_id
+JOIN menus m ON m.id = rp.menu_id
+WHERE r.role_code IN ('tenant_admin','agent') AND m.route = '/dashboard';

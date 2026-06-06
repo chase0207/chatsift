@@ -31,11 +31,8 @@ async function list(req, res) {
     params.push(`%${req.query.keyword}%`)
   }
   if (req.query.agent) {
-    where += ` AND EXISTS (
-      SELECT 1 FROM messages m
-      WHERE m.conversation_id = c.id AND m.tenant_id = c.tenant_id
-        AND m.direction = 'outbound' AND m.sender_nickname = ?
-    )`
+    // W19:客服筛选改按 service_account_id(与客服账号资产一致),不再按 sender_nickname
+    where += ' AND c.service_account_id = ?'
     params.push(req.query.agent)
   }
   if (req.query.workorder_type) {
@@ -176,14 +173,18 @@ async function facets(req, res) {
       `SELECT DISTINCT platform, platform_page FROM conversations WHERE platform_page IS NOT NULL AND platform_page <> ''${s.sql} ORDER BY platform, platform_page`,
       [...s.params]
     )
-    const sm = await scope(req, { tenantCol: 'm.tenant_id', saCol: 'm.service_account_id' })
+    // W19:客服下拉 = service_accounts(客服账号资产,与"客服账号分配"一致),按 scope 隔离;
+    //   带 platform_key/page_key 供"平台→页面→客服"三级联动(对齐 conversations.platform/platform_page)
+    const ssa = await scope(req, { tenantCol: 'sa.tenant_id', saCol: 'sa.id' })
     const [agents] = await pool.query(
-      `SELECT DISTINCT c.platform, c.platform_page, m.sender_nickname AS agent
-       FROM messages m JOIN conversations c ON c.id = m.conversation_id AND c.tenant_id = m.tenant_id
-       WHERE m.direction = 'outbound'
-         AND m.sender_nickname IS NOT NULL AND m.sender_nickname <> ''${sm.sql}
-       ORDER BY agent LIMIT 500`,
-      [...sm.params]
+      `SELECT sa.id AS service_account_id, sa.account_nickname AS agent,
+              p.platform_key AS platform, pp.page_key AS platform_page
+       FROM service_accounts sa
+       JOIN platforms p ON p.id = sa.platform_id
+       JOIN platform_pages pp ON pp.id = sa.page_id
+       WHERE 1=1${ssa.sql}
+       ORDER BY sa.id LIMIT 500`,
+      [...ssa.params]
     )
     ok(res, { platforms: platforms.map((r) => r.platform), pages, agents })
   } catch (err) {
