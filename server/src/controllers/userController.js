@@ -35,15 +35,20 @@ async function list(req, res) {
 
 // POST /api/users
 async function create(req, res) {
-  const { username, password, role_id = 2, status = 1, expire_at = null } = req.body
+  const { username, password, role_id = 2, status = 1, expire_at = null, user_type = 'external' } = req.body
   if (!username || !password) {
     return res.status(400).json({ code: 400, message: '账号和密码不能为空' })
+  }
+  // W19-C2:两层身份。internal=平台方(tenant_id=NULL);external=租户员工(必带 tenant_id)
+  const tenantId = user_type === 'internal' ? null : (req.body.tenant_id || null)
+  if (user_type === 'external' && !tenantId) {
+    return res.status(400).json({ code: 400, message: '租户员工必须指定所属租户' })
   }
   try {
     const hash = await bcrypt.hash(password, 10)
     const [result] = await pool.query(
-      'INSERT INTO users (username, password, role, role_id, status, expire_at) VALUES (?,?,?,?,?,?)',
-      [username, hash, role_id === 1 ? 9 : 1, role_id, status, expire_at || null]
+      'INSERT INTO users (username, password, role, role_id, user_type, tenant_id, status, expire_at) VALUES (?,?,?,?,?,?,?,?)',
+      [username, hash, role_id === 1 ? 9 : 1, role_id, user_type, tenantId, status, expire_at || null]
     )
     res.json({ code: 0, data: { id: result.insertId } })
   } catch (err) {
@@ -70,6 +75,13 @@ async function update(req, res) {
     if (role_id   !== undefined) { fields.push('role_id = ?'); values.push(role_id); fields.push('role = ?'); values.push(role_id === 1 ? 9 : 1) }
     if (status    !== undefined) { fields.push('status = ?');    values.push(status) }
     if (expire_at !== undefined) { fields.push('expire_at = ?'); values.push(expire_at || null) }
+    // W19-C2:改 user_type 联动 tenant_id(internal→NULL)
+    if (req.body.user_type !== undefined) {
+      fields.push('user_type = ?'); values.push(req.body.user_type)
+      fields.push('tenant_id = ?'); values.push(req.body.user_type === 'internal' ? null : (req.body.tenant_id || null))
+    } else if (req.body.tenant_id !== undefined) {
+      fields.push('tenant_id = ?'); values.push(req.body.tenant_id || null)
+    }
 
     if (!fields.length) {
       return res.status(400).json({ code: 400, message: '没有可更新的字段' })

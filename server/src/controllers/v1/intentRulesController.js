@@ -1,5 +1,5 @@
 const pool = require('../../config/db')
-const { ok, fail, tenantId, paging } = require('./_shared')
+const { ok, fail, tenantId, denyInternal, paging } = require('./_shared')
 
 async function list(req, res) {
   const tenant = tenantId(req)
@@ -26,6 +26,7 @@ async function list(req, res) {
 }
 
 async function create(req, res) {
+  if (denyInternal(req, res)) return
   const { intent_label, rule_type = 'keyword', pattern, priority = 100, enabled = 1 } = req.body
   if (!intent_label || !pattern) return fail(res, 400, 1003, 'intent_label 和 pattern 不能为空')
   try {
@@ -42,6 +43,7 @@ async function create(req, res) {
 }
 
 async function update(req, res) {
+  if (denyInternal(req, res)) return
   const allowed = ['intent_label', 'rule_type', 'pattern', 'priority', 'enabled']
   const fields = []
   const values = []
@@ -67,6 +69,7 @@ async function update(req, res) {
 }
 
 async function remove(req, res) {
+  if (denyInternal(req, res)) return
   try {
     const [result] = await pool.query(
       'DELETE FROM intent_rules WHERE tenant_id = ? AND id = ?',

@@ -64,6 +64,15 @@ async function assignedAccountIds(req) {
   return req._w19AssignedSa
 }
 
+// W19-C4:平台方(internal)不持有租户配置,写租户配置应得干净 403(替代 tenant_id=NULL 入库 500)
+function denyInternal(req, res) {
+  if (req.user && req.user.user_type === 'internal') {
+    fail(res, 403, 1003, '平台方账号不可操作租户配置')
+    return true
+  }
+  return false
+}
+
 function paging(query) {
   const page = Math.max(1, parseInt(query.page, 10) || 1)
   const pageSize = Math.min(100, Math.max(1, parseInt(query.page_size || query.size, 10) || 20))
@@ -124,6 +133,7 @@ module.exports = {
   fail,
   tenantId,
   scope,
+  denyInternal,
   paging,
   toMysqlDate,
   jsonValue,

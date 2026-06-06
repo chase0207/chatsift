@@ -146,3 +146,45 @@ UPDATE platform_pages SET page_key='laike-message'   WHERE page_name='来客私�
 UPDATE platform_pages SET page_key='feige'           WHERE page_name='飞鸽';
 UPDATE platform_pages SET page_key='private-message' WHERE page_name='抖音私信';
 -- 经营宝(美团)无 adapter → page_key 留 NULL,待该平台采集落地再补
+
+-- ============================================================
+-- 阶段C/D menus + 权限点
+--   C: 租户管理 / 客服账号(平台方,挂系统设置组;is_super 自动放行)
+--   D: mychat 首页(租户角色 tenant_admin/agent 给 home:view)
+--   注:INSERT...SELECT 引用 menus 用派生表包一层,绕开 MySQL 同表限制
+-- ============================================================
+INSERT INTO menus (parent_id, name, route, type, permission_code, sort_order, status)
+SELECT g.id, '租户管理', '/tenants', 'menu', 'tenant:list', 5, 1
+FROM (SELECT id FROM menus WHERE permission_code='system:group' LIMIT 1) g
+WHERE NOT EXISTS (SELECT 1 FROM (SELECT id FROM menus WHERE route='/tenants') x);
+
+INSERT INTO menus (parent_id, name, route, type, permission_code, sort_order, status)
+SELECT g.id, '客服账号', '/service-accounts', 'menu', 'service-account:list', 6, 1
+FROM (SELECT id FROM menus WHERE permission_code='system:group' LIMIT 1) g
+WHERE NOT EXISTS (SELECT 1 FROM (SELECT id FROM menus WHERE route='/service-accounts') x);
+
+INSERT INTO menus (parent_id, name, type, permission_code, status)
+SELECT m.id, '新增租户', 'button', 'tenant:create', 1
+FROM (SELECT id FROM menus WHERE route='/tenants' LIMIT 1) m
+WHERE NOT EXISTS (SELECT 1 FROM (SELECT id FROM menus WHERE permission_code='tenant:create') x);
+
+INSERT INTO menus (parent_id, name, type, permission_code, status)
+SELECT m.id, '编辑租户', 'button', 'tenant:update', 1
+FROM (SELECT id FROM menus WHERE route='/tenants' LIMIT 1) m
+WHERE NOT EXISTS (SELECT 1 FROM (SELECT id FROM menus WHERE permission_code='tenant:update') x);
+
+INSERT INTO menus (parent_id, name, type, permission_code, status)
+SELECT m.id, '删除租户', 'button', 'tenant:delete', 1
+FROM (SELECT id FROM menus WHERE route='/tenants' LIMIT 1) m
+WHERE NOT EXISTS (SELECT 1 FROM (SELECT id FROM menus WHERE permission_code='tenant:delete') x);
+
+INSERT INTO menus (parent_id, name, route, type, permission_code, sort_order, status)
+SELECT NULL, '首页', '/home', 'menu', 'home:view', 0, 1
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM (SELECT id FROM menus WHERE route='/home') x);
+
+-- 租户角色(超管+客服)给 /home 看板权限
+INSERT IGNORE INTO role_has_permissions (role_id, menu_id)
+SELECT r.id, m.id
+FROM roles r CROSS JOIN (SELECT id FROM menus WHERE route='/home' LIMIT 1) m
+WHERE r.role_code IN ('tenant_admin','agent');
