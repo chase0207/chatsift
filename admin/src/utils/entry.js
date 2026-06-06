@@ -1,8 +1,9 @@
 // W16 入口模式: 按域名区分"平台入口(admin)"与"租户入口(mychat)"。
 // 数据安全靠后端 tenant_id 过滤;此处仅做视角/菜单分离。dev/未知域名不过滤(='all')。
 
-export const PLATFORM_ROUTES = ['/dashboard', '/users', '/tenants', '/service-accounts', '/plugins', '/myplugins', '/platforms', '/roles', '/menus', '/logs']
-export const TENANT_ROUTES = ['/home', '/conversations', '/leads', '/workorders', '/analytics', '/aggregate', '/settings']
+// /users 为共享:admin 入口=平台方管内部用户;mychat 入口=租户超管管本租户成员(后端按 user_type 隔离)
+export const PLATFORM_ROUTES = ['/dashboard', '/tenants', '/plugins', '/myplugins', '/platforms', '/roles', '/menus', '/logs']
+export const TENANT_ROUTES = ['/home', '/service-accounts', '/conversations', '/leads', '/workorders', '/analytics', '/aggregate', '/settings']
 
 export function entryMode(hostname) {
   const h = hostname || (typeof window !== 'undefined' ? window.location.hostname : '')

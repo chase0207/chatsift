@@ -33,9 +33,10 @@
         <el-table-column prop="created_at" label="创建时间" width="160">
           <template #default="{ row }">{{ row.created_at?.slice(0,16) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="120" fixed="right">
+        <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="openDialog(row)">编辑</el-button>
+            <el-button type="success" link size="small" @click="openAdmin(row)">建管理员</el-button>
             <el-popconfirm title="确定删除该租户吗？" @confirm="handleDelete(row.id)">
               <template #reference>
                 <el-button type="danger" link size="small">删除</el-button>
@@ -84,6 +85,23 @@
         <el-button type="primary" :loading="submitting" @click="handleSubmit">确定</el-button>
       </template>
     </el-dialog>
+
+    <!-- 建租户管理员(bootstrap:平台方为该租户建第一个超管) -->
+    <el-dialog v-model="adminVisible" :title="`建管理员 · ${adminTenant?.name || ''}`" width="420px" destroy-on-close>
+      <el-form ref="adminFormRef" :model="adminForm" :rules="adminRules" label-width="80px">
+        <el-form-item label="用户名" prop="username">
+          <el-input v-model="adminForm.username" placeholder="租户管理员登录名" />
+        </el-form-item>
+        <el-form-item label="密码" prop="password">
+          <el-input v-model="adminForm.password" type="password" show-password placeholder="请输入密码" />
+        </el-form-item>
+      </el-form>
+      <div class="admin-hint">将创建一个「租户超级管理员」账号，归属该租户，可在 mychat 端管理本租户成员与客服账号。</div>
+      <template #footer>
+        <el-button @click="adminVisible = false">取消</el-button>
+        <el-button type="primary" :loading="adminSubmitting" @click="submitAdmin">确定</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -92,6 +110,8 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Search, Plus } from '@element-plus/icons-vue'
 import { getTenantList, createTenant, updateTenant, deleteTenant } from '../api/tenants'
+import { createUser } from '../api/users'
+import { getRoleList } from '../api/roles'
 
 const loading    = ref(false)
 const submitting = ref(false)
@@ -165,11 +185,61 @@ async function handleDelete(id) {
   }
 }
 
-onMounted(fetchList)
+// 建租户管理员(bootstrap)
+const adminVisible = ref(false)
+const adminSubmitting = ref(false)
+const adminTenant = ref(null)
+const adminFormRef = ref(null)
+const adminForm = reactive({ username: '', password: '' })
+const adminRules = {
+  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
+  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
+}
+let tenantAdminRoleId = null
+
+function openAdmin(row) {
+  adminTenant.value = row
+  adminForm.username = ''
+  adminForm.password = ''
+  adminVisible.value = true
+}
+
+async function submitAdmin() {
+  const valid = await adminFormRef.value?.validate().catch(() => false)
+  if (!valid) return
+  if (!tenantAdminRoleId) { ElMessage.error('未找到租户管理员角色'); return }
+  adminSubmitting.value = true
+  try {
+    await createUser({
+      username: adminForm.username,
+      password: adminForm.password,
+      user_type: 'external',
+      tenant_id: adminTenant.value.id,
+      role_id: tenantAdminRoleId,
+    })
+    ElMessage.success('租户管理员创建成功')
+    adminVisible.value = false
+    fetchList()
+  } catch (err) {
+    ElMessage.error(err?.response?.data?.message || '创建失败')
+  } finally {
+    adminSubmitting.value = false
+  }
+}
+
+onMounted(() => {
+  fetchList()
+  getRoleList().then((res) => {
+    const list = res.data?.list || res.data || []
+    const ta = list.find((r) => r.role_code === 'tenant_admin')
+    tenantAdminRoleId = ta ? ta.id : null
+  }).catch(() => {})
+})
 </script>
 
 <style scoped>
 .toolbar-card :deep(.el-card__body) { padding: 14px 20px; }
 .toolbar { display: flex; align-items: center; gap: 12px; }
 .pagination { display: flex; justify-content: flex-end; margin-top: 16px; }
+.admin-hint { color: #909399; font-size: 12px; margin-top: -4px; }
 </style>

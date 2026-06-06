@@ -148,9 +148,10 @@ UPDATE platform_pages SET page_key='private-message' WHERE page_name='抖音私�
 -- 经营宝(美团)无 adapter → page_key 留 NULL,待该平台采集落地再补
 
 -- ============================================================
--- 阶段C/D menus + 权限点
---   C: 租户管理 / 客服账号(平台方,挂系统设置组;is_super 自动放行)
---   D: mychat 首页(租户角色 tenant_admin/agent 给 home:view)
+-- 阶段C/D menus + 权限点(验收反馈调整后口径)
+--   C 租户管理: 平台方,挂系统设置组(is_super 自动放行)
+--   C 客服账号: ★租户方(超管),挂客服管理组(kefu:group),授 tenant_admin(分配仅本租户)
+--   D mychat 首页: 租户角色 tenant_admin/agent 给 home:view
 --   注:INSERT...SELECT 引用 menus 用派生表包一层,绕开 MySQL 同表限制
 -- ============================================================
 INSERT INTO menus (parent_id, name, route, type, permission_code, sort_order, status)
@@ -158,10 +159,16 @@ SELECT g.id, '租户管理', '/tenants', 'menu', 'tenant:list', 5, 1
 FROM (SELECT id FROM menus WHERE permission_code='system:group' LIMIT 1) g
 WHERE NOT EXISTS (SELECT 1 FROM (SELECT id FROM menus WHERE route='/tenants') x);
 
+-- 客服账号挂"客服管理"组(租户侧),供租户超管在 mychat 分配
 INSERT INTO menus (parent_id, name, route, type, permission_code, sort_order, status)
 SELECT g.id, '客服账号', '/service-accounts', 'menu', 'service-account:list', 6, 1
-FROM (SELECT id FROM menus WHERE permission_code='system:group' LIMIT 1) g
+FROM (SELECT id FROM menus WHERE permission_code='kefu:group' LIMIT 1) g
 WHERE NOT EXISTS (SELECT 1 FROM (SELECT id FROM menus WHERE route='/service-accounts') x);
+
+INSERT INTO menus (parent_id, name, type, permission_code, status)
+SELECT m.id, '分配账号', 'button', 'service-account:update', 1
+FROM (SELECT id FROM menus WHERE route='/service-accounts' LIMIT 1) m
+WHERE NOT EXISTS (SELECT 1 FROM (SELECT id FROM menus WHERE permission_code='service-account:update') x);
 
 INSERT INTO menus (parent_id, name, type, permission_code, status)
 SELECT m.id, '新增租户', 'button', 'tenant:create', 1
@@ -183,8 +190,19 @@ SELECT NULL, '首页', '/home', 'menu', 'home:view', 0, 1
 FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM (SELECT id FROM menus WHERE route='/home') x);
 
--- 租户角色(超管+客服)给 /home 看板权限
+-- 租户角色权限:超管+客服 给 /home;★客服账号(list+分配)仅给租户超管(tenant_admin)
 INSERT IGNORE INTO role_has_permissions (role_id, menu_id)
 SELECT r.id, m.id
 FROM roles r CROSS JOIN (SELECT id FROM menus WHERE route='/home' LIMIT 1) m
 WHERE r.role_code IN ('tenant_admin','agent');
+
+INSERT IGNORE INTO role_has_permissions (role_id, menu_id)
+SELECT r.id, m.id
+FROM roles r CROSS JOIN (SELECT id FROM menus WHERE permission_code IN ('service-account:list','service-account:update')) m
+WHERE r.role_code = 'tenant_admin';
+
+-- 租户超管管本租户成员:用户管理(list/create/update/delete);Users 页 mychat 入口共享,后端按 user_type 隔离
+INSERT IGNORE INTO role_has_permissions (role_id, menu_id)
+SELECT r.id, m.id
+FROM roles r CROSS JOIN (SELECT id FROM menus WHERE permission_code IN ('user:list','user:create','user:update','user:delete')) m
+WHERE r.role_code = 'tenant_admin';

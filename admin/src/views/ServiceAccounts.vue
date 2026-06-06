@@ -1,15 +1,7 @@
 <template>
   <div>
-    <el-card shadow="never" class="toolbar-card">
-      <div class="toolbar">
-        <span class="lbl">租户</span>
-        <el-select v-model="tenantId" placeholder="选择租户" style="width:240px" @change="fetchList">
-          <el-option v-for="t in tenants" :key="t.id" :label="t.name" :value="t.id" />
-        </el-select>
-      </div>
-    </el-card>
-
-    <el-card shadow="never" style="margin-top:16px">
+    <el-card shadow="never">
+      <div class="hint">客服账号在采集到消息后自动出现，可将账号分配给本租户成员（客服只能看到分到自己的账号）。</div>
       <el-table :data="tableData" v-loading="loading" stripe>
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="account_biz_id" label="商家账号ID" min-width="160" />
@@ -26,7 +18,7 @@
             <el-button type="primary" link size="small" @click="openAssign(row)">分配</el-button>
           </template>
         </el-table-column>
-        <template #empty>{{ tenantId ? '该租户暂无客服账号（采集后自动出现）' : '请先选择租户' }}</template>
+        <template #empty>暂无客服账号（采集到消息后自动出现）</template>
       </el-table>
     </el-card>
 
@@ -52,11 +44,8 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { getTenantOptions } from '../api/tenants'
 import { getServiceAccountList, getTenantEmployees, getAssignments, assignEmployee, unassignEmployee } from '../api/serviceAccounts'
 
-const tenants  = ref([])
-const tenantId = ref(null)
 const loading  = ref(false)
 const tableData = ref([])
 
@@ -69,10 +58,10 @@ const checkedIds = ref([])
 let originalIds = []
 
 async function fetchList() {
-  if (!tenantId.value) { tableData.value = []; return }
   loading.value = true
   try {
-    const res = await getServiceAccountList({ tenant_id: tenantId.value, page: 1, size: 100 })
+    // 后端按登录租户(超管)强制本租户作用域,前端无需传 tenant_id
+    const res = await getServiceAccountList({ page: 1, size: 100 })
     tableData.value = res.data.list
   } finally {
     loading.value = false
@@ -113,18 +102,10 @@ async function saveAssign() {
   }
 }
 
-onMounted(async () => {
-  try {
-    const res = await getTenantOptions()
-    tenants.value = res.data || []
-    if (tenants.value.length) { tenantId.value = tenants.value[0].id; fetchList() }
-  } catch (e) { /* ignore */ }
-})
+onMounted(fetchList)
 </script>
 
 <style scoped>
-.toolbar-card :deep(.el-card__body) { padding: 14px 20px; }
-.toolbar { display: flex; align-items: center; gap: 12px; }
-.lbl { color: #606266; font-size: 14px; }
+.hint { color: #909399; font-size: 13px; margin-bottom: 12px; }
 .emp-row { padding: 6px 0; }
 </style>

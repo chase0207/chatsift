@@ -83,20 +83,9 @@
           <el-input v-model="form.password" type="password" show-password
             :placeholder="editingId ? '留空则不修改密码' : '请输入密码'" />
         </el-form-item>
-        <el-form-item v-if="isPlatform" label="账号类型" prop="user_type">
-          <el-select v-model="form.user_type" style="width:100%">
-            <el-option label="平台方(internal)" value="internal" />
-            <el-option label="租户方(external)" value="external" />
-          </el-select>
-        </el-form-item>
-        <el-form-item v-if="form.user_type === 'external'" label="所属租户" prop="tenant_id">
-          <el-select v-model="form.tenant_id" style="width:100%" placeholder="选择租户">
-            <el-option v-for="t in tenants" :key="t.id" :label="t.name" :value="t.id" />
-          </el-select>
-        </el-form-item>
         <el-form-item label="角色" prop="role_id">
-          <el-select v-model="form.role_id" style="width:100%" placeholder="选择角色">
-            <el-option v-for="r in roles" :key="r.id" :label="r.name" :value="r.id" />
+          <el-select v-model="form.role_id" style="width:100%" :placeholder="isPlatform ? '选择平台角色' : '选择租户角色'">
+            <el-option v-for="r in roleOptions" :key="r.id" :label="r.name" :value="r.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="状态" prop="status">
@@ -124,15 +113,19 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Search, Plus } from '@element-plus/icons-vue'
 import { getUserList, createUser, updateUser, deleteUser } from '../api/users'
 import { getRoleList } from '../api/roles'
-import { getTenantOptions } from '../api/tenants'
 import { entryMode } from '../utils/entry'
 
-const isPlatform = entryMode() !== 'tenant'  // 平台入口才显示 user_type 选择
+// W19-C2:按端固定身份。平台入口=建内部用户(平台角色);租户入口=建租户用户(租户角色)
+const isPlatform = entryMode() !== 'tenant'
+// 角色按层级过滤:平台入口只显示平台角色(platform_admin),租户入口只显示租户角色
+const roleOptions = computed(() =>
+  roles.value.filter((r) => isPlatform ? r.role_code === 'platform_admin' : r.role_code !== 'platform_admin')
+)
 const loading    = ref(false)
 const submitting = ref(false)
 const tableData  = ref([])
@@ -145,9 +138,8 @@ const dialogVisible = ref(false)
 const editingId     = ref(null)
 const formRef       = ref(null)
 
-const form = reactive({ username: '', password: '', role_id: null, status: 1, expire_at: null, user_type: 'external', tenant_id: null })
+const form = reactive({ username: '', password: '', role_id: null, status: 1, expire_at: null, user_type: 'external' })
 const roles = ref([])
-const tenants = ref([])
 
 const rules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
@@ -187,8 +179,8 @@ function openDialog(row = null) {
     role_id:   row?.role_id   ?? null,
     status:    row?.status    ?? 1,
     expire_at: row?.expire_at || null,
-    user_type: row?.user_type || 'external',
-    tenant_id: row?.tenant_id ?? null,
+    // 按端固定:平台入口=internal,租户入口=external(后端最终以创建者身份为准)
+    user_type: row?.user_type || (isPlatform ? 'internal' : 'external'),
   })
   dialogVisible.value = true
 }
@@ -228,7 +220,6 @@ async function handleDelete(id) {
 onMounted(() => {
   fetchList()
   getRoleList().then(res => { roles.value = res.data?.list || res.data || [] }).catch(() => {})
-  getTenantOptions().then(res => { tenants.value = res.data || [] }).catch(() => {})
 })
 </script>
 

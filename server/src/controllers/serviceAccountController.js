@@ -5,7 +5,10 @@ async function list(req, res) {
   const page    = Math.max(1, parseInt(req.query.page) || 1)
   const size    = Math.min(100, parseInt(req.query.size) || 20)
   const offset  = (page - 1) * size
-  const tenantId = req.query.tenant_id ? parseInt(req.query.tenant_id) : null
+  // W19-C3:租户方(超管)强制本租户;平台方(若访问)可按 query 筛
+  const tenantId = req.user.user_type === 'external'
+    ? req.user.tenant_id
+    : (req.query.tenant_id ? parseInt(req.query.tenant_id) : null)
   try {
     const where  = tenantId ? 'WHERE sa.tenant_id = ?' : ''
     const params = tenantId ? [tenantId] : []
@@ -32,7 +35,10 @@ async function list(req, res) {
 
 // GET /api/service-accounts/employees?tenant_id=  某租户员工(供分配选择)
 async function employees(req, res) {
-  const tenantId = req.query.tenant_id ? parseInt(req.query.tenant_id) : null
+  // W19-C3:租户方强制本租户
+  const tenantId = req.user.user_type === 'external'
+    ? req.user.tenant_id
+    : (req.query.tenant_id ? parseInt(req.query.tenant_id) : null)
   if (!tenantId) return res.status(400).json({ code: 400, message: '缺少 tenant_id' })
   try {
     const [rows] = await pool.query(
@@ -71,6 +77,10 @@ async function assign(req, res) {
   try {
     const [[sa]] = await pool.query('SELECT tenant_id FROM service_accounts WHERE id = ? LIMIT 1', [id])
     if (!sa) return res.status(404).json({ code: 404, message: '客服账号不存在' })
+    // W19-C3:租户方只能分配本租户的客服账号
+    if (req.user.user_type === 'external' && sa.tenant_id !== req.user.tenant_id) {
+      return res.status(403).json({ code: 403, message: '无权分配其他租户的客服账号' })
+    }
     const [[emp]] = await pool.query('SELECT tenant_id FROM users WHERE id = ? LIMIT 1', [employeeId])
     if (!emp) return res.status(404).json({ code: 404, message: '员工不存在' })
     if (emp.tenant_id !== sa.tenant_id) return res.status(400).json({ code: 400, message: '员工与客服账号不属同一租户' })
