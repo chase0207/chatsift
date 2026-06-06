@@ -43,4 +43,21 @@ D1 mychat首页;D2 删 Dashboard chat_rpa 死指标。**不做(留E)**:清库重
 - `635d820` 后端:租户/客服账号 CRUD + 建用户两层身份 + 配置接口403 + mychat首页 API + menus seed
 - `496e369` 前端:Tenants/ServiceAccounts/Home.vue + Users 两层身份 + Dashboard 删死指标 + router/entry
 
-**阶段C+D 代码闭环、smoke/集成全过、admin 构建通过。待 Chase 确认 → 阶段E(清库重采+发版 v0.5.0,单独出方案+发版前 codex review)。**
+**阶段C+D 代码闭环、smoke/集成全过、admin 构建通过。**
+
+## 6. 验收反馈整改(Chase 第一轮验收后,commit 9a33465)
+
+**反馈1 建用户按端固定身份(不再让用户选 user_type)**:
+- admin 入口:固定建 internal,**角色仅平台角色**(platform_admin),无类型选择框。
+- mychat 入口:固定建 external(本租户),**角色仅租户角色**(tenant_admin/agent),不能选平台角色。
+- 后端 `userController.create` 按**创建者身份**派生身份(不信 body 越权):平台方→internal(或显式 bootstrap 建租户管理员)/ 租户超管→强制 external+本租户;+ 角色层级校验。
+- 租户超管管本租户成员:list/update/remove 按 tenant_id 隔离;授 user:* 权限;`/users` 改共享(admin 管内部、mychat 管本租户)。
+- **bootstrap**:Tenants.vue 加「建管理员」(平台方为新租户建第一个租户超管)——补 admin Users 不再建 external 后的缺口,合 design §6。
+
+**反馈2 客服账号分配归租户方**:
+- 菜单 `/service-accounts` 从平台移到客服管理组(kefu:group),授 tenant_admin;`/service-accounts` 入 TENANT_ROUTES。
+- 后端 list/employees/assign 对 external **强制本租户**(不能看/分配其他租户账号);ServiceAccounts.vue 去租户选择框。
+
+整改 smoke 全过:按端固定 / 角色层级拒越权 / 越权 body 被忽略 / 本租户隔离 / 平台方看全部;admin build 通过。
+
+**待 Chase 复验 → 阶段E(清库重采+发版 v0.5.0,单独出方案+发版前 codex review)。**
