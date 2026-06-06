@@ -27,12 +27,12 @@ async function getUserPermissions(userId) {
 
 async function getUserRoleInfo(userId) {
   const [rows] = await pool.query(
-    `SELECT r.id AS role_id, r.name AS role_name, r.is_super, r.data_scope
+    `SELECT r.id AS role_id, r.name AS role_name, r.role_key, r.is_super, r.data_scope
      FROM users u JOIN roles r ON r.id = u.role_id
      WHERE u.id = ? LIMIT 1`,
     [userId]
   )
-  if (!rows.length) return { role_id: null, role_name: '', is_super: 0, data_scope: 'self' }
+  if (!rows.length) return { role_id: null, role_name: '', role_key: null, is_super: 0, data_scope: 'self' }
   return rows[0]
 }
 
@@ -78,6 +78,7 @@ async function login(req, res) {
       role: user.role,
       role_id: roleInfo.role_id,
       role_name: roleInfo.role_name,
+      role_key: roleInfo.role_key,
       tenant_id: user.tenant_id,
       user_type: user.user_type,
       is_super: roleInfo.is_super,

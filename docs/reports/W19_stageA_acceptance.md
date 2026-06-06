@@ -108,3 +108,33 @@ internal 显式选租户分支真实可查;无 500、无回归。
 - 本轮 A4 commit:scope helper + 31 处 tenantId 收口 + role_name 入 JWT(见 git)
 
 **阶段A 全部 PASS。待 Chase 确认验收 → 进阶段B(采集账号识别 + 归属)。**
+
+---
+
+## 8. R1 加固 + Q2 前置(Chase 复核后,B 落地前先做)
+
+**R1(A4 helper 越权防线)**:原 `role_name==='客服'` 中文串匹配 + 判失败 fallthrough 到"看本租户全部"
+= ① 串匹配脆 ② **fail-open 越权放大**。已改:
+- 加 `roles.role_key`(platform_admin/tenant_admin/agent,对照 platforms.platform_key 约定),JWT payload + auth.js 补全带 role_key。
+- helper 改 **fail-closed**:仅 `role_key==='tenant_admin'` positively 放行看本租户全部;其余(客服/自定义/role_key 缺失/补全失败)一律降为账号受限 → 无分配=`1=0`。**判据失败方向 = 拒绝,不是放行。**
+
+R1 断言(8/8 PASS,重点 3 条越权防线):
+```
+✓ tenant_admin → AND c.tenant_id = ?            [1]
+✓ agent 无分配 → AND 1=0
+★ role_key=undefined(旧token未补全) → AND 1=0   ← 旧:会越权看本租户全部
+★ role_key=null(自定义角色)        → AND 1=0   ← 旧:会越权
+★ role_key=未知串                  → AND 1=0   ← 旧:会越权
+✓ agent 有分配(fixture) → AND tenant=? AND sa IN (?)  [1, saId]
+```
+
+**Q2(B2 前置:platform_pages.page_key)**:加稳定英文键供采集 url→page 映射。
+现有 seed 补值(中文 page_name→英文 key,待 Chase 确认):
+| id | page_name | page_key |
+|---|---|---|
+| 1 | 来客私信 | laike |
+| 2 | 飞鸽 | feige |
+| 3 | 抖音私信 | private_message |
+| 4 | 经营宝 | jingyingbao |
+
+> R1+Q2 SQL 追加进 `server/sql/02_w19_tenant_asset.sql`(dev 副本同步,compose 计数不变),本地库已 apply。

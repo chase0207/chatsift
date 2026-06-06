@@ -14,10 +14,11 @@ function tenantId(req) {
 }
 
 // W19 统一数据隔离 helper(替代裸 tenant 条件)。返回 { sql, params } 拼到 WHERE 之后。
-//   internal(平台方)  : 默认 ' AND 1=0'(不看业务数据);显式带 tenant_id 才查该租户
-//   external 租户超管  : ' AND <tenantCol> = ?'(本租户全部)
-//   external 客服      : ' AND <tenantCol> = ? AND <saCol> IN (分配集)';无分配→' AND 1=0'
-//   表无 service_account 维度时不传 saCol → 客服也按租户隔离即可
+// ★fail-closed:判据失败一律收紧(看不到),绝不放大权限。用稳定 role_key(非中文 role_name)判超管。
+//   internal(平台方)         : 默认 ' AND 1=0'(不看业务数据);显式带 tenant_id 才查该租户
+//   external role_key=tenant_admin: ' AND <tenantCol> = ?'(本租户全部) —— 唯一被 positively 放行的广权限
+//   external 其余(客服/自定义/role_key 缺失): ' AND <tenantCol> = ? AND <saCol> IN (分配集)';
+//                              无分配 或 表无 saCol 维度 → ' AND 1=0'(受限默认,看不到)
 async function scope(req, opts = {}) {
   const tenantCol = opts.tenantCol || 'tenant_id'
   const saCol = opts.saCol || null
@@ -31,17 +32,18 @@ async function scope(req, opts = {}) {
 
   if (u.tenant_id == null) return { sql: ' AND 1=0', params: [] }
 
-  if (u.role_name === '客服') {
-    if (!saCol) return { sql: ` AND ${tenantCol} = ?`, params: [u.tenant_id] }
-    const ids = await assignedAccountIds(req)
-    if (!ids.length) return { sql: ' AND 1=0', params: [] }
-    return {
-      sql: ` AND ${tenantCol} = ? AND ${saCol} IN (${ids.map(() => '?').join(',')})`,
-      params: [u.tenant_id, ...ids],
-    }
+  // 只有稳定命中 tenant_admin 才看本租户全部;其余角色 fall-closed 到账号受限
+  if (u.role_key === 'tenant_admin') {
+    return { sql: ` AND ${tenantCol} = ?`, params: [u.tenant_id] }
   }
 
-  return { sql: ` AND ${tenantCol} = ?`, params: [u.tenant_id] }
+  if (!saCol) return { sql: ' AND 1=0', params: [] }
+  const ids = await assignedAccountIds(req)
+  if (!ids.length) return { sql: ' AND 1=0', params: [] }
+  return {
+    sql: ` AND ${tenantCol} = ? AND ${saCol} IN (${ids.map(() => '?').join(',')})`,
+    params: [u.tenant_id, ...ids],
+  }
 }
 
 // 客服分配的 service_account 集合(单请求内 memoize,避免 detail 多查询重复打库)
