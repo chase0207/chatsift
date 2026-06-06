@@ -50,12 +50,13 @@ async function upsert(ctx) {
 
   const [result] = await db.query(
     `INSERT INTO leads
-     (tenant_id, primary_conversation_id, customer_nickname, customer_name,
+     (tenant_id, service_account_id, primary_conversation_id, customer_nickname, customer_name,
       customer_platform_uid, customer_phone, customer_wechat, city,
       intent_label, lead_score, lead_level, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new')`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new')`,
     [
       ctx.tenantId,
+      ctx.conversation?.service_account_id || null,
       ctx.conversationId,
       profile.customer_nickname,
       profile.customer_name,

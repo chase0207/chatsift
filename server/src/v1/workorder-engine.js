@@ -43,11 +43,12 @@ async function generate(ctx) {
 
   const [result] = await db.query(
     `INSERT INTO workorders
-     (tenant_id, conversation_id, lead_id, workorder_type, title, payload,
+     (tenant_id, service_account_id, conversation_id, lead_id, workorder_type, title, payload,
       completeness_score, missing_fields, suggestion, priority, sla_due_at, status)
-     VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? HOUR), 'pending')`,
+     VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? HOUR), 'pending')`,
     [
       ctx.tenantId,
+      ctx.conversation?.service_account_id || null,
       ctx.conversationId,
       spec.type,
       title,
