@@ -1,6 +1,6 @@
 ---
 文档: W19 实施任务清单 — 租户资产模型
-版本: v1.2.0
+版本: v1.3.0
 周次: W19(发版 v0.5.0,与 W17 阶段一一起发)
 落位: docs/prd/
 状态: Active
@@ -9,6 +9,7 @@
 ## 变更日志
 | 版本 | 日期 | 变更摘要 |
 |---|---|---|
+| v1.3.0 | 2026-06-05 | 身份改两层:A2加user_type/A3身份清洗(user_type系统级+role租户级,内部用户不再是role)/A4 helper先type再role |
 | v1.2.0 | 2026-06-05 | 吸收codex:唯一键加page_id/messages+jobs加sa_id/缺account_biz_id拒绝/自动绑限角色/batch粒度upsert/RBAC分两步/清库含插件本地状态 |
 | v1.1.0 | 2026-06-05 | 引入方案层(AGENTS §4):阶段A、B3(conversation_id)先出技术方案审了再写 |
 | v1.0.0 | 2026-06-05 | 初版:5 阶段拆分(数据模型/采集/admin/mychat/隔离收口+清库发版) |
@@ -49,25 +50,32 @@
 - `employee_service_account`(员工↔账号多对多:tenant_id/employee_id/service_account_id/assigned_by/assigned_at;唯一键 uk_assign(employee_id,service_account_id))
 
 ### A2 现有表加字段
-- users 加 `tenant_id`(FK tenants,NULL;内部用户=NULL/租户员工=租户id)
-- conversations/leads/workorders 加 `service_account_id`(FK,NULL;采集时归属)+ 索引 (tenant_id, service_account_id)
+- users 加 `user_type`(VARCHAR,NOT NULL DEFAULT 'external';internal=平台方/external=租户方)+ `tenant_id`(FK tenants,NULL;内部=NULL/租户员工=租户id)
+- conversations/leads/workorders/messages/analysis_jobs 加 `service_account_id`(FK,NULL)+ 索引 (tenant_id, service_account_id)
 
-### A3 角色清洗 + 统一 role/role_id(解决 M16)
-- roles 扩为三类:内部用户(is_super=1)/ 租户管理员(is_super=0)/ 客服(is_super=0)
-- ★分两步(codex #8):W19 先做到代码只读 role_id、users.role 保留不用;稳定一版后再物理删字段(不一上来删)
-- 修 Dashboard.vue:137 的 role===9
+### A3 身份清洗:user_type(系统级)+ role(租户级)(解决 M15 + M16)
+- ★两层正交,不压平:user_type 判内/外;role_id 判租户内角色
+- roles 收归:平台管理员(role#1,is_super=1,给internal)/ 租户超级管理员(role#2,is_super=0)/ 客服(role#3新,is_super=0)/ 未来租户自定义
+- ★"内部用户"不是 role,由 user_type=internal 表达
+- 现有用户映射:id1=internal/tenant_id=NULL;id2=external/租户超管/tenant_id=种子租户;id4=external/客服/种子租户
+- 种子租户:A3 建一个(补 tenant_id + 验收需要)
+- ★RBAC分两步(codex#8):先代码只读 role_id、users.role 保留不用;稳定一版后再删
+- 修 role===9 全部代码点(Dashboard:137 / Users.vue / authController):判内外用 user_type,判租户角色用 role_id
 - 配 role_has_permissions(各角色权限点)
 
-### A4 tenantId(req) 单点改造
-- `_shared.js`:`req.user.id` → `req.user.tenant_id`
-- ★内部用户 tenant_id=NULL 特殊处理:内部用户不按租户过滤业务数据(别让其误查/查空)
-- 登录 payload 带 tenant_id;auth 中间件补全旧 token 的 tenant_id(照现有 is_super/permissions 补全范式)
+### A4 scope helper(替代裸 tenantId,先 type 再 role)
+- 新增统一 scope helper,所有业务查询走它(禁止 controller 自拼 tenant 条件)
+- 先看 user_type:internal=默认不看业务数据(AND 1=0)、显式选租户才查;external→看 role
+- external 看 role:租户超管=本租户全部;客服=分配的 service_account 集(无分配=看不到,安全默认)
+- 把 ~31 处 tenantId(req) 调用全改走 helper(一次改全,A是地基)
+- 登录 payload/userInfo 带 user_type + tenant_id;auth 中间件补全旧 token
 
 ### A 验收(报 Chase)
-- 三表建好、字段/索引正确;migration SQL 只增不改、同步 prod/test compose init 挂载
-- 角色清洗后登录/鉴权正常(内部用户、租户管理员、客服各登录验证)
-- role_id 统一、Dashboard role===9 已修
-- tenantId(req) 改 tenant_id 后,业务查询隔离正确(内部用户 NULL 分支不查空/不越权)
+- 三表建好、字段/索引正确;migration 只增不改、新文件同步挂载+dev副本(防M22)
+- 三类身份登录/鉴权正常(internal平台方 / external租户超管 / external客服)
+- user_type + role_id 各司其职;role===9 全部代码点已改;users.role 保留不删
+- scope helper 隔离正确:① SQL断言(internal默认看不到/租户超管看本租户/客服看分配集) ② grep静态检查(无controller裸用req.user.id/自拼tenant_id=)
+- 客服分支:验"无分配→看不到(安全默认非bug)";手工seed一条分配+一条带sa_id数据再断言"只看分到的"
 
 ---
 

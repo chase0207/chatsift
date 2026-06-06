@@ -1,6 +1,6 @@
 ---
 文档: W19 设计 — 租户资产模型(正式启用租户 + 客服账号资产原点)
-版本: v1.2.0
+版本: v1.3.0
 周次: W19
 落位: docs/prd/
 状态: Active(设计;写代码待 W17 阶段一合并 main 后)
@@ -9,6 +9,7 @@
 ## 变更日志
 | 版本 | 日期 | 变更摘要 |
 |---|---|---|
+| v1.3.0 | 2026-06-05 | ★身份改两层模型(基于业界多租户实践):user_type(系统级internal/external,解决M15)+ role(租户级,tenant-scoped)。"内部用户"由user_type表达、不再是roles角色;scope helper先type再role |
 | v1.2.0 | 2026-06-05 | 吸收 codex review:唯一键加page_id/messages+analysis_jobs加service_account_id/统一scope helper/旧插件缺字段拒绝不兜底/自动绑定限角色/清库含插件本地状态/RBAC分两步/§10.5 |
 | v1.1.0 | 2026-06-05 | 修正层级:内部用户在平台层(tenant_id=NULL)、不挂在某租户下,与tenants平级 |
 | v1.0.0 | 2026-06-05 | 初版:基于阶段一调研 + Q1-5 拍板,出资产模型设计 |
@@ -38,21 +39,26 @@
 
 ## 2. 资产模型总览
 
-> ★层级要点:**内部用户(平台方)在"平台层",不属任何租户**(tenant_id=NULL),和 tenants 平级,不画在某个租户下面。只有"租户员工"才挂在某个 tenant 下。
+> ★身份分两层(基于业界多租户实践,不可压平成单一角色体系):
+> 1. **user_type(系统级)**:internal(平台方)/ external(租户方)——区分"在哪一层"。
+> 2. **role(租户级,tenant-scoped)**:租户超级管理员 / 客服 / 未来自定义——区分"在租户里是什么角色",只对 external 用户有意义。
+> 内部用户(平台方)由 user_type=internal 表达,**不是 roles 表里的一个租户角色**;它在平台层、与 tenants 平级。
 
 ```
 chatsift 平台(平台自身)
- ├ 内部用户(平台方/运营,users 中 tenant_id=NULL)
+ ├ 内部用户(平台方/运营;user_type=internal,tenant_id=NULL)
  │     管所有租户 + 平台字典 + 系统;admin 入口;不属任何租户
+ │     (平台级角色可选,如"平台管理员";与租户角色不同层级)
  │
  └ tenants(租户:各企业主体,新建)
       └ 每个租户:
-          ├ 租户员工(users 中 tenant_id=该租户)
-          │   ├ 租户管理员(租户内最高:管本租户员工 + 分配客服账号;mychat 入口)
-          │   └ 客服(普通员工:只看分到自己的客服账号资产;mychat 入口)
+          ├ 租户员工(user_type=external,tenant_id=该租户)
+          │   ├ 租户超级管理员(role,租户内最高:管本租户员工 + 分配客服账号;mychat)
+          │   └ 客服(role,普通员工:只看分到自己的客服账号资产;mychat)
+          │   └ …未来租户可自定义角色(tenant-scoped role)
           │
           └ service_accounts(客服账号 = 资产原点,新建)
-               ├ 稳定键:tenant_id + platform_id + account_biz_id(=URL accountId,商家账号)
+               ├ 稳定键:tenant_id + platform_id + page_id + account_biz_id(=URL accountId,商家账号)
                ├ 坐席:account_nickname(坐席昵称,如"2号客服";改名靠人工校正)
                ├ 引用:platform_id / page_id(全局字典外键,Q2)
                │
@@ -63,8 +69,11 @@ chatsift 平台(平台自身)
                    conversations / leads / workorders
 ```
 
-**users.tenant_id 语义**:内部用户 = NULL(平台方,不属租户);租户员工 = 所属租户 id。
-查询隔离时 `tenantId(req)` 对内部用户的 NULL 要特殊处理(内部用户不按租户过滤业务数据,见 §5.3)。
+**users 身份字段语义(两层)**:
+- `user_type`:internal(平台方)/ external(租户方)——系统级,判"内/外"用它,不用 tenant_id IS NULL 隐含判断。
+- `tenant_id`:内部用户=NULL;租户员工=所属租户 id。
+- `role_id`:租户级角色(租户超管/客服/未来自定义),只对 external 有意义。
+查询隔离走 scope helper:先看 user_type(内/外),external 再看 role(见 §5.3)。
 
 ---
 
@@ -123,12 +132,14 @@ assigned_at
 
 ### 3.2 现有表改动
 
-**users 加 tenant_id**
+**users 加 user_type + tenant_id**
 ```
++ user_type  VARCHAR(20) NOT NULL DEFAULT 'external'  -- internal=平台方/external=租户方
 + tenant_id  FK tenants NULL
-  - 内部用户(平台方,平台层,不属任何租户):tenant_id = NULL
-  - 租户员工(租户管理员/客服):tenant_id = 所属租户
-  ★内部用户在平台层、与tenants平级,不是某租户的成员;NULL 即"平台方"标志
+  - 内部用户(平台方):user_type=internal,tenant_id=NULL
+  - 租户员工(租户超管/客服):user_type=external,tenant_id=所属租户
+  ★判"内/外"用 user_type(系统级),不用 tenant_id IS NULL 隐含判断;
+    租户内角色靠 role_id;两层正交,各管各的(解决 M15 user_type)
 ```
 
 **conversations / leads / workorders / messages / analysis_jobs 加 service_account_id**
@@ -164,26 +175,39 @@ assigned_at
 
 ---
 
-## 5. 角色清洗(Q4:顺手统一 role/role_id,解决 M16)
+## 5. 身份清洗:user_type(系统级)+ role(租户级)(解决 M15 + M16)
 
-### 5.1 角色调整
-| 现状 | 清洗后 | is_super | 说明 |
-|---|---|---|---|
-| 超级管理员(is_super=1) | **内部用户** | 1 | 平台方,admin 入口,管租户/平台/系统;tenant_id=NULL |
-| 普通用户(is_super=0) | **租户管理员** | 0 | 租户内最高:管本租户员工 + 分配客服账号;mychat 入口 |
-| (新增) | **客服** | 0 | 普通员工:只看分到自己的客服账号资产;mychat 入口 |
+> ★两层正交。user_type 判内/外(系统级);role 判租户内角色(租户级)。不压平成单一 roles 体系。
 
-### 5.2 统一 role/role_id(M16)
-- 废弃 `users.role`(1/9)双轨,**统一以 role_id 为准**。
-- 修 Dashboard.vue:137 的 `role===9`(改为按 role_id / is_super 判断)。
-- 保留 role 列为兼容字段(标注弃用)或直接清掉(清库重建,可直接清)。
+### 5.1 系统级:user_type(解决 M15)
+- 加 `users.user_type`:internal(平台方)/ external(租户方)。
+- 内部用户 = internal;租户员工(租户超管/客服)= external。
+- 判"内/外"统一用 user_type,**不用 tenant_id IS NULL 隐含判断**。
 
-### 5.3 租户内数据隔离(统一 scope helper,codex 第3条)
-- ★废弃裸 `tenantId(req)`,改统一 **scope helper**,所有业务查询走它(禁止每个 controller 自拼 tenant 条件):
-  - **客服(普通员工)**:只看 employee_service_account 分到的 service_account_id 集合(`WHERE service_account_id IN (...)`)。
-  - **租户管理员**:看本租户全部(tenant_id 过滤,不限 service_account)。
-  - **内部用户(tenant_id=NULL)**:★默认不看业务数据,仅在明确选定目标租户时才查(防漏判断导致误查全部)。
-- 验收必须加数据隔离 SQL 断言(三类角色各自能看/不能看什么)。
+### 5.2 租户级:roles 只装租户角色(去掉"内部用户")
+| 现状 | 清洗后 | is_super | 层级 | 说明 |
+|---|---|---|---|---|
+| 超级管理员(role#1,is_super=1) | **平台管理员**(给 internal) | 1 | 平台级 | 平台方角色;与租户角色不同层级 |
+| 普通用户(role#2,is_super=0) | **租户超级管理员** | 0 | 租户级 | 租户内最高:管本租户员工+分配账号;mychat |
+| (新增 role#3) | **客服** | 0 | 租户级 | 普通员工:只看分到的客服账号资产;mychat |
+| (未来) | 租户自定义角色 | 0 | 租户级 | tenant-scoped,可扩展 |
+
+> ★"内部用户"不再是 roles 里的角色,由 user_type=internal 表达。roles 表收归"租户级 + 平台级"角色,租户角色 tenant-scoped。
+
+### 5.3 统一 role/role_id(M16,分两步,codex 第8条)
+- 第一步(W19 阶段A):代码**只读 role_id**,`users.role`(1/9)保留不用(标注弃用)。
+- 第二步(稳定一版后另开):物理 DROP `users.role`。阶段A 不删。
+- 修 role===9 全部代码点(Dashboard:137 / Users.vue 几处 / authController):判"内/外"用 user_type,判"租户角色"用 role_id。
+
+### 5.4 数据隔离:统一 scope helper(codex 第3条,先 type 再 role)
+- ★废弃裸 `tenantId(req)`,改统一 **scope helper**,所有业务查询走它(禁止 controller 自拼 tenant 条件):
+  - **先看 user_type**:
+    - internal(平台方):★默认不看业务数据(`AND 1=0`),仅显式选定目标租户时才查(防漏判断误查全部)。
+    - external(租户方):进租户作用域 ↓
+  - **external 再看 role**:
+    - 租户超级管理员:看本租户全部(tenant_id 过滤,不限 service_account)。
+    - 客服:看分配的 service_account(`tenant_id 过滤 + service_account_id IN 分配集`);无分配=看不到(安全默认,非 bug)。
+- 验收加数据隔离 SQL 断言(三类各自能看/不能看)+ grep 静态检查(无 controller 裸用 req.user.id/自拼 tenant_id=)。
 
 ---
 
@@ -244,7 +268,7 @@ assigned_at
 - **M16**(role/role_id 双轨)→ W19 §5.2 解决。
 - **M21**(后台 UI/W15)→ W19 §7 mychat 首页解决。
 - **M24**(position-tracker 存储键隔离)→ W19 定了客服账号标识(account_biz_id+昵称),阶段B 用它做隔离键解决。
-- **M15**(user_type)→ W19 引入内部用户(tenant_id=NULL)/租户用户区分,可顺带处理或保留观察。
+- **M15**(user_type)→ W19 §5.1 解决:加 users.user_type(internal/external),系统级判内外。
 - **M17**(data_scope)→ W19 用 employee_service_account 表达"按客服账号"过滤,data_scope 维度部分被替代。
 
 ---
