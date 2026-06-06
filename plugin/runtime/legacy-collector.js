@@ -50,6 +50,14 @@
     return String(Dom.getText(el) || '').trim()
   }
 
+  function _readAccountBizId() {
+    // W19-B1:商家账号稳定键 = URL query accountId(Q1 实测:换客户/换坐席不变,在 '?' 之后)
+    try {
+      var v = new URLSearchParams(location.search).get('accountId')
+      return v ? String(v).trim() : ''
+    } catch (_) { return '' }
+  }
+
   function _buildSessionInfo(adapter) {
     var nickname = _readNickname(adapter)
     var pageKey = adapter && adapter.pageKey ? adapter.pageKey : 'douyin'
@@ -65,6 +73,7 @@
       conversationId: 'douyin_' + pageKey.replace(/[^a-z0-9]+/ig, '_') + '_' + Dom.simpleHash(seed),
       nickname: nickname,
       accountNickname: account,
+      accountBizId: _readAccountBizId(),
       pageKey: pageKey,
     }
   }

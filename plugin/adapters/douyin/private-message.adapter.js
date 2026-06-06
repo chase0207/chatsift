@@ -487,6 +487,8 @@
       }),
       direction: direction,
       sender_nickname: direction === 'inbound' ? (sessionInfo.nickname || '') : (rawMsg.agent_name || sessionInfo.accountNickname || ''),
+      account_biz_id:   sessionInfo.accountBizId || '',
+      account_nickname: sessionInfo.accountNickname || '',
       content_type: rawMsg.type || 'text',
       content_text: content,
       content_url: rawMsg.url || null,
