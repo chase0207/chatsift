@@ -14,11 +14,12 @@ function tenantId(req) {
 }
 
 // W19 统一数据隔离 helper(替代裸 tenant 条件)。返回 { sql, params } 拼到 WHERE 之后。
-// ★fail-closed:判据失败一律收紧(看不到),绝不放大权限。用稳定 role_key(非中文 role_name)判超管。
-//   internal(平台方)         : 默认 ' AND 1=0'(不看业务数据);显式带 tenant_id 才查该租户
-//   external role_key=tenant_admin: ' AND <tenantCol> = ?'(本租户全部) —— 唯一被 positively 放行的广权限
-//   external 其余(客服/自定义/role_key 缺失): ' AND <tenantCol> = ? AND <saCol> IN (分配集)';
-//                              无分配 或 表无 saCol 维度 → ' AND 1=0'(受限默认,看不到)
+// ★正向枚举 + fail-closed:每个已知角色显式放行,未知一律收紧(1=0),绝不放大权限。
+//   用稳定 role_code(非中文 role_name/非魔法 role_id)判角色。
+//   internal(平台方)      : 默认 ' AND 1=0';显式带 tenant_id 才查该租户
+//   external tenant_admin : ' AND <tenantCol> = ?'(本租户全部)
+//   external agent        : ' AND <tenantCol> = ? AND <saCol> IN (分配集)';无分配/无 saCol → ' AND 1=0'
+//   external 其它(自定义/role_code 缺失/补全失败): ' AND 1=0'(未知 fail-closed)
 async function scope(req, opts = {}) {
   const tenantCol = opts.tenantCol || 'tenant_id'
   const saCol = opts.saCol || null
@@ -32,18 +33,24 @@ async function scope(req, opts = {}) {
 
   if (u.tenant_id == null) return { sql: ' AND 1=0', params: [] }
 
-  // 只有稳定命中 tenant_admin 才看本租户全部;其余角色 fall-closed 到账号受限
-  if (u.role_key === 'tenant_admin') {
+  // 租户超管:正判,看本租户全部
+  if (u.role_code === 'tenant_admin') {
     return { sql: ` AND ${tenantCol} = ?`, params: [u.tenant_id] }
   }
 
-  if (!saCol) return { sql: ' AND 1=0', params: [] }
-  const ids = await assignedAccountIds(req)
-  if (!ids.length) return { sql: ' AND 1=0', params: [] }
-  return {
-    sql: ` AND ${tenantCol} = ? AND ${saCol} IN (${ids.map(() => '?').join(',')})`,
-    params: [u.tenant_id, ...ids],
+  // 客服:正判,仅本租户 + 分配到的 service_account;无分配/无账号维度 → 看不到
+  if (u.role_code === 'agent') {
+    if (!saCol) return { sql: ' AND 1=0', params: [] }
+    const ids = await assignedAccountIds(req)
+    if (!ids.length) return { sql: ' AND 1=0', params: [] }
+    return {
+      sql: ` AND ${tenantCol} = ? AND ${saCol} IN (${ids.map(() => '?').join(',')})`,
+      params: [u.tenant_id, ...ids],
+    }
   }
+
+  // 未知角色(自定义/role_code 缺失/补全失败)→ fail-closed,绝不 fallthrough 放大
+  return { sql: ' AND 1=0', params: [] }
 }
 
 // 客服分配的 service_account 集合(单请求内 memoize,避免 detail 多查询重复打库)

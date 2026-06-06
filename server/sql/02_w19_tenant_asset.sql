@@ -124,25 +124,25 @@ INSERT IGNORE INTO role_has_permissions (role_id, menu_id)
   FROM menus m WHERE m.route IN ('/conversations','/leads','/workorders','/analytics','/aggregate');
 
 -- ============================================================
--- R1 角色判据加固(role_key)+ Q2 platform_pages.page_key(B2 前置)
---   R1: scope helper 改 fail-closed,用稳定 role_key(非中文 role_name)判超管;
---       只有 tenant_admin positively 放行看本租户全部,其余(客服/自定义/判据缺失)降为受限。
---   Q2: 页面稳定英文 key(对照 platforms.platform_key 约定),供 B2 采集 url→page 映射。
+-- R1 角色判据加固(role_code 正向枚举)+ Q2 platform_pages.page_key(B2 前置)
+--   R1: scope helper 改正向枚举 + fail-closed,用稳定 role_code(非中文 role_name/非魔法 role_id)判角色;
+--       internal→1=0 / tenant_admin→本租户全部 / agent→分配集 / else→1=0(未知 fail-closed,不 fallthrough 放大)。
+--   Q2: page_key = adapter 实际发出的 platform_page 串(供 B2 采集 page→page_id 映射),对齐实发防错位。
 -- ============================================================
 
--- R1.1 roles 加 role_key(平台管理员/租户超管/客服/未来自定义=NULL→受限)
-ALTER TABLE roles ADD COLUMN role_key VARCHAR(32) DEFAULT NULL
-  COMMENT '稳定角色键 platform_admin/tenant_admin/agent;scope helper 判据(不用中文 name)' AFTER name;
-UPDATE roles SET role_key='platform_admin' WHERE name='平台管理员';
-UPDATE roles SET role_key='tenant_admin'   WHERE name='租户超级管理员';
-UPDATE roles SET role_key='agent'          WHERE name='客服';
+-- R1.1 roles 加 role_code(platform_admin/tenant_admin/agent/未来自定义=NULL→受限)
+ALTER TABLE roles ADD COLUMN role_code VARCHAR(32) DEFAULT NULL
+  COMMENT '稳定角色枚举 platform_admin/tenant_admin/agent;scope helper 判据(不用中文 name/role_id)' AFTER name;
+UPDATE roles SET role_code='platform_admin' WHERE name='平台管理员';
+UPDATE roles SET role_code='tenant_admin'   WHERE name='租户超级管理员';
+UPDATE roles SET role_code='agent'          WHERE name='客服';
 
--- Q2.1 platform_pages 加 page_key(对照 platforms.platform_key)
+-- Q2.1 platform_pages 加 page_key = adapter 实发 platform_page 串(对照 platforms.platform_key)
 ALTER TABLE platform_pages ADD COLUMN page_key VARCHAR(64) DEFAULT NULL
-  COMMENT '页面稳定英文键(采集 url→page 映射);对照 platforms.platform_key' AFTER page_name,
+  COMMENT '页面键=adapter 实发 platform_page 串(采集 page→page_id 映射)' AFTER page_name,
   ADD KEY idx_page_key (platform_id, page_key);
--- 现有 seed 补 page_key(中文 page_name → 英文 key)
-UPDATE platform_pages SET page_key='laike'           WHERE page_name='来客私信';
+-- 现有 seed 补 page_key(对齐 adapter 实发串,见 plugin/adapters/douyin/*.adapter.js)
+UPDATE platform_pages SET page_key='laike-message'   WHERE page_name='来客私信';
 UPDATE platform_pages SET page_key='feige'           WHERE page_name='飞鸽';
-UPDATE platform_pages SET page_key='private_message' WHERE page_name='抖音私信';
-UPDATE platform_pages SET page_key='jingyingbao'     WHERE page_name='经营宝';
+UPDATE platform_pages SET page_key='private-message' WHERE page_name='抖音私信';
+-- 经营宝(美团)无 adapter → page_key 留 NULL,待该平台采集落地再补
