@@ -45,7 +45,7 @@ async function login(req, res) {
 
   try {
     const [rows] = await pool.query(
-      'SELECT id, username, password, role, status, expire_at FROM users WHERE username = ? LIMIT 1',
+      'SELECT id, username, password, role, tenant_id, user_type, status, expire_at FROM users WHERE username = ? LIMIT 1',
       [username]
     );
 
@@ -77,6 +77,8 @@ async function login(req, res) {
       username: user.username,
       role: user.role,
       role_id: roleInfo.role_id,
+      tenant_id: user.tenant_id,
+      user_type: user.user_type,
       is_super: roleInfo.is_super,
       data_scope: roleInfo.data_scope,
       permissions: permissions,
@@ -98,6 +100,8 @@ async function login(req, res) {
           role:     user.role,
           role_id:  roleInfo.role_id,
           role_name: roleInfo.role_name,
+          tenant_id: user.tenant_id,
+          user_type: user.user_type,
           is_super:  roleInfo.is_super,
           data_scope: roleInfo.data_scope,
           permissions: permissions,

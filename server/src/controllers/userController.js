@@ -17,6 +17,7 @@ async function list(req, res) {
     )
     const [rows] = await pool.query(
       `SELECT u.id, u.username, u.role, u.role_id, COALESCE(r.name,'') AS role_name,
+              u.user_type, u.tenant_id,
               u.status,
               DATE_FORMAT(u.expire_at, '%Y-%m-%d %H:%i:%s') AS expire_at,
               DATE_FORMAT(u.created_at, '%Y-%m-%d %H:%i:%s') AS created_at

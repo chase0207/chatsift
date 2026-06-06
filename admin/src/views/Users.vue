@@ -22,8 +22,8 @@
         <el-table-column prop="username" label="用户名" min-width="120" />
         <el-table-column label="角色" width="100">
           <template #default="{ row }">
-            <el-tag :type="row.role === 9 ? 'danger' : 'info'" size="small">
-              {{ row.role === 9 ? '超级管理员' : '普通用户' }}
+            <el-tag :type="row.user_type === 'internal' ? 'danger' : 'info'" size="small">
+              {{ row.role_name || '-' }}<span v-if="row.user_type==='external'" style="opacity:.6"> · 租户{{ row.tenant_id ?? '-' }}</span>
             </el-tag>
           </template>
         </el-table-column>
@@ -83,10 +83,9 @@
           <el-input v-model="form.password" type="password" show-password
             :placeholder="editingId ? '留空则不修改密码' : '请输入密码'" />
         </el-form-item>
-        <el-form-item label="角色" prop="role">
-          <el-select v-model="form.role" style="width:100%">
-            <el-option label="普通用户" :value="1" />
-            <el-option label="超级管理员" :value="9" />
+        <el-form-item label="角色" prop="role_id">
+          <el-select v-model="form.role_id" style="width:100%" placeholder="选择角色">
+            <el-option v-for="r in roles" :key="r.id" :label="r.name" :value="r.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="状态" prop="status">
@@ -118,6 +117,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Search, Plus } from '@element-plus/icons-vue'
 import { getUserList, createUser, updateUser, deleteUser } from '../api/users'
+import { getRoles } from '../api/roles'
 
 const loading    = ref(false)
 const submitting = ref(false)
@@ -131,7 +131,8 @@ const dialogVisible = ref(false)
 const editingId     = ref(null)
 const formRef       = ref(null)
 
-const form = reactive({ username: '', password: '', role: 1, status: 1, expire_at: null })
+const form = reactive({ username: '', password: '', role_id: null, status: 1, expire_at: null })
+const roles = ref([])
 
 const rules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
@@ -168,7 +169,7 @@ function openDialog(row = null) {
   Object.assign(form, {
     username:  row?.username  || '',
     password:  '',
-    role:      row?.role      ?? 1,
+    role_id:   row?.role_id   ?? null,
     status:    row?.status    ?? 1,
     expire_at: row?.expire_at || null,
   })
@@ -207,7 +208,7 @@ async function handleDelete(id) {
   }
 }
 
-onMounted(fetchList)
+onMounted(() => { fetchList(); getRoles().then(res => { roles.value = res.data?.list || res.data || [] }).catch(() => {}) })
 </script>
 
 <style scoped>

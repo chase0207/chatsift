@@ -87,4 +87,38 @@ ALTER TABLE analysis_jobs
   ADD KEY idx_sa (tenant_id, service_account_id),
   ADD CONSTRAINT fk_job_sa FOREIGN KEY (service_account_id) REFERENCES service_accounts(id);
 
--- A3 角色 seed(三类角色 + role_has_permissions)待审后追加到本文件
+-- ============================================================
+-- A3 角色清洗(两层模型:user_type 系统级 + role 租户级)+ 种子租户 + 用户映射
+--   本段在 00_reused_tables.sql(seed users/roles)之后跑;seed 幂等(可重跑)
+-- ============================================================
+
+-- A3.0 users 加 user_type(internal 平台方 / external 租户方)
+ALTER TABLE users ADD COLUMN user_type VARCHAR(20) NOT NULL DEFAULT 'external'
+  COMMENT 'internal=平台方/external=租户方' AFTER tenant_id;
+
+-- A3.1 roles 清洗为租户级三类("内部用户"不再是 role,由 user_type 表达)
+UPDATE roles SET name='平台管理员',     description='平台方(internal),全权限'       WHERE id=1;
+UPDATE roles SET name='租户超级管理员', description='租户内最高,管员工+分配客服账号' WHERE id=2;
+INSERT INTO roles (name, description, is_super, data_scope, status)
+  SELECT '客服','租户普通员工,只看分到的客服账号',0,'self',1
+  WHERE NOT EXISTS (SELECT 1 FROM roles WHERE name='客服');
+
+-- A3.2 种子租户(阶段E 清库保留 tenants)
+INSERT INTO tenants (name, status)
+  SELECT '空月培训教育',1 WHERE NOT EXISTS (SELECT 1 FROM tenants WHERE name='空月培训教育');
+
+-- A3.3 用户映射(两层,按 username 稳定匹配)
+UPDATE users SET user_type='internal', tenant_id=NULL WHERE username='admin';
+UPDATE users SET user_type='external',
+       tenant_id=(SELECT id FROM tenants WHERE name='空月培训教育' LIMIT 1)
+  WHERE username='18651359635';
+UPDATE users SET user_type='external',
+       tenant_id=(SELECT id FROM tenants WHERE name='空月培训教育' LIMIT 1),
+       role_id=(SELECT id FROM roles WHERE name='客服' LIMIT 1)
+  WHERE username='tenant';
+
+-- A3.4 role_has_permissions:客服 = mychat 业务页只读(会话/线索/工单/分析/聚合)
+--   平台管理员(is_super=1)=代码层全权限无需配点;租户超管沿用 00_reused 现配(mychat 业务集)
+INSERT IGNORE INTO role_has_permissions (role_id, menu_id)
+  SELECT (SELECT id FROM roles WHERE name='客服' LIMIT 1), m.id
+  FROM menus m WHERE m.route IN ('/conversations','/leads','/workorders','/analytics','/aggregate');

@@ -134,7 +134,8 @@ import { getAdminStats } from '../api/stats'
 
 const store    = useUserStore()
 const userInfo = computed(() => store.userInfo)
-const roleLabel = computed(() => userInfo.value?.role === 9 ? '超级管理员' : '普通用户')
+// W19 两层:内外用 user_type、角色用 role_name(RBAC 第一步,不再用 role===9)
+const roleLabel = computed(() => userInfo.value?.role_name || (userInfo.value?.user_type === 'internal' ? '平台方' : '租户方'))
 
 const stats = reactive([
   { label: '用户总数',   value: 0, icon: User,          color: '#409eff' },
