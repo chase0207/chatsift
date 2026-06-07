@@ -1,6 +1,6 @@
 # chatsift 项目状态(PROJECT_STATUS.md)
 
-> 最后更新:2026-06-04
+> 最后更新:2026-06-07
 > 本文件是 chatsift 当前状态的**唯一状态源**。与任何 AI agent 沟通时,优先读/发本文件。
 > 协作规矩见 AGENTS.md;发版/生产/编号细则见 docs/ops/。
 
@@ -25,6 +25,11 @@
 | 生产 VERSION | 0.5.0(已部署同步) |
 
 发版:**v0.5.0 = W17 + W19 已发布上线**(一次清库重采、一起发,design §8.2)。test+prod 迁移 schema + 清库 + 部署 + 插件 v0.5.0,**E5 真机重采 + 三类角色隔离最终验收已通过(2026-06-07),W19 全程闭环**。
+
+## 当前进度 / 下一步
+- ✅ **W19 租户资产模型 全闭环**(阶段A–E,v0.5.0 已发上线 prod+test;两层身份/scope隔离/service_account 采集归属/conversation_id/admin租户管理/mychat首页)。报告 docs/reports/W19_stage{A,B,CD,E}_acceptance.md。
+- ✅ **W17 阶段一**(消息位置标识 本地层)随 v0.5.0 一起发。
+- ⏭ **下一项 = W17 阶段二(云端对账)**:W17 最后尾巴,**单独做、单独发**(口径选 B 已定);段标识用账号维度,与 W19 conversation_id 口径对齐。**待方案**(CC2 出 → Chase 审 → CC1 执行)。
 
 ---
 
