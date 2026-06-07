@@ -4,7 +4,7 @@
 > 依据: 2026-06-07_W19阶段E技术方案(简化版,Chase 审过)+ docs/ops/release.md + server-access.md。
 
 ## 0. 结论
-**E1–E4 已完成**(隔离收口 + test/prod schema 迁移 + 清库 + 发版 v0.5.0 上线)。**E5(真机重采 + 三类角色隔离最终验收)= 待 Chase 真机**(插件 serverUrl→prod 后采集真实数据再验)。
+**E1–E5 全部完成,W19 全程闭环、v0.5.0 上线 prod+test。** E5 经 Chase 真机重采 + 三类角色隔离最终验收**通过**(2026-06-07)。
 
 ## 1. E1 隔离收口 ✅
 - dashboardController.stats 改平台级计数,移除 W19 前 data_scope/req.user.id 当 tenant 遗留;不动 utils/data-scope.js(plugin/logs 的 user 级授权)。
@@ -31,10 +31,10 @@
   - test 3101:health=200、新路由(/v1/home /tenants /service-accounts /roles/options)=401(挂载非404)、login=400、日志 running 无报错。
   - prod 3100:同上全过;**公网 admin.kongyuekeji.com + mychat.kongyuekeji.com /api/health=200**(经 nginx 端到端)。
 
-## 5. E5 真机重采 + 隔离最终验收(待 Chase 真机)
-- 插件 serverUrl 指 `https://admin.kongyuekeji.com`(DEPLOY 6.1 遗留),真机重采 private-message(带 account_biz_id)。
-- 三类角色真数据验收:internal 默认看不到 / 租户超管看本租户全部 / 客服只看分配账号(B2 自动绑定 + C3 手工分配);conversation_id 含 account_biz_id 跨账号不误并;position 0 重复。
-- 验收通过后回填本节 + W19 全程闭环。
+## 5. E5 真机重采 + 隔离最终验收 ✅(Chase 真机,2026-06-07 通过)
+- 插件 v0.5.0 下载(admin/mychat 登录后均可)→ serverUrl 指 prod → 真机重采 private-message(带 account_biz_id)。
+- 三类角色真数据验收**通过**:internal 默认看不到 / 租户超管看本租户全部 / 客服只看分配账号(B2 自动绑定 + C3 手工分配);conversation_id 含 account_biz_id 跨账号不误并;position 去重。
+- **W19 全程闭环。**
 
 ## 6. 凭据/安全
 - 部署用私钥(本地持有,不入库);临时 key 副本(deploy 期间)已删。dump 在 prod `/opt/chatsift/backups/`。
