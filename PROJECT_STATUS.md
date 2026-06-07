@@ -22,9 +22,9 @@
 |---|---|
 | VERSION / server / admin / plugin | 0.5.0(已一致) |
 | tools/dom-collector | 1.0.0(独立版本线) |
-| 生产 VERSION | 0.5.0(W19 阶段E 部署后同步) |
+| 生产 VERSION | 0.5.0(已部署同步) |
 
-发版:**v0.5.0 = W17 + W19**(一次清库重采、一起发,design §8.2)。test+prod 已迁移 schema(w17+w19)+ 清库;部署进行中(阶段E)。
+发版:**v0.5.0 = W17 + W19**(一次清库重采、一起发,design §8.2)。test+prod 已迁移 schema(w17+w19)+ 清库 + 部署上线 v0.5.0、冒烟过(公网 admin/mychat /api/health=200)。**E5 真机重采 + 隔离最终验收待 Chase 真机**。
 
 ---
 
