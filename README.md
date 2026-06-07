@@ -83,8 +83,6 @@ Chatsift 是 chat_rpa 项目的产品形态升级，**独立仓库，独立 git 
 
 ## 快速开始
 
-> 注意：仓库初始化阶段，以下命令尚未生效。完整开发环境搭建见 `docs/architecture/local-setup.md`（W1 产出）。
-
 ```bash
 # 后端
 cd server && npm install && npm run dev
@@ -107,9 +105,8 @@ cd plugin && node build.js && \
 
 - `docs/prd/V2.0/PRD.md` — 产品需求文档
 - `docs/prd/V2.0/runtime-disposition.md` — V1.x 到 V2.0 的代码处置方案
-- `docs/architecture/overview.md` — 系统架构总览
-- `docs/decisions/` — 架构决策记录（ADR）
-- `MIGRATED_FROM_CHAT_RPA.md` — 从 chat_rpa 复用的代码清单
+- `docs/meta/document-index.md` — 文档位置索引(各类文档在哪)
+- `docs/meta/MIGRATED_FROM_CHAT_RPA.md` — 从 chat_rpa 复用的代码清单
 
 ---
 

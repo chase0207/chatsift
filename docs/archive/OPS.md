@@ -1,3 +1,5 @@
+> **已废弃 — 2026-06-07 归档,不再维护。** 本文(方案稿)已被 `docs/ops/`(release/versioning/prod-safety/server-access/deploy)取代;保留仅作历史参考。当前文档结构见 `docs/meta/document-index.md`。
+
 ---
 文档: chatsift 仓库管理 + 发版规范 (OPS)
 版本: v1.0.0

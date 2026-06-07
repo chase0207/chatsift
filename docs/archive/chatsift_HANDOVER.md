@@ -1,3 +1,5 @@
+> **已废弃 — 2026-06-07 归档,不再维护。** 本文(接手交接总纲)已被 `AGENTS.md`(协作入口)+ `PROJECT_STATUS.md`(状态/进度)取代;保留仅作历史参考。当前文档结构见 `docs/meta/document-index.md`。
+
 ---
 文档: chatsift 项目交接说明(给接手的 Claude Code / 新开发者)
 版本: v1.0.0

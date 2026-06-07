@@ -1,3 +1,5 @@
+> **已废弃 — 2026-06-07 归档,不再维护。** 本文(A/B/C 变更分级、文档纪律)已被 `AGENTS.md` §3 取代;保留仅作历史参考。当前文档结构见 `docs/meta/document-index.md`。
+
 -----
 
 ## 文档: 协作协议 (COLLABORATION PROTOCOL)

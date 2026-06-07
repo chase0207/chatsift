@@ -6,8 +6,8 @@ chatsift 是**抖音客服私信的只读分拣分析平台**:插件纯 DOM 采�
 **永不发送(Observe First)**:只读采集/展示/分析,绝不发送或回复任何消息;后台无、也永不会有发送入口。任何"加回复框/后台直接回"都触红线,先报 Chase 确认。
 
 ## 工作方式
-- 接手第一读:`docs/archive/chatsift_HANDOVER.md`(项目定位/红线/口径/进度/协作分级)。
-- 变更分级见 `docs/archive/COLLABORATION.md`:A 类(实现细节)可自做并在报告说明;**B 类(设计意图/验收口径/数据契约)、C 类(动已验收代码)必须先停、报 Chase 确认再做,不自行 commit**。
+- 接手第一读:`AGENTS.md`(协作入口/核心规矩)+ `PROJECT_STATUS.md`(定位/进度/遗留/口径)。历史交接稿见 `docs/archive/chatsift_HANDOVER.md`。
+- 变更分级见 `AGENTS.md` §3:A 类(实现细节)可自做并在报告说明;**B 类(设计意图/验收口径/数据契约)、C 类(动已验收代码)必须先停、报 Chase 确认再做,不自行 commit**。
 - 任何不清楚的(口径/意图/验收/数据含义)一律先问,不"自认为"、不猜测后开干。
 - 不改 `chat_rpa`(只读参考)。代码真实现状以 `docs/meta/PROJECT_REALITY.md` 为准,文档与代码差距见 `docs/meta/SPEC_GAP.md`。
 

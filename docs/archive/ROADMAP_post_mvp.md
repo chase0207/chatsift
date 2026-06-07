@@ -1,3 +1,5 @@
+> **已废弃 — 2026-06-07 归档,不再维护。** 本文(MVP 后路线图)已被 `PROJECT_STATUS.md`(待排期/backlog)取代;保留仅作历史参考。当前文档结构见 `docs/meta/document-index.md`。
+
 -----
 
 ## 文档: chatsift 后续路线图 — 诊断质量与准实时(补充2-5规划)
