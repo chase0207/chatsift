@@ -14,7 +14,7 @@
       </div>
       <div class="fb-item"><label>客服</label>
         <el-select v-model="sel.agent" @change="reload" clearable placeholder="全部" style="width:180px">
-          <el-option v-for="a in agentOptions" :key="a" :label="a" :value="a" />
+          <el-option v-for="a in agentOptions" :key="a.id" :label="a.label" :value="a.id" />
         </el-select>
       </div>
       <div class="fb-item"><label>用户</label>
@@ -177,7 +177,7 @@ const platformOptions = computed(() => facets.value.platforms || [])
 const pageOptions = computed(() => (facets.value.pages || []).filter((p) => p.platform === sel.value.platform).map((p) => p.platform_page))
 const agentOptions = computed(() => (facets.value.agents || [])
   .filter((a) => a.platform === sel.value.platform && a.platform_page === sel.value.page)
-  .map((a) => a.agent))
+  .map((a) => ({ id: a.service_account_id, label: a.agent })))
 
 function platformLabel(p) { return platformNameMap[p] || p }
 function pageLabel(pg) { return pageNameMap[pg] || pg }

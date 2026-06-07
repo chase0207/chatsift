@@ -7,7 +7,13 @@ async function batch(req, res) {
   if (events.length > 50) return fail(res, 400, 1003, '单批最多 50 条')
 
   const tenant = tenantId(req)
+  // B2:平台方(internal)/无 tenant 不可上报采集数据(Q5/R2)
+  if (req.user.user_type === 'internal' || tenant == null) {
+    return fail(res, 403, 1003, '平台方账号不可上报采集数据')
+  }
   const conn = await pool.getConnection()
+  const saCache = new Map()    // batch 内 account → sa_id memoize
+  const boundCache = new Map() // batch 内已自动绑定的 sa_id
   let accepted = 0
   let duplicated = 0
   let rejected = 0
@@ -39,6 +45,9 @@ async function batch(req, res) {
         continue
       }
 
+      // B2:account_biz_id+昵称 → service_account_id(缺/映射不到 → null,放行留 NULL,Q1)
+      const saId = await resolveServiceAccountId(conn, tenant, event, saCache)
+
       let conversationId
       const [conversationRows] = await conn.query(
         `SELECT id FROM conversations
@@ -54,7 +63,8 @@ async function batch(req, res) {
         conversationId = conversationRows[0].id
         await conn.query(
           `UPDATE conversations
-           SET platform_page = COALESCE(?, platform_page),
+           SET service_account_id = COALESCE(?, service_account_id),
+               platform_page = COALESCE(?, platform_page),
                customer_nickname = COALESCE(?, customer_nickname),
                customer_platform_uid = COALESCE(?, customer_platform_uid),
                last_message_at = CASE WHEN ? IS NOT NULL THEN GREATEST(COALESCE(last_message_at, ?), ?) ELSE last_message_at END,
@@ -62,6 +72,7 @@ async function batch(req, res) {
                message_count = message_count + 1
            WHERE id = ?`,
           [
+            saId,
             event.platform_page || null,
             inboundNickname,
             event.customer_platform_uid || event.platform_uid || null,
@@ -78,11 +89,12 @@ async function batch(req, res) {
       } else {
         const [result] = await conn.query(
           `INSERT INTO conversations
-           (tenant_id, platform, platform_page, platform_conversation_id, customer_nickname,
+           (tenant_id, service_account_id, platform, platform_page, platform_conversation_id, customer_nickname,
             customer_platform_uid, message_count, last_message_at, last_inbound_at)
-           VALUES (?,?,?,?,?,?,?,?,?)`,
+           VALUES (?,?,?,?,?,?,?,?,?,?)`,
           [
             tenant,
+            saId,
             platform,
             event.platform_page || null,
             platformConversationId,
@@ -98,11 +110,12 @@ async function batch(req, res) {
 
       const [messageResult] = await conn.query(
         `INSERT INTO messages
-         (tenant_id, conversation_id, platform_message_id, direction, position, sender_nickname,
+         (tenant_id, service_account_id, conversation_id, platform_message_id, direction, position, sender_nickname,
           content_type, content_text, content_url, raw_snapshot, occurred_at, segment_at, analyzed_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,NULL)`,
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,NULL)`,
         [
           tenant,
+          saId,
           conversationId,
           platformMessageId,
           direction,
@@ -118,10 +131,13 @@ async function batch(req, res) {
       )
 
       await conn.query(
-        `INSERT INTO analysis_jobs (tenant_id, message_id, conversation_id, status)
-         VALUES (?, ?, ?, 'pending')`,
-        [tenant, messageResult.insertId, conversationId]
+        `INSERT INTO analysis_jobs (tenant_id, service_account_id, message_id, conversation_id, status)
+         VALUES (?, ?, ?, ?, 'pending')`,
+        [tenant, saId, messageResult.insertId, conversationId]
       )
+
+      // B2:客服上报首见账号 → 自动绑定 employee_service_account(隔离闭环)
+      await autoBindAgent(conn, tenant, req, saId, boundCache)
       accepted += 1
     }
 
@@ -134,6 +150,43 @@ async function batch(req, res) {
   } finally {
     conn.release()
   }
+}
+
+// B2:event.platform/platform_page 字符串 → service_accounts.id(按 biz_id+昵称 upsert);
+//     缺 account_biz_id / 平台·页面映射不到 → 返回 null(放行,service_account_id 留 NULL,Q1)
+async function resolveServiceAccountId(conn, tenant, event, cache) {
+  const bizId = event.account_biz_id
+  if (!bizId) return null
+  const nick = event.account_nickname || ''
+  const key = [event.platform, event.platform_page, bizId, nick].join('|')
+  if (cache.has(key)) return cache.get(key)
+  const [pf] = await conn.query('SELECT id FROM platforms WHERE platform_key = ? LIMIT 1', [event.platform])
+  if (!pf.length) { cache.set(key, null); return null }
+  const [pg] = await conn.query(
+    'SELECT id FROM platform_pages WHERE platform_id = ? AND page_key = ? LIMIT 1',
+    [pf[0].id, event.platform_page]
+  )
+  if (!pg.length) { cache.set(key, null); return null }
+  const [up] = await conn.query(
+    `INSERT INTO service_accounts (tenant_id, platform_id, page_id, account_biz_id, account_nickname, first_seen_at)
+     VALUES (?,?,?,?,?,NOW())
+     ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id), updated_at = NOW()`,
+    [tenant, pf[0].id, pg[0].id, bizId, nick]
+  )
+  cache.set(key, up.insertId)
+  return up.insertId
+}
+
+// B2:客服(role_code='agent')上报首见账号 → 自动建 employee_service_account(系统来源,uk_assign 幂等);
+//     租户超管不自动绑(默认看全租户,codex#5)
+async function autoBindAgent(conn, tenant, req, saId, bound) {
+  if (saId == null || req.user.role_code !== 'agent' || bound.has(saId)) return
+  await conn.query(
+    `INSERT IGNORE INTO employee_service_account (tenant_id, employee_id, service_account_id, assigned_by)
+     VALUES (?,?,?,NULL)`,
+    [tenant, req.user.id, saId]
+  )
+  bound.set(saId, true)
 }
 
 async function heartbeat(req, res) {

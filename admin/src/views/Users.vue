@@ -22,8 +22,8 @@
         <el-table-column prop="username" label="用户名" min-width="120" />
         <el-table-column label="角色" width="100">
           <template #default="{ row }">
-            <el-tag :type="row.role === 9 ? 'danger' : 'info'" size="small">
-              {{ row.role === 9 ? '超级管理员' : '普通用户' }}
+            <el-tag :type="row.user_type === 'internal' ? 'danger' : 'info'" size="small">
+              {{ row.role_name || '-' }}<span v-if="row.user_type==='external'" style="opacity:.6"> · 租户{{ row.tenant_id ?? '-' }}</span>
             </el-tag>
           </template>
         </el-table-column>
@@ -83,10 +83,9 @@
           <el-input v-model="form.password" type="password" show-password
             :placeholder="editingId ? '留空则不修改密码' : '请输入密码'" />
         </el-form-item>
-        <el-form-item label="角色" prop="role">
-          <el-select v-model="form.role" style="width:100%">
-            <el-option label="普通用户" :value="1" />
-            <el-option label="超级管理员" :value="9" />
+        <el-form-item label="角色" prop="role_id">
+          <el-select v-model="form.role_id" style="width:100%" :placeholder="isPlatform ? '选择平台角色' : '选择租户角色'">
+            <el-option v-for="r in roles" :key="r.id" :label="r.name" :value="r.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="状态" prop="status">
@@ -118,7 +117,12 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Search, Plus } from '@element-plus/icons-vue'
 import { getUserList, createUser, updateUser, deleteUser } from '../api/users'
+import { getRoleOptions } from '../api/roles'
+import { entryMode } from '../utils/entry'
 
+// W19-C2:按端固定身份。平台入口=建内部用户(平台角色);租户入口=建租户用户(租户角色)
+// 角色下拉由 /roles/options 按调用者作用域返回(平台→平台角色,租户→租户角色),前端无需再筛
+const isPlatform = entryMode() !== 'tenant'
 const loading    = ref(false)
 const submitting = ref(false)
 const tableData  = ref([])
@@ -131,7 +135,8 @@ const dialogVisible = ref(false)
 const editingId     = ref(null)
 const formRef       = ref(null)
 
-const form = reactive({ username: '', password: '', role: 1, status: 1, expire_at: null })
+const form = reactive({ username: '', password: '', role_id: null, status: 1, expire_at: null, user_type: 'external' })
+const roles = ref([])
 
 const rules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
@@ -168,9 +173,11 @@ function openDialog(row = null) {
   Object.assign(form, {
     username:  row?.username  || '',
     password:  '',
-    role:      row?.role      ?? 1,
+    role_id:   row?.role_id   ?? null,
     status:    row?.status    ?? 1,
     expire_at: row?.expire_at || null,
+    // 按端固定:平台入口=internal,租户入口=external(后端最终以创建者身份为准)
+    user_type: row?.user_type || (isPlatform ? 'internal' : 'external'),
   })
   dialogVisible.value = true
 }
@@ -207,7 +214,10 @@ async function handleDelete(id) {
   }
 }
 
-onMounted(fetchList)
+onMounted(() => {
+  fetchList()
+  getRoleOptions().then(res => { roles.value = res.data || [] }).catch(() => {})
+})
 </script>
 
 <style scoped>

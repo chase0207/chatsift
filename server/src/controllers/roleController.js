@@ -14,6 +14,27 @@ exports.list = async (req, res) => {
   }
 }
 
+// GET /api/roles/options  建用户用的角色下拉(按作用域;auth 即可,不需 role:list)
+//   租户用户只见租户角色(安全);平台用户默认平台角色,可显式 ?scope=tenant(bootstrap 建租户管理员)
+exports.options = async (req, res) => {
+  try {
+    let scope
+    if (req.user.user_type === 'external') {
+      scope = 'tenant'
+    } else {
+      scope = req.query.scope === 'tenant' ? 'tenant' : 'platform'
+    }
+    const [rows] = await pool.query(
+      'SELECT id, name, role_code, role_scope FROM roles WHERE role_scope = ? AND status = 1 ORDER BY id',
+      [scope]
+    )
+    res.json({ code: 0, data: rows })
+  } catch (err) {
+    console.error('[role.options]', err)
+    res.status(500).json({ code: 500, message: '服务器错误' })
+  }
+}
+
 // POST /api/roles
 exports.create = async (req, res) => {
   var { name, description, data_scope = 'self' } = req.body

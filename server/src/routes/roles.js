@@ -6,6 +6,7 @@ const controller = require('../controllers/roleController')
 
 router.use(auth)
 
+router.get('/options',       controller.options)  // 建用户角色下拉(auth 即可,按作用域)
 router.get('/',              perm('role:list'),   controller.list)
 router.post('/',             perm('role:create'), controller.create)
 router.put('/:id',           perm('role:update'), controller.update)

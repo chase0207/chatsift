@@ -1,5 +1,5 @@
 const pool = require('../../config/db')
-const { ok, fail, tenantId, paging } = require('./_shared')
+const { ok, fail, tenantId, denyInternal, paging } = require('./_shared')
 
 async function list(req, res) {
   const tenant = tenantId(req)
@@ -35,6 +35,7 @@ async function list(req, res) {
 }
 
 async function create(req, res) {
+  if (denyInternal(req, res)) return
   const { city, product_name, hours = null, price = null, original_price = null, notes = null, enabled = 1 } = req.body
   if (!city || !product_name) return fail(res, 400, 1003, 'city 和 product_name 不能为空')
   try {
@@ -52,6 +53,7 @@ async function create(req, res) {
 }
 
 async function update(req, res) {
+  if (denyInternal(req, res)) return
   const allowed = ['city', 'product_name', 'hours', 'price', 'original_price', 'notes', 'enabled']
   const fields = []
   const values = []
@@ -77,6 +79,7 @@ async function update(req, res) {
 }
 
 async function remove(req, res) {
+  if (denyInternal(req, res)) return
   try {
     const [result] = await pool.query(
       'DELETE FROM price_table WHERE tenant_id = ? AND id = ?',

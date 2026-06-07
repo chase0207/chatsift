@@ -1,5 +1,5 @@
 const pool = require('../../config/db')
-const { ok, fail, tenantId } = require('./_shared')
+const { ok, fail, tenantId, denyInternal } = require('./_shared')
 const { DEFAULT_API_BASE, DEFAULT_MODEL } = require('../../v1/llm-client')
 
 async function get(req, res) {
@@ -39,6 +39,7 @@ async function get(req, res) {
 }
 
 async function put(req, res) {
+  if (denyInternal(req, res)) return
   const apiBase = req.body.api_base || DEFAULT_API_BASE
   const modelName = req.body.model || req.body.model_name || DEFAULT_MODEL
   const quota = Number(req.body.monthly_token_quota || 1000000)

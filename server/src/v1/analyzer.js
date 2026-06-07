@@ -93,7 +93,7 @@ async function buildContext(job) {
   )
 
   const [conversations] = await db.query(
-    `SELECT id, tenant_id, platform, platform_page, platform_conversation_id,
+    `SELECT id, tenant_id, service_account_id, platform, platform_page, platform_conversation_id,
             customer_nickname, customer_platform_uid, current_stage, completeness_score
      FROM conversations
      WHERE id = ? AND tenant_id = ?

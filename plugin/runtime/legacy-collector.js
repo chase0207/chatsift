@@ -50,6 +50,14 @@
     return String(Dom.getText(el) || '').trim()
   }
 
+  function _readAccountBizId() {
+    // W19-B1:商家账号稳定键 = URL query accountId(Q1 实测:换客户/换坐席不变,在 '?' 之后)
+    try {
+      var v = new URLSearchParams(location.search).get('accountId')
+      return v ? String(v).trim() : ''
+    } catch (_) { return '' }
+  }
+
   function _buildSessionInfo(adapter) {
     var nickname = _readNickname(adapter)
     var pageKey = adapter && adapter.pageKey ? adapter.pageKey : 'douyin'
@@ -60,11 +68,17 @@
       Logger.warn && Logger.warn('LegacyCollector', 'skip collect: nickname equals agent account (likely misread)')
       return null
     }
-    var seed = [pageKey, nickname].join('|')
+    var accountBizId = _readAccountBizId()
+    // B3:conversation_id 纳入 account_biz_id(商家账号)维度,防跨账号同名客户误并;
+    //     坐席(account_nickname)不进——同账号换坐席仍是同一会话(坐席体现在 service_account_id)。
+    //     有 bizId(private-message 真机恒有)→ 新口径;无(laike/feige 暂未抓)→ 退回旧口径,不破。
+    var seed = (accountBizId ? [pageKey, accountBizId, nickname] : [pageKey, nickname]).join('|')
+    var idBase = 'douyin_' + pageKey.replace(/[^a-z0-9]+/ig, '_') + (accountBizId ? '_' + accountBizId : '')
     return {
-      conversationId: 'douyin_' + pageKey.replace(/[^a-z0-9]+/ig, '_') + '_' + Dom.simpleHash(seed),
+      conversationId: idBase + '_' + Dom.simpleHash(seed),
       nickname: nickname,
       accountNickname: account,
+      accountBizId: accountBizId,
       pageKey: pageKey,
     }
   }

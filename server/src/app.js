@@ -22,6 +22,8 @@ if (String(process.env.NODE_ENV || '').toLowerCase() !== 'production') {
 
 app.use('/api/auth', require('./routes/auth'))
 app.use('/api/users', require('./routes/users'))
+app.use('/api/tenants', require('./routes/tenants'))
+app.use('/api/service-accounts', require('./routes/service-accounts'))
 app.use('/api/roles', require('./routes/roles'))
 app.use('/api/menus', require('./routes/menus'))
 app.use('/api/platforms', require('./routes/platforms'))
@@ -43,6 +45,7 @@ app.use('/api/v1/intent-rules', require('./routes/v1/intentRules'))
 app.use('/api/v1/price-table', require('./routes/v1/priceTable'))
 app.use('/api/v1/llm-config', require('./routes/v1/llmConfig'))
 app.use('/api/v1/analytics', require('./routes/v1/analytics'))
+app.use('/api/v1/home', require('./routes/v1/home'))
 
 const publicDir = path.join(__dirname, '..', 'public')
 app.use(express.static(publicDir))

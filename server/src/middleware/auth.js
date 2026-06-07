@@ -12,16 +12,21 @@ async function authMiddleware(req, res, next) {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = decoded;
 
-    // 旧 token 兼容：JWT 中无 is_super/data_scope，从数据库补充
-    if (req.user.is_super == null || req.user.data_scope == null) {
+    // 旧 token 兼容：JWT 中无 is_super/data_scope/user_type/tenant_id/role_code，从数据库补充(W19)
+    // role_code 是 scope helper 的隔离判据,缺失必须补全(否则 fail-closed 收紧,不会越权)
+    if (req.user.is_super == null || req.user.data_scope == null || req.user.user_type == null || req.user.role_code === undefined) {
       try {
         const [rows] = await pool.query(
-          'SELECT r.is_super, r.data_scope FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = ? LIMIT 1',
+          'SELECT r.is_super, r.data_scope, r.name AS role_name, r.role_code, u.user_type, u.tenant_id FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = ? LIMIT 1',
           [req.user.id]
         );
         if (rows.length) {
           req.user.is_super = rows[0].is_super;
           req.user.data_scope = rows[0].data_scope;
+          req.user.role_name = rows[0].role_name;
+          req.user.role_code = rows[0].role_code;
+          req.user.user_type = rows[0].user_type;
+          req.user.tenant_id = rows[0].tenant_id;
         }
       } catch (e) {
         // 查询失败不阻塞请求
