@@ -29,13 +29,19 @@ async function list(req, res) {
     const [rows] = await pool.query(
       `SELECT sa.id, sa.tenant_id, t.name AS tenant_name,
               sa.account_biz_id, sa.account_nickname, sa.status,
+              sa.lifecycle, sa.collector_kind,
+              sa.collector_id, cu.username AS collector_name,
+              sa.first_seen_by, fu.username AS first_seen_by_name,
               p.platform_name, pp.page_name,
               DATE_FORMAT(sa.first_seen_at, '%Y-%m-%d %H:%i:%s') AS first_seen_at,
-              (SELECT COUNT(*) FROM employee_service_account esa WHERE esa.service_account_id = sa.id) AS assigned_count
+              (SELECT COUNT(*) FROM service_account_view v WHERE v.service_account_id = sa.id) AS view_count,
+              (SELECT DATE_FORMAT(MAX(m.uploaded_at), '%Y-%m-%d %H:%i:%s') FROM messages m WHERE m.service_account_id = sa.id) AS last_collect_at
        FROM service_accounts sa
        LEFT JOIN tenants t ON t.id = sa.tenant_id
        LEFT JOIN platforms p ON p.id = sa.platform_id
        LEFT JOIN platform_pages pp ON pp.id = sa.page_id
+       LEFT JOIN users cu ON cu.id = sa.collector_id
+       LEFT JOIN users fu ON fu.id = sa.first_seen_by
        ${where} ORDER BY sa.id DESC LIMIT ? OFFSET ?`,
       [...params, size, offset]
     )
@@ -69,74 +75,181 @@ async function employees(req, res) {
   }
 }
 
-// GET /api/service-accounts/:id/assignments  该账号已分配的员工 id
+// W20:加载 sa + 本租户校验。返回 sa 或 null(已写错误响应)。
+async function loadSaScoped(req, res, id) {
+  const [[sa]] = await pool.query(
+    'SELECT id, tenant_id, lifecycle, collector_id FROM service_accounts WHERE id = ? LIMIT 1', [id]
+  )
+  if (!sa) { res.status(404).json({ code: 404, message: '客服账号不存在' }); return null }
+  if (req.user.user_type === 'external' && sa.tenant_id !== req.user.tenant_id) {
+    res.status(403).json({ code: 403, message: '无权操作其他租户的客服账号' }); return null
+  }
+  return sa
+}
+
+// GET /api/service-accounts/:id/views(= 旧 /assignments)  该账号查看人 id 列表
 async function assignments(req, res) {
   const id = parseInt(req.params.id)
   try {
-    const [[sa]] = await pool.query('SELECT tenant_id FROM service_accounts WHERE id = ? LIMIT 1', [id])
-    if (!sa) return res.status(404).json({ code: 404, message: '客服账号不存在' })
-    if (req.user.user_type === 'external' && sa.tenant_id !== req.user.tenant_id) {
-      return res.status(403).json({ code: 403, message: '无权查看其他租户的客服账号' })
-    }
+    const sa = await loadSaScoped(req, res, id)
+    if (!sa) return
     const [rows] = await pool.query(
-      'SELECT employee_id FROM employee_service_account WHERE service_account_id = ?', [id]
+      'SELECT employee_id FROM service_account_view WHERE service_account_id = ?', [id]
     )
     res.json({ code: 0, data: rows.map((r) => r.employee_id) })
   } catch (err) {
-    console.error('[serviceAccount.assignments]', err)
+    console.error('[serviceAccount.views]', err)
     res.status(500).json({ code: 500, message: '服务器错误' })
   }
 }
 
-// POST /api/service-accounts/:id/assignments  { employee_id } 分配(校验同租户)
+// POST /api/service-accounts/:id/views(= 旧 /assignments) { employee_id } 加查看权 + audit view_add
 async function assign(req, res) {
   const id = parseInt(req.params.id)
   const employeeId = parseInt(req.body.employee_id)
   if (!employeeId) return res.status(400).json({ code: 400, message: '缺少 employee_id' })
+  const conn = await pool.getConnection()
   try {
-    const [[sa]] = await pool.query('SELECT tenant_id FROM service_accounts WHERE id = ? LIMIT 1', [id])
-    if (!sa) return res.status(404).json({ code: 404, message: '客服账号不存在' })
-    // W19-C3:租户方只能分配本租户的客服账号
+    const [[sa]] = await conn.query('SELECT id, tenant_id FROM service_accounts WHERE id = ? LIMIT 1', [id])
+    if (!sa) { conn.release(); return res.status(404).json({ code: 404, message: '客服账号不存在' }) }
     if (req.user.user_type === 'external' && sa.tenant_id !== req.user.tenant_id) {
-      return res.status(403).json({ code: 403, message: '无权分配其他租户的客服账号' })
+      conn.release(); return res.status(403).json({ code: 403, message: '无权操作其他租户的客服账号' })
     }
-    const [[emp]] = await pool.query(
-      'SELECT u.tenant_id, r.role_code FROM users u LEFT JOIN roles r ON r.id = u.role_id WHERE u.id = ? LIMIT 1',
-      [employeeId]
-    )
-    if (!emp) return res.status(404).json({ code: 404, message: '员工不存在' })
-    if (emp.tenant_id !== sa.tenant_id) return res.status(400).json({ code: 400, message: '员工与客服账号不属同一租户' })
-    // 仅客服可被分配(超管看全租户,分配无意义)
-    if (emp.role_code !== 'agent') return res.status(400).json({ code: 400, message: '只能将账号分配给客服' })
-    await pool.query(
-      `INSERT IGNORE INTO employee_service_account (tenant_id, employee_id, service_account_id, assigned_by)
+    const v = await validateAgentInTenant(conn, employeeId, sa.tenant_id)
+    if (!v.ok) { conn.release(); return res.status(400).json({ code: 400, message: v.reason }) }
+    const [r] = await conn.query(
+      `INSERT IGNORE INTO service_account_view (tenant_id, service_account_id, employee_id, granted_by)
        VALUES (?,?,?,?)`,
-      [sa.tenant_id, employeeId, id, req.user.id]
+      [sa.tenant_id, id, employeeId, req.user.id]
     )
+    if (r.affectedRows) {
+      await insertAudit(conn, {
+        tenantId: sa.tenant_id, operatorUserId: req.user.id, targetEmployeeId: employeeId,
+        serviceAccountId: id, eventType: 'view_add',
+      })
+    }
     res.json({ code: 0 })
   } catch (err) {
-    console.error('[serviceAccount.assign]', err)
+    console.error('[serviceAccount.viewAdd]', err)
     res.status(500).json({ code: 500, message: '服务器错误' })
+  } finally {
+    conn.release()
   }
 }
 
-// DELETE /api/service-accounts/:id/assignments/:employeeId  解绑
+// DELETE /api/service-accounts/:id/views/:employeeId(= 旧 /assignments) 删查看权 + audit view_remove
 async function unassign(req, res) {
   const id = parseInt(req.params.id)
   const employeeId = parseInt(req.params.employeeId)
+  const conn = await pool.getConnection()
   try {
-    const [[sa]] = await pool.query('SELECT tenant_id FROM service_accounts WHERE id = ? LIMIT 1', [id])
-    if (!sa) return res.status(404).json({ code: 404, message: '客服账号不存在' })
+    const [[sa]] = await conn.query('SELECT id, tenant_id FROM service_accounts WHERE id = ? LIMIT 1', [id])
+    if (!sa) { conn.release(); return res.status(404).json({ code: 404, message: '客服账号不存在' }) }
     if (req.user.user_type === 'external' && sa.tenant_id !== req.user.tenant_id) {
-      return res.status(403).json({ code: 403, message: '无权解绑其他租户的客服账号' })
+      conn.release(); return res.status(403).json({ code: 403, message: '无权操作其他租户的客服账号' })
     }
-    await pool.query(
-      'DELETE FROM employee_service_account WHERE tenant_id = ? AND service_account_id = ? AND employee_id = ?',
+    const [r] = await conn.query(
+      'DELETE FROM service_account_view WHERE tenant_id = ? AND service_account_id = ? AND employee_id = ?',
       [sa.tenant_id, id, employeeId]
     )
+    if (r.affectedRows) {
+      await insertAudit(conn, {
+        tenantId: sa.tenant_id, operatorUserId: req.user.id, targetEmployeeId: employeeId,
+        serviceAccountId: id, eventType: 'view_remove',
+      })
+    }
     res.json({ code: 0 })
   } catch (err) {
-    console.error('[serviceAccount.unassign]', err)
+    console.error('[serviceAccount.viewRemove]', err)
+    res.status(500).json({ code: 500, message: '服务器错误' })
+  } finally {
+    conn.release()
+  }
+}
+
+// PUT /api/service-accounts/:id/collector  { employee_id } 采集权重分配
+//   校验同租户 agent;记 old/new;新 collector 自动加 view 行;audit reassign_collector。
+async function reassignCollector(req, res) {
+  const id = parseInt(req.params.id)
+  const employeeId = parseInt(req.body.employee_id)
+  if (!employeeId) return res.status(400).json({ code: 400, message: '缺少 employee_id' })
+  const conn = await pool.getConnection()
+  try {
+    const sa = await loadSaScoped(req, res, id)
+    if (!sa) { conn.release(); return }
+    const v = await validateAgentInTenant(conn, employeeId, sa.tenant_id)
+    if (!v.ok) { conn.release(); return res.status(400).json({ code: 400, message: v.reason }) }
+    if (sa.collector_id === employeeId) { conn.release(); return res.json({ code: 0 }) }
+
+    await conn.beginTransaction()
+    const kind = sa.lifecycle === 'pending' ? 'temp' : 'formal'
+    await conn.query('UPDATE service_accounts SET collector_id=?, collector_kind=? WHERE id=?', [employeeId, kind, id])
+    await conn.query(
+      `INSERT IGNORE INTO service_account_view (tenant_id, service_account_id, employee_id, granted_by)
+       VALUES (?,?,?,?)`,
+      [sa.tenant_id, id, employeeId, req.user.id]
+    )
+    await insertAudit(conn, {
+      tenantId: sa.tenant_id, operatorUserId: req.user.id, targetEmployeeId: employeeId, serviceAccountId: id,
+      eventType: 'reassign_collector',
+      beforeValue: { collector_id: sa.collector_id },
+      afterValue: { collector_id: employeeId, collector_kind: kind },
+    })
+    await conn.commit()
+    res.json({ code: 0 })
+  } catch (err) {
+    await conn.rollback()
+    console.error('[serviceAccount.reassignCollector]', err)
+    res.status(500).json({ code: 500, message: '服务器错误' })
+  } finally {
+    conn.release()
+  }
+}
+
+// PUT /api/service-accounts/:id/disable | /enable  lifecycle 切 disabled/active(历史数据不删)
+function setLifecycle(target) {
+  return async function (req, res) {
+    const id = parseInt(req.params.id)
+    const conn = await pool.getConnection()
+    try {
+      const sa = await loadSaScoped(req, res, id)
+      if (!sa) { conn.release(); return }
+      await conn.beginTransaction()
+      await conn.query('UPDATE service_accounts SET lifecycle=? WHERE id=?', [target, id])
+      await insertAudit(conn, {
+        tenantId: sa.tenant_id, operatorUserId: req.user.id, serviceAccountId: id,
+        eventType: target === 'disabled' ? 'disable' : 'enable',
+        beforeValue: { lifecycle: sa.lifecycle }, afterValue: { lifecycle: target },
+      })
+      await conn.commit()
+      res.json({ code: 0 })
+    } catch (err) {
+      await conn.rollback()
+      console.error('[serviceAccount.setLifecycle]', err)
+      res.status(500).json({ code: 500, message: '服务器错误' })
+    } finally {
+      conn.release()
+    }
+  }
+}
+
+// GET /api/service-accounts/:id/conflicts  采集实例冲突记录(audit instance_conflict)
+async function conflicts(req, res) {
+  const id = parseInt(req.params.id)
+  try {
+    const sa = await loadSaScoped(req, res, id)
+    if (!sa) return
+    const [rows] = await pool.query(
+      `SELECT id, target_employee_id, before_value, after_value, device_id, browser_profile_id, tab_id,
+              DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at
+       FROM service_account_audit
+       WHERE service_account_id = ? AND event_type = 'instance_conflict'
+       ORDER BY id DESC LIMIT 100`,
+      [id]
+    )
+    res.json({ code: 0, data: rows })
+  } catch (err) {
+    console.error('[serviceAccount.conflicts]', err)
     res.status(500).json({ code: 500, message: '服务器错误' })
   }
 }
@@ -206,4 +319,7 @@ async function confirm(req, res) {
   }
 }
 
-module.exports = { list, employees, assignments, assign, unassign, confirm }
+module.exports = {
+  list, employees, assignments, assign, unassign, confirm,
+  reassignCollector, disable: setLifecycle('disabled'), enable: setLifecycle('active'), conflicts,
+}

@@ -13,11 +13,12 @@ async function batch(req, res) {
     return fail(res, 403, 1003, '平台方账号不可上报采集数据')
   }
   const conn = await pool.getConnection()
-  const saCache = new Map()    // batch 内 account → 完整 sa 状态对象 memoize(W20)
-  const boundCache = new Map() // batch 内已自动绑定的 sa_id
+  const saCache = new Map()      // batch 内 account → 完整 sa 状态对象 memoize(W20)
+  const gateCache = new Map()    // batch 内 account → 采集权判定结果 memoize(W20-C1)
   let accepted = 0
   let duplicated = 0
   let rejected = 0
+  const rejectReasons = []       // W20-C1:[{platform_message_id, reason}]
 
   try {
     await conn.beginTransaction()
@@ -34,6 +35,7 @@ async function batch(req, res) {
       // W17:放开"无 occurred_at 即 reject"(D4),允许 outbound occurred_at=NULL 正常入库
       if (!platform || !platformConversationId || !platformMessageId || !direction) {
         rejected += 1
+        rejectReasons.push({ platform_message_id: platformMessageId || null, reason: 'invalid_event' })
         continue
       }
 
@@ -46,10 +48,16 @@ async function batch(req, res) {
         continue
       }
 
-      // W20-B:account_biz_id+昵称 → 完整 SA 状态(缺/映射不到 → null);
-      //        首见在此建 pending + 临时采集权(本员工)+ 查看权 + audit。
-      //        ★阶段B 不做采集权拒绝闸门(留阶段C C1);本阶段仍全量入库。
+      // W20-B:account_biz_id+昵称 → 完整 SA 状态(缺/映射不到 → null);首见在此建 pending+临时采集权+view+audit。
       const sa = await resolveServiceAccount(conn, tenant, req, event, saCache)
+
+      // W20-C1:采集权判定闸门(★event 级 rejected,HTTP 仍 200;非整批 403)。
+      const gate = await collectGate(conn, tenant, req, event, sa, gateCache)
+      if (gate.reject) {
+        rejected += 1
+        rejectReasons.push({ platform_message_id: platformMessageId, reason: gate.reason })
+        continue
+      }
       const saId = sa ? sa.id : null
 
       let conversationId
@@ -140,13 +148,11 @@ async function batch(req, res) {
         [tenant, saId, messageResult.insertId, conversationId]
       )
 
-      // B2:客服上报首见账号 → 自动绑定 employee_service_account(隔离闭环)
-      await autoBindAgent(conn, tenant, req, saId, boundCache)
       accepted += 1
     }
 
     await conn.commit()
-    ok(res, { accepted, duplicated, rejected })
+    ok(res, { accepted, duplicated, rejected, reject_reasons: rejectReasons })
   } catch (err) {
     await conn.rollback()
     console.error('[v1.events.batch]', err)
@@ -235,16 +241,61 @@ async function selectServiceAccount(conn, tenant, platformId, pageId, bizId, nic
   }
 }
 
-// B2:客服(role_code='agent')上报首见账号 → 自动建 employee_service_account(系统来源,uk_assign 幂等);
-//     租户超管不自动绑(默认看全租户,codex#5)
-async function autoBindAgent(conn, tenant, req, saId, bound) {
-  if (saId == null || req.user.role_code !== 'agent' || bound.has(saId)) return
-  await conn.query(
-    `INSERT IGNORE INTO employee_service_account (tenant_id, employee_id, service_account_id, assigned_by)
-     VALUES (?,?,?,NULL)`,
-    [tenant, req.user.id, saId]
+// W20-C1:采集权判定闸门(返回 {reject, reason})。★HTTP 仍 200,只在 event 级拒绝。
+//   sa==null:private-message 缺 account_biz_id → 拒(治理不被绕过);laike/feige 等未治理页 → 放行(留 NULL)。
+//   sa.created:首见已建临时采集权(collector=本员工)→ 放行。
+//   sa.lifecycle=disabled → 拒(account_disabled)+ audit reject_collect。
+//   本员工==collector_id → 放行;否则拒:pending→pending_grab;active→not_collector
+//     (audit:pending_grab / 旧采集人被改→old_collector_blocked / 否则 reject_collect)。
+//   同账号 batch 内 memoize,audit 只写一次。
+async function collectGate(conn, tenant, req, event, sa, cache) {
+  if (sa == null) {
+    if (event.platform_page === 'private-message' && !event.account_biz_id) {
+      return { reject: true, reason: 'missing_account_biz_id' }
+    }
+    return { reject: false }
+  }
+  if (cache.has(sa.id)) return cache.get(sa.id)
+
+  let decision
+  if (sa.created) {
+    decision = { reject: false }
+  } else if (sa.lifecycle === 'disabled') {
+    await insertAudit(conn, {
+      tenantId: tenant, targetEmployeeId: req.user.id, serviceAccountId: sa.id,
+      eventType: 'reject_collect', afterValue: { reason: 'account_disabled' },
+    })
+    decision = { reject: true, reason: 'account_disabled' }
+  } else if (sa.collector_id === req.user.id) {
+    decision = { reject: false }
+  } else {
+    let reason, eventType
+    if (sa.lifecycle === 'pending') {
+      reason = 'pending_grab'; eventType = 'pending_grab'
+    } else {
+      reason = 'not_collector'
+      eventType = (await wasFormerCollector(conn, sa.id, req.user.id)) ? 'old_collector_blocked' : 'reject_collect'
+    }
+    await insertAudit(conn, {
+      tenantId: tenant, targetEmployeeId: req.user.id, serviceAccountId: sa.id,
+      eventType, afterValue: { reason, lifecycle: sa.lifecycle },
+    })
+    decision = { reject: true, reason }
+  }
+  cache.set(sa.id, decision)
+  return decision
+}
+
+// 该员工是否曾是此账号采集负责人(被管理员重分配后被拒)→ audit 用 old_collector_blocked 区分
+async function wasFormerCollector(conn, saId, employeeId) {
+  const [rows] = await conn.query(
+    `SELECT 1 FROM service_account_audit
+     WHERE service_account_id = ? AND event_type = 'reassign_collector'
+       AND JSON_EXTRACT(before_value, '$.collector_id') = ?
+     LIMIT 1`,
+    [saId, employeeId]
   )
-  bound.set(saId, true)
+  return rows.length > 0
 }
 
 async function heartbeat(req, res) {
