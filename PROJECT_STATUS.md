@@ -29,7 +29,15 @@
 ## 当前进度 / 下一步
 - ✅ **W19 租户资产模型 全闭环**(阶段A–E,v0.5.0 已发上线 prod+test;两层身份/scope隔离/service_account 采集归属/conversation_id/admin租户管理/mychat首页)。报告 docs/reports/W19_stage{A,B,CD,E}_acceptance.md。
 - ✅ **W17 阶段一**(消息位置标识 本地层)随 v0.5.0 一起发。
-- ⏭ **下一项 = W17 阶段二(云端对账)**:W17 最后尾巴,**单独做、单独发**(口径选 B 已定);段标识用账号维度,与 W19 conversation_id 口径对齐。**待方案**(CC2 出 → Chase 审 → CC1 执行)。
+- ⛔ **W17 阶段二(云端对账)= 取消/交 codex**,不在 chatsift 本线推进。
+- ✅ **发版善后**:PROJECT_STATUS(本文)+ server-access.md(推代码口径定为 rsync,/opt/chatsift 非 git 仓库)已回写。
+- **当前无进行中开发**(W19 发完、收尾善后做完)。
+
+### 待排期(backlog,非进行中)
+- **M16 第二步**:物理删 `users.role` 字段(W19 只做到代码只读 role_id、保留字段不用)。
+- **dashboardController data_scope 彻底清理**:E1 只动了它自身;`utils/data-scope.js` 给 plugin/logs 的 user 级用法未动(动它有跨租户泄漏风险,需单独评估)。
+- **技术债清理周**:M22/M23/U3 + M4/M5/M7-M12/M14/M17-M20 死代码。
+- **未定功能方向**:W20 租户自助管理(成员/菜单/权限)、价格表导入(M1 空壳)、W13 聚合视图、laike/feige 多平台采集。
 
 ---
 

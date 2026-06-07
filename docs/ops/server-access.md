@@ -49,21 +49,31 @@ docker ps         # 确认 chatsift-mysql / chatsift-server 在跑
 
 ## 5. 部署命令序列
 ```bash
-# 本地
-npm run build:admin        # 出 admin/dist
-# 推代码到服务器(★口径见下方警告)
-# 服务器
+# ── 本地(在 main 分支)──
+npm run build:admin                          # 出 admin/dist(★会清空 admin/dist)
+bash scripts/package-plugin.sh "发版说明"    # 打包插件 → server/public/plugin-downloads
+rm -rf admin/dist/plugin-downloads && cp -r server/public/plugin-downloads admin/dist/plugin-downloads  # ★补回(build:admin 清过)
+
+# ── 推代码 = rsync(★口径已定,见下)──
+cp "<含空格的Ubuntu.pem>" /tmp/ck.pem && chmod 600 /tmp/ck.pem   # 私钥路径含空格→复制无空格临时副本(rsync -e 要),用完 rm
+SSH='ssh -i /tmp/ck.pem'; H=root@124.222.146.193
+rsync -az -e "$SSH" --exclude=node_modules --exclude='.env' --exclude='.env.*' server/ $H:/opt/chatsift/server/
+rsync -az -e "$SSH" admin/dist/ $H:/opt/chatsift/admin/dist/
+rsync -az -e "$SSH" --exclude=data --exclude=data-test --exclude='.env*' --exclude='*.pem' --exclude=backups deploy/ $H:/opt/chatsift/deploy/
+
+# ── 服务器 ──
 cd /opt/chatsift/deploy && docker compose -f docker-compose.prod.yml build server \
   && docker compose -f docker-compose.prod.yml up -d server
 echo "<新版本>" > /opt/chatsift/VERSION     # ★别漏
 nginx -t && nginx -s reload                 # nginx 已指 chatsift,通常不动
+# 已有库 schema 迁移(发版含 SQL 变更时):cat deploy/wXX.sql | ssh ... 'docker exec -i chatsift-mysql sh -c "mysql -uroot -p\$MYSQL_ROOT_PASSWORD chatsift"'
 ```
-> ⚠️ **推代码口径不一致,发版前先确认**:`release.md §3` 写 **rsync** 同步(排除 .env / data/ / test compose);W19 阶段E方案写 `cd /opt/chatsift && git pull`(需先 push main)。两者择一,别混用(否则 rsync 覆盖 + git 状态不一致)。
+> ✅ **推代码口径 = rsync(2026-06-07 v0.5.0 发版确认)**:`/opt/chatsift` **不是 git 仓库**,`git pull` 不可用——E方案曾写的 git pull 作废,统一用上面的 rsync(无 --delete;.env/data/node_modules/.git/pem 全排除)。test 同法,目标 `/opt/chatsift-test`、compose `docker-compose.test.yml --env-file .env.test`、端口 3101。
 
 ## 6. ★发版红线（务必遵守）
 1. **发版 = QA 身份**（AGENTS §6）:只有 QA/Chase 能发版、改 VERSION、写发版记录。
 2. **不可逆操作停最后一步**:清库 / `docker compose down` / DROP / 删 `data/` → prod-safety §4 三问 + 先备份(离机+验证可解压) + **Chase 在场答"go"才执行**。
-3. **发什么版要先明确**:prod VERSION=`0.3.1`;W17 已并 main **未发版**;W19 进行中。发版范围（W17 单发 / 等 W19 一起 v0.5.0）由 Chase/QA 定,cc 不自决。
+3. **发什么版要先明确**:prod VERSION=`0.5.0`(W17+W19 已发上线,2026-06-07)。发版范围由 Chase/QA 定,cc 不自决。
 4. **data/ 永不同步/覆盖/删除**;test 与 prod 数据库配置禁互换。
 
 ## 7. 凭据（安全,不入库）
@@ -74,3 +84,4 @@ nginx -t && nginx -s reload                 # nginx 已指 chatsift,通常不动
 | 版本 | 日期 | 摘要 |
 |---|---|---|
 | v1.0.0 | 2026-06-06 | 初版:SSH 接入 + prod/test 拓扑 + 部署序列 + 发版红线,汇总自 DEPLOY/release/prod-safety |
+| v1.1.0 | 2026-06-07 | 推代码口径定为 rsync(/opt/chatsift 非 git 仓库,git pull 作废);补 plugin-downloads cp 步 + 无空格 key + SSH 管道迁移;prod VERSION→0.5.0(W17+W19 v0.5.0 发版确认) |
