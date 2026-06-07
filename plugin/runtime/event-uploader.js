@@ -56,13 +56,26 @@
         Logger.warn && Logger.warn('EventUploader', 'missing token, requeued', { count: batch.length })
         return { ok: false, status: 401, reason: 'missing-token' }
       }
+      // W20-D1:批量上报透传采集实例标识(server 侧统一识别实例,§2.5)
+      var payload = { events: batch }
+      if (window.RpaInstanceIdentity && window.RpaInstanceIdentity.getIdentity) {
+        try {
+          var ident = await window.RpaInstanceIdentity.getIdentity()
+          if (ident) {
+            payload.collector_instance_id = ident.collector_instance_id
+            payload.device_id = ident.device_id
+            payload.browser_profile_id = ident.browser_profile_id
+            payload.tab_id = ident.tab_id
+          }
+        } catch (_) {}
+      }
       var resp = await fetch(auth.serverUrl + '/api/v1/events/batch', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ' + auth.token,
         },
-        body: JSON.stringify({ events: batch }),
+        body: JSON.stringify(payload),
       })
       if (resp.ok) {
         var json = {}

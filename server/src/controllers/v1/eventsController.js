@@ -298,11 +298,69 @@ async function wasFormerCollector(conn, saId, employeeId) {
   return rows.length > 0
 }
 
+// W20-D2:采集实例 heartbeat + 冲突检测。
+//   upsert collect_instances(uk=tenant+collector_instance_id,刷新 last_seen_at + 当前 account/conv)。
+//   查同租户其他活跃实例(60s 窗口,排除自身):
+//     会话级命中(同 account_biz_id+conversation_id)→ {conflict:'session',action:'block'} + audit instance_conflict。
+//     账号级命中(同 account_biz_id,会话不同)→ {conflict:'account',action:'warn'}。
+//   ★阻止是采集实例治理(停该 tab 采集),非踢登录会话(PRD §6.1)。无 collector_instance_id → 向后兼容仅回基础。
+const HEARTBEAT_WINDOW_SECONDS = 60
+
 async function heartbeat(req, res) {
-  ok(res, {
-    server_time: new Date().toISOString(),
-    config_version: 1,
-  })
+  const base = { server_time: new Date().toISOString(), config_version: 1 }
+  const tenant = tenantId(req)
+  const body = req.body || {}
+  const cid = body.collector_instance_id
+  if (req.user.user_type === 'internal' || tenant == null || !cid) {
+    return ok(res, base)
+  }
+
+  const accountBizId = body.account_biz_id || null
+  const conversationId = body.conversation_id || null
+  const conn = await pool.getConnection()
+  try {
+    await conn.query(
+      `INSERT INTO collect_instances
+         (tenant_id, employee_id, collector_instance_id, device_id, browser_profile_id, tab_id,
+          platform, platform_page, account_biz_id, conversation_id, last_seen_at, status)
+       VALUES (?,?,?,?,?,?,?,?,?,?,NOW(),'active')
+       ON DUPLICATE KEY UPDATE
+         employee_id=VALUES(employee_id), device_id=VALUES(device_id), browser_profile_id=VALUES(browser_profile_id),
+         tab_id=VALUES(tab_id), platform=VALUES(platform), platform_page=VALUES(platform_page),
+         account_biz_id=VALUES(account_biz_id), conversation_id=VALUES(conversation_id),
+         last_seen_at=NOW(), status='active'`,
+      [tenant, req.user.id, cid, body.device_id || null, body.browser_profile_id || null, body.tab_id || null,
+       body.platform || null, body.platform_page || null, accountBizId, conversationId]
+    )
+
+    let conflict = null
+    let action = null
+    if (accountBizId) {
+      const [others] = await conn.query(
+        `SELECT conversation_id FROM collect_instances
+         WHERE tenant_id=? AND account_biz_id=? AND collector_instance_id<>?
+           AND last_seen_at >= DATE_SUB(NOW(), INTERVAL ${HEARTBEAT_WINDOW_SECONDS} SECOND)`,
+        [tenant, accountBizId, cid]
+      )
+      const sessionHit = conversationId && others.some((o) => o.conversation_id === conversationId)
+      if (sessionHit) {
+        conflict = 'session'; action = 'block'
+        await insertAudit(conn, {
+          tenantId: tenant, targetEmployeeId: req.user.id, eventType: 'instance_conflict',
+          afterValue: { conflict, account_biz_id: accountBizId, conversation_id: conversationId },
+          deviceId: body.device_id || null, browserProfileId: body.browser_profile_id || null, tabId: body.tab_id || null,
+        })
+      } else if (others.length) {
+        conflict = 'account'; action = 'warn'
+      }
+    }
+    ok(res, Object.assign(base, { conflict, action }))
+  } catch (err) {
+    console.error('[v1.events.heartbeat]', err)
+    fail(res, 500, 5000, '服务器内部错误')
+  } finally {
+    conn.release()
+  }
 }
 
 async function domAdapterConfig(req, res) {

@@ -47,6 +47,7 @@ const MODULES = [
   'runtime/queue-manager.js',             // M2: 调度队列
   'runtime/event-queue.js',               // W4: 新采集链路事件队列
   'runtime/event-collector.js',           // W4: 本地去重 + 入队
+  'runtime/instance-identity.js',         // W20-D1: 采集实例标识 + heartbeat(须在 uploader 前)
   'runtime/event-uploader.js',            // W4: 批量上报 /api/v1/events/batch
   'runtime/watchdog.js',                  // M2: 看门狗
   'runtime/recovery-manager.js',          // M2: reload 恢复
