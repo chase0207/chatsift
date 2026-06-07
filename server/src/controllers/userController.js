@@ -20,7 +20,7 @@ async function list(req, res) {
       `SELECT COUNT(*) AS total FROM users u ${where}`, params
     )
     const [rows] = await pool.query(
-      `SELECT u.id, u.username, u.role, u.role_id, COALESCE(r.name,'') AS role_name,
+      `SELECT u.id, u.username, u.role_id, COALESCE(r.name,'') AS role_name,
               u.user_type, u.tenant_id,
               u.status,
               DATE_FORMAT(u.expire_at, '%Y-%m-%d %H:%i:%s') AS expire_at,
@@ -93,11 +93,32 @@ async function update(req, res) {
   const { password, role_id, status, expire_at } = req.body
 
   try {
+    const [[target]] = await pool.query('SELECT tenant_id, user_type FROM users WHERE id = ? LIMIT 1', [id])
+    if (!target) return res.status(404).json({ code: 404, message: '用户不存在' })
     // W19:租户方(超管)只能改本租户成员
     if (req.user.user_type === 'external') {
-      const [[target]] = await pool.query('SELECT tenant_id FROM users WHERE id = ? LIMIT 1', [id])
-      if (!target) return res.status(404).json({ code: 404, message: '用户不存在' })
       if (target.tenant_id !== req.user.tenant_id) return res.status(403).json({ code: 403, message: '无权操作其他租户成员' })
+    }
+    const nextUserType = req.user.user_type === 'internal' && req.body.user_type !== undefined
+      ? req.body.user_type
+      : target.user_type
+    const nextTenantId = req.user.user_type === 'internal'
+      ? (nextUserType === 'internal'
+          ? null
+          : (req.body.tenant_id !== undefined ? (req.body.tenant_id || null) : target.tenant_id))
+      : target.tenant_id
+    if (nextUserType === 'external' && !nextTenantId) {
+      return res.status(400).json({ code: 400, message: '租户用户必须指定所属租户' })
+    }
+    if (role_id !== undefined) {
+      const [[role]] = await pool.query('SELECT role_code FROM roles WHERE id = ? LIMIT 1', [role_id])
+      if (!role) return res.status(400).json({ code: 400, message: '角色不存在' })
+      if (nextUserType === 'internal' && role.role_code !== 'platform_admin') {
+        return res.status(400).json({ code: 400, message: '平台用户只能选择平台角色' })
+      }
+      if (nextUserType === 'external' && role.role_code === 'platform_admin') {
+        return res.status(400).json({ code: 400, message: '租户用户不能选择平台角色' })
+      }
     }
     const fields = []
     const values = []
