@@ -97,4 +97,4 @@ git tag "v$VERSION"
 
 echo ""
 echo -e "${GREEN}发版准备完成: v$VERSION${NC}"
-echo "下一步: git push && git push --tags,然后按 docs/DEPLOY.md 部署到生产。"
+echo "下一步: git push && git push --tags,然后按 docs/ops/deploy.md 部署到生产。"
