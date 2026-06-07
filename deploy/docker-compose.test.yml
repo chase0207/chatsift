@@ -21,6 +21,7 @@ services:
       - ../server/sql/00_reused_tables.sql:/docker-entrypoint-initdb.d/01-reused.sql:ro
       - ../server/sql/v1-schema.sql:/docker-entrypoint-initdb.d/02-v1-schema.sql:ro
       - ../server/sql/02_w19_tenant_asset.sql:/docker-entrypoint-initdb.d/03-w19-tenant.sql:ro
+      - ../server/sql/03_w20_account_governance.sql:/docker-entrypoint-initdb.d/04-w20-account.sql:ro
     networks: [chatsift-net-test]
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-p${MYSQL_ROOT_PASSWORD}"]
