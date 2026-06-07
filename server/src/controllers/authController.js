@@ -45,7 +45,7 @@ async function login(req, res) {
 
   try {
     const [rows] = await pool.query(
-      'SELECT id, username, password, role, tenant_id, user_type, status, expire_at FROM users WHERE username = ? LIMIT 1',
+      'SELECT id, username, password, tenant_id, user_type, status, expire_at FROM users WHERE username = ? LIMIT 1',
       [username]
     );
 
@@ -75,7 +75,6 @@ async function login(req, res) {
     const payload = {
       id: user.id,
       username: user.username,
-      role: user.role,
       role_id: roleInfo.role_id,
       role_name: roleInfo.role_name,
       role_code: roleInfo.role_code,
@@ -86,7 +85,7 @@ async function login(req, res) {
       permissions: permissions,
     };
     const token        = signAccess(payload);
-    const refreshToken = signRefresh({ id: user.id, username: user.username, role: user.role });
+    const refreshToken = signRefresh({ id: user.id, username: user.username });
 
     const decoded = jwt.decode(token);
 
@@ -99,7 +98,6 @@ async function login(req, res) {
         userInfo: {
           id:       user.id,
           username: user.username,
-          role:     user.role,
           role_id:  roleInfo.role_id,
           role_name: roleInfo.role_name,
           role_code: roleInfo.role_code,
@@ -125,7 +123,7 @@ async function userinfo(req, res) {
     var permissions = roleInfo.is_super ? null : await getUserPermissions(userId)
 
     const [rows] = await pool.query(
-      'SELECT id, username, role, status, expire_at FROM users WHERE id = ? LIMIT 1',
+      'SELECT id, username, status, expire_at FROM users WHERE id = ? LIMIT 1',
       [userId]
     )
     if (!rows.length) return res.status(404).json({ code: 404, message: '用户不存在' })
@@ -136,7 +134,6 @@ async function userinfo(req, res) {
       data: {
         id: user.id,
         username: user.username,
-        role: user.role,
         role_id: roleInfo.role_id,
         role_name: roleInfo.role_name,
         role_code: roleInfo.role_code,
@@ -164,7 +161,7 @@ async function verify(req, res) {
 
     // 检查用户状态
     const [rows] = await pool.query(
-      'SELECT id, username, role, status, expire_at FROM users WHERE id = ? LIMIT 1',
+      'SELECT id, username, status, expire_at FROM users WHERE id = ? LIMIT 1',
       [decoded.id]
     );
 
@@ -187,7 +184,6 @@ async function verify(req, res) {
         userInfo: {
           id: user.id,
           username: user.username,
-          role: user.role,
           role_id: roleInfo.role_id,
           role_name: roleInfo.role_name,
           role_code: roleInfo.role_code,
@@ -211,7 +207,7 @@ async function refresh(req, res) {
 
   try {
     const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET);
-    const payload  = { id: decoded.id, username: decoded.username, role: decoded.role };
+    const payload  = { id: decoded.id, username: decoded.username };
     const token    = signAccess(payload);
     const exp      = jwt.decode(token).exp;
 

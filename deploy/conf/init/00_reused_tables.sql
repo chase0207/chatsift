@@ -16,8 +16,7 @@ CREATE TABLE IF NOT EXISTS users (
   id INT AUTO_INCREMENT PRIMARY KEY,
   username VARCHAR(64) NOT NULL UNIQUE COMMENT '登录账号',
   password VARCHAR(255) NOT NULL COMMENT 'bcrypt 加密密码',
-  role TINYINT NOT NULL DEFAULT 1 COMMENT '1=普通用户 9=管理员',
-  role_id INT DEFAULT NULL COMMENT '关联 roles 表',
+  role_id INT DEFAULT NULL COMMENT '关联 roles 表(M16:已删旧 role 1/9 双轨,统一 role_id)',
   status TINYINT NOT NULL DEFAULT 1 COMMENT '1=正常 0=禁用',
   expire_at DATETIME DEFAULT NULL COMMENT '账号到期时间，NULL表示永久',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -104,8 +103,8 @@ INSERT IGNORE INTO roles (id, name, description, is_super, data_scope, status) V
 (1, '超级管理员', '拥有所有权限，可以管理角色和菜单配置', 1, 'all', 1),
 (2, '普通用户', '默认角色，只能查看基础信息', 0, 'self', 1);
 
-INSERT IGNORE INTO users (id, username, password, role, role_id, status)
-VALUES (1, 'admin', '$2a$10$EFXZtms.CB6ne2KvLSt39eBy5YKacinlqSITUO/.PEN8iluemGKPa', 9, 1, 1);
+INSERT IGNORE INTO users (id, username, password, role_id, status)
+VALUES (1, 'admin', '$2a$10$EFXZtms.CB6ne2KvLSt39eBy5YKacinlqSITUO/.PEN8iluemGKPa', 1, 1);
 
 INSERT IGNORE INTO platforms (platform_name, platform_key, url, enabled, dom_status, sort_order) VALUES
 ('抖音系', 'douyin', 'https://im.jinritemai.com,https://fxg.jinritemai.com,https://buyin.jinritemai.com,https://life.douyin.com,https://im.douyin.com,https://anchor.douyin.com', 1, 3, 1),

@@ -74,8 +74,8 @@ async function create(req, res) {
   try {
     const hash = await bcrypt.hash(password, 10)
     const [result] = await pool.query(
-      'INSERT INTO users (username, password, role, role_id, user_type, tenant_id, status, expire_at) VALUES (?,?,?,?,?,?,?,?)',
-      [username, hash, role_id === 1 ? 9 : 1, role_id, userType, tenantId, status, expire_at || null]
+      'INSERT INTO users (username, password, role_id, user_type, tenant_id, status, expire_at) VALUES (?,?,?,?,?,?,?)',
+      [username, hash, role_id, userType, tenantId, status, expire_at || null]
     )
     res.json({ code: 0, data: { id: result.insertId } })
   } catch (err) {
@@ -105,7 +105,7 @@ async function update(req, res) {
       fields.push('password = ?')
       values.push(await bcrypt.hash(password, 10))
     }
-    if (role_id   !== undefined) { fields.push('role_id = ?'); values.push(role_id); fields.push('role = ?'); values.push(role_id === 1 ? 9 : 1) }
+    if (role_id   !== undefined) { fields.push('role_id = ?'); values.push(role_id) }
     if (status    !== undefined) { fields.push('status = ?');    values.push(status) }
     if (expire_at !== undefined) { fields.push('expire_at = ?'); values.push(expire_at || null) }
     // W19-C2:仅平台方可改 user_type/tenant_id(租户超管改员工只能动角色/状态/密码)
