@@ -11,5 +11,6 @@ router.get('/employees',                perm('service-account:list'),   controll
 router.get('/:id/assignments',          perm('service-account:list'),   controller.assignments)
 router.post('/:id/assignments',         perm('service-account:update'), controller.assign)
 router.delete('/:id/assignments/:employeeId', perm('service-account:update'), controller.unassign)
+router.post('/:id/confirm',             perm('service-account:update'), controller.confirm)
 
 module.exports = router
