@@ -6,11 +6,17 @@
 
 ---
 
-## v0.4.0(开发中)
-- 关联:**W17 消息位置标识**
-- 范围:plugin(采集)+ server + admin
-- 变更:身份(去重)+顺序(排序)统一靠会话内 position;有几条存几条(靠位置不靠内容);outbound occurred_at=NULL 不存假时间;本地实时 + 云端异步对账;清空重采。阶段一本地层先行。
-- 复盘:(发版时补)
+## v0.5.0 — 2026-06-07
+- 关联:**W17 消息位置标识 + W19 租户资产模型**(一次清库重采、一起发版,design §8.2)
+- 范围:server + admin + plugin + 数据库迁移(deploy/w17_message_position.sql + deploy/w19_tenant_asset.sql)
+- 变更:
+  - **W17**:消息身份(去重)+顺序(排序)统一靠会话内 position;有几条存几条(靠位置不靠内容);outbound occurred_at=NULL 不存假时间。
+  - **W19**:两层身份(user_type 系统级 internal/external + role_code/role_scope 租户级);scope helper 正向枚举 fail-closed 隔离(平台方默认不看/租户超管看本租户全部/客服看分配账号);service_account 资产模型(account_biz_id=商家账号URL accountId);采集账号识别+自动归属(客服上报自动绑定);conversation_id 纳入 account_biz_id(跨账号同名客户不误并);admin 租户管理+客服账号分配(归租户方);mychat 首页;移除 chat_rpa 死指标。
+  - **清库重采**:conversation_id/message_id 口径变更 → W17+W19 一次清库 + 真机重采。
+- 复盘:(发版后补)
+
+## v0.4.0(W17,未单独发版,并入 v0.5.0)
+- 关联:**W17 消息位置标识**;与 W19 一起发 v0.5.0,不单独打 tag。变更见 v0.5.0 的 W17 部分。
 
 ---
 

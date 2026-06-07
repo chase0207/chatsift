@@ -20,17 +20,18 @@
 ## 当前版本
 | 模块 | 版本 |
 |---|---|
-| VERSION / server / admin / plugin | 0.3.1(已一致) |
+| VERSION / server / admin / plugin | 0.5.0(已一致) |
 | tools/dom-collector | 1.0.0(独立版本线) |
-| 生产 VERSION | 0.3.1(M3 已修正,曾误为 0.1.0) |
+| 生产 VERSION | 0.5.0(W19 阶段E 部署后同步) |
 
-下一版:**W17 = v0.4.0**(阶段一代码已合并 main、**未发版**;VERSION 仍 0.3.1;待阶段二完成 + QA 发版时才升 VERSION/打 tag/部署生产)。
+发版:**v0.5.0 = W17 + W19**(一次清库重采、一起发,design §8.2)。test+prod 已迁移 schema(w17+w19)+ 清库;部署进行中(阶段E)。
 
 ---
 
 ## 发版记录
 | 版本 | tag | 时间 | 关联 W | 范围 | 备注 |
 |---|---|---|---|---|---|
+| v0.5.0 | v0.5.0 | 06-07 | **W17+W19** | server+admin+plugin+迁移 | 消息位置标识 + 租户资产模型(两层身份/scope隔离/service_account/采集归属/conversation_id);一次清库重采 |
 | v0.3.1 | v0.3.1 | 06-03 | **W16** | server+admin+plugin | 登录域名限制(内部/外部按域名分入口) |
 | v0.3.0 | v0.3.0 | 06-03 | **W16** | server+admin+plugin | 平台/租户双入口拆分(admin+mychat)首发 |
 | v0.2.12 | v0.2.12 | 06-03 | 昵称修复链 | server+admin | 聚合条目展示最后消息+相对时间 |
