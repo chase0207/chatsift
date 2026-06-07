@@ -844,6 +844,19 @@ svg { display: inline-block; vertical-align: middle; }
   font-size: 12px;
 }
 
+.toggle-bar-tall {
+  min-height: 48px;
+  height: auto;
+  padding-top: 7px;
+  padding-bottom: 7px;
+  align-items: flex-start;
+}
+
+.toggle-bar-tall span:first-child {
+  min-width: 0;
+  line-height: 1.45;
+}
+
 .switch {
   position: relative;
   display: inline-block;

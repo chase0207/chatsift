@@ -1,5 +1,92 @@
 
 // ============================================================
+// MODULE: shared/content-gate.js
+// ============================================================
+
+;(function () {
+  'use strict'
+
+  var DEFAULT_PAGE_URLS = [
+    'https://life.douyin.com/cs/web/clue_private_message/chat/session',
+    'https://im.douyin.com',
+    'https://im.jinritemai.com',
+  ]
+
+  var _ready = false
+  var _allowed = false
+  var _matched = null
+
+  function normalize(value) {
+    return String(value || '')
+      .trim()
+      .replace(/^https?:\/\//i, '')
+      .replace(/^www\./i, '')
+      .replace(/\/$/, '')
+  }
+
+  function pageUrlsFromDefinitions(definitions) {
+    var urls = []
+    ;(Array.isArray(definitions) ? definitions : []).forEach(function (platform) {
+      var pages = Array.isArray(platform && platform.pages) ? platform.pages : []
+      pages.forEach(function (page) {
+        if (page && page.url) urls.push(page.url)
+      })
+      if (!pages.length && platform && platform.url) urls.push(platform.url)
+    })
+    return urls.map(normalize).filter(Boolean)
+  }
+
+  function matchUrl(url, definitions) {
+    var normalizedUrl = normalize(url)
+    var urls = pageUrlsFromDefinitions(definitions)
+    if (!urls.length) urls = DEFAULT_PAGE_URLS.map(normalize)
+    urls = urls.sort(function (a, b) { return b.length - a.length })
+    for (var i = 0; i < urls.length; i++) {
+      if (urls[i] && normalizedUrl.indexOf(urls[i]) !== -1) return urls[i]
+    }
+    return null
+  }
+
+  function evaluate(definitions) {
+    _matched = matchUrl(location.href, definitions)
+    _allowed = !!_matched
+    _ready = true
+    if (!_allowed) {
+      console.info('[Chatsift] 当前页面不是已配置采集页面，采集 runtime 已阻断')
+    }
+  }
+
+  function load() {
+    if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) {
+      evaluate([])
+      return
+    }
+    chrome.storage.local.get(['platformDefinitions'], function (data) {
+      if (chrome.runtime && chrome.runtime.lastError) {
+        evaluate([])
+        return
+      }
+      evaluate((data && data.platformDefinitions) || [])
+    })
+    if (chrome.storage.onChanged && !window.__chatsiftContentGateStorageBound) {
+      window.__chatsiftContentGateStorageBound = true
+      chrome.storage.onChanged.addListener(function (changes, areaName) {
+        if (areaName !== 'local' || !changes.platformDefinitions) return
+        evaluate(changes.platformDefinitions.newValue || [])
+      })
+    }
+  }
+
+  window.ChatsiftContentGate = {
+    isReady: function () { return _ready },
+    isAllowed: function () { return _allowed },
+    matched: function () { return _matched },
+  }
+
+  load()
+})()
+
+// ============================================================
 // MODULE: shared/constants.js
 // ============================================================
 
@@ -135,6 +222,7 @@
     adapter_layer_v19:  false,
     send_confirm_v19:   false,
     watchdog_v19:       false,
+    auto_switch_session:false,
     collector_v1_enabled: true,
   }
 
@@ -513,7 +601,14 @@
   var DEFAULTS = C.FeatureFlagDefaults || {}
   var _flags   = Object.assign({}, DEFAULTS)
 
-  function get(name) { return !!_flags[name] }
+  function get(name) {
+    if ((name === 'collector_v1_enabled' || name === 'auto_switch_session') &&
+        window.ChatsiftContentGate &&
+        !window.ChatsiftContentGate.isAllowed()) {
+      return false
+    }
+    return !!_flags[name]
+  }
 
   function snapshot() { return Object.assign({}, _flags) }
 
@@ -3334,6 +3429,7 @@
   }
 
   async function switchSession(session) {
+    if (!window.RpaFeatureFlags || !window.RpaFeatureFlags.get('auto_switch_session')) return { ok: false, reason: 'auto-switch-disabled' }
     if (!session || !session.dom_ref) return { ok: false, reason: 'no-dom-ref' }
     Dom.simulateClick(session.dom_ref)
     var ok = await Dom.waitFor(function () {
@@ -3674,6 +3770,7 @@
   }
 
   async function switchSession(session) {
+    if (!window.RpaFeatureFlags || !window.RpaFeatureFlags.get('auto_switch_session')) return { ok: false, reason: 'auto-switch-disabled' }
     if (!session || !session.dom_ref) return { ok: false, reason: 'no-dom-ref' }
     Dom.simulateClick(session.dom_ref)
     var ok = await Dom.waitFor(function () { return _detectActiveItem() === session.dom_ref }, { timeoutMs: 3000 })
@@ -4169,6 +4266,7 @@
   }
 
   async function switchSession(session) {
+    if (!window.RpaFeatureFlags || !window.RpaFeatureFlags.get('auto_switch_session')) return { ok: false, reason: 'auto-switch-disabled' }
     if (!session || !session.dom_ref) return { ok: false, reason: 'no-dom-ref' }
     Dom.simulateClick(session.dom_ref)
     var ok = await Dom.waitFor(function () {
@@ -4558,6 +4656,10 @@
   }
 
   async function collectMessageSession(sessionInfo) {
+    if (window.ChatsiftContentGate && !window.ChatsiftContentGate.isAllowed()) {
+      Logger.debug && Logger.debug('LegacyCollector', 'skip collect: page not allowlisted')
+      return { ok: false, reason: 'page-not-allowlisted' }
+    }
     var adapter = Registry.resolve(location)
     if (!adapter) {
       // 非匹配页(切到别的抖音页)优雅跳过,降 debug 免刷扩展错误页
@@ -4613,6 +4715,10 @@
   }
 
   async function start() {
+    if (window.ChatsiftContentGate && !window.ChatsiftContentGate.isAllowed()) {
+      Logger.info && Logger.info('LegacyCollector', 'blocked: page not allowlisted')
+      return false
+    }
     if (_observer) return true
     await Uploader.start()
     _observer = new MutationObserver(function () { _scheduleCollect() })
@@ -4641,7 +4747,7 @@
       chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
         if (!message || !message.action) return
         if (message.action === 'START_COLLECTOR') {
-          start().then(function () { sendResponse({ ok: true }) })
+          start().then(function (ok) { sendResponse({ ok: !!ok }) })
           return true
         }
         if (message.action === 'STOP_COLLECTOR') {

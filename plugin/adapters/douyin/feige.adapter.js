@@ -108,6 +108,7 @@
   }
 
   async function switchSession(session) {
+    if (!window.RpaFeatureFlags || !window.RpaFeatureFlags.get('auto_switch_session')) return { ok: false, reason: 'auto-switch-disabled' }
     if (!session || !session.dom_ref) return { ok: false, reason: 'no-dom-ref' }
     Dom.simulateClick(session.dom_ref)
     var ok = await Dom.waitFor(function () {

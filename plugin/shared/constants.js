@@ -130,6 +130,7 @@
     adapter_layer_v19:  false,
     send_confirm_v19:   false,
     watchdog_v19:       false,
+    auto_switch_session:false,
     collector_v1_enabled: true,
   }
 

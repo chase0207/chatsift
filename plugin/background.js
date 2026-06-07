@@ -25,7 +25,7 @@ async function appendLog(message, level) {
 }
 
 async function getStatus() {
-  const data = await storageGet(['token', 'refreshToken', 'cfg', 'userInfo', 'logs', 'platformDefinitions', 'runningPlatform'])
+  const data = await storageGet(['token', 'refreshToken', 'cfg', 'userInfo', 'logs', 'platformDefinitions', 'runningPlatform', 'auto_switch_session'])
   const runningPlatform = data.runningPlatform || ''
   return {
     ok: true,
@@ -37,6 +37,7 @@ async function getStatus() {
     platforms: Array.isArray(data.platformDefinitions) ? data.platformDefinitions.map(item => ({ id: item.id, platform: item.key || item.platform_code || item.platform_key })) : [],
     currentPlatform: runningPlatform,
     platformServiceStatus: runningPlatform ? 'online' : 'offline',
+    autoSwitchSession: !!data.auto_switch_session,
   }
 }
 
@@ -137,11 +138,19 @@ function fallbackPlatformDefinitions() {
       },
       {
         id: 102,
+        page_code: 'douyin_im_private_message',
+        page_name: '抖音私信',
+        url: 'https://im.douyin.com',
+        detect_hosts: ['im.douyin.com'],
+        sort_order: 2,
+      },
+      {
+        id: 103,
         page_code: 'douyin_feige',
         page_name: '飞鸽',
         url: 'https://im.jinritemai.com',
         detect_hosts: ['im.jinritemai.com'],
-        sort_order: 2,
+        sort_order: 3,
       },
     ],
   }]
@@ -230,6 +239,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       await storageSet({
         runningPlatform: message.platform || '',
         collector_v1_enabled: true,
+        auto_switch_session: !!message.autoSwitchSession,
       })
       let reloaded = 0
       if (message.reloadAfterStart) {

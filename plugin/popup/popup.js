@@ -175,11 +175,11 @@ async function getCurrentTabPlatform() {
   var url = tabs[0].url || ''
   var allMaps = CLOUD_PLATFORM_MAP
   for (var i = 0; i < allMaps.length; i++) {
-    var matchedHost = (allMaps[i].hosts || []).find(function (host) { return host && url.indexOf(host) !== -1 })
-    if (matchedHost) {
+    var matchedPage = getMatchedPlatformPage(allMaps[i], url)
+    var hasPages = Array.isArray(allMaps[i].pages) && allMaps[i].pages.length
+    var matchedHost = !hasPages && (allMaps[i].hosts || []).find(function (host) { return host && url.indexOf(host) !== -1 })
+    if (matchedPage || matchedHost) {
       var platform = Object.assign({ url: url }, allMaps[i])
-      // 匹配具体页面
-      var matchedPage = getMatchedPlatformPage(platform, url)
       if (matchedPage) platform.page = matchedPage
       return platform
     }
@@ -215,6 +215,7 @@ function normalizePopupPlatformDefinition(item) {
   pages.forEach(function (page) {
     var pageHosts = Array.isArray(page.detect_hosts) ? page.detect_hosts : []
     pageHosts.forEach(function (host) { if (host && hosts.indexOf(host) === -1) hosts.push(host) })
+    if (page && page.url && hosts.indexOf(page.url) === -1) hosts.push(page.url)
   })
   return {
     key: key,
@@ -365,6 +366,7 @@ function bindPanels() {
 
 function fillCustomerConfig(cfg) {
   $('autoReplySwitch').checked = !!cfg.autoReply
+  $('autoSwitchSession').checked = !!cfg.auto_switch_session
   $('kefuBreak').value = cfg.kefuBreak != null ? cfg.kefuBreak : 10
   $('sendDelay').value = cfg.speakLimit != null ? cfg.speakLimit : (cfg.sendDelay != null ? cfg.sendDelay : 3)
   $('blackWords').value = cfg.blackWords || ''
@@ -418,6 +420,7 @@ function fillAiConfig(cfg) {
 function buildCustomerConfig() {
   return {
     autoReply: $('autoReplySwitch').checked,
+    auto_switch_session: $('autoSwitchSession').checked,
     kefuBreak: parseInt($('kefuBreak').value, 10) || 10,
     speakLimit: parseInt($('sendDelay').value, 10) || 3,
     blackWords: $('blackWords').value.trim(),
@@ -528,7 +531,7 @@ function renderStatusCards() {
     platformTextEl.className = 'platform-detected'
     if (platformActionEl) platformActionEl.style.display = 'none'
   } else {
-    platformTextEl.textContent = '温馨提示：当前页面不支持，请切换并刷新网址'
+    platformTextEl.textContent = '当前页面不是已配置采集页面'
     platformTextEl.className = 'platform-unsupported'
     if (platformActionEl) platformActionEl.style.display = 'inline'
   }
@@ -550,6 +553,9 @@ async function refreshStatus() {
     return
   }
   renderStatusCards()
+  if ($('autoSwitchSession') && CURRENT_STATE) {
+    $('autoSwitchSession').checked = !!CURRENT_STATE.autoSwitchSession
+  }
   if (CURRENT_STATE && CURRENT_STATE.userInfo) {
     $('accountName').textContent = CURRENT_STATE.userInfo.username || '-'
     $('accountStatus').textContent = CURRENT_STATE.token ? '已登录' : '未登录'
@@ -579,6 +585,8 @@ async function loadCloudConfigForCurrentPlatform() {
     var data = res.data || {}
     fillCustomerConfig(data)
     fillAiConfig(data)
+    var state = await runtimeSend({ action: 'GET_STATUS' })
+    if ($('autoSwitchSession')) $('autoSwitchSession').checked = !!(state && state.autoSwitchSession)
   }
 }
 
@@ -747,7 +755,7 @@ async function handleSaveConfig() {
   var status = await runtimeSend({ action: 'GET_STATUS' })
   console.log('[SAVE-CONFIG] step2 GET_STATUS serverUrl:', (status.cfg || {}).serverUrl)
   var localCfg = Object.assign({}, status.cfg || {}, buildCustomerConfig())
-  await chrome.storage.local.set({ cfg: localCfg })
+  await chrome.storage.local.set({ cfg: localCfg, auto_switch_session: !!localCfg.auto_switch_session })
   console.log('[SAVE-CONFIG] step3 本地已保存')
 
   var payload = {
@@ -775,6 +783,7 @@ async function handleSaveConfig() {
 
 function resetCustomerInputs() {
   $('autoReplySwitch').checked = false
+  $('autoSwitchSession').checked = false
   $('kefuBreak').value = 10
   $('sendDelay').value = 3
   $('blackWords').value = ''
@@ -819,6 +828,7 @@ async function handleStart() {
     tabId: activeTab && activeTab.id,
     pageUrl: activeTab && activeTab.url,
     reloadAfterStart: true,
+    autoSwitchSession: $('autoSwitchSession').checked,
   })
   if (!res || !res.ok) {
     if (res && isAuthExpiredMessage(res.error)) {
@@ -898,6 +908,10 @@ async function initialize() {
   $('btnSaveAi').addEventListener('click', handleSaveConfig)
   $('btnResetKefu').addEventListener('click', resetCustomerInputs)
   $('btnResetAi').addEventListener('click', resetAiInputs)
+  $('autoSwitchSession').addEventListener('change', async function () {
+    await chrome.storage.local.set({ auto_switch_session: $('autoSwitchSession').checked })
+    showToast($('autoSwitchSession').checked ? '已开启自动切换会话' : '已关闭自动切换会话')
+  })
   $('baseURL').addEventListener('change', function () {
     var val = $('baseURL').value
     var isCustom = val === '__custom__'

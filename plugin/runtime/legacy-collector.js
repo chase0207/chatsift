@@ -84,6 +84,10 @@
   }
 
   async function collectMessageSession(sessionInfo) {
+    if (window.ChatsiftContentGate && !window.ChatsiftContentGate.isAllowed()) {
+      Logger.debug && Logger.debug('LegacyCollector', 'skip collect: page not allowlisted')
+      return { ok: false, reason: 'page-not-allowlisted' }
+    }
     var adapter = Registry.resolve(location)
     if (!adapter) {
       // 非匹配页(切到别的抖音页)优雅跳过,降 debug 免刷扩展错误页
@@ -139,6 +143,10 @@
   }
 
   async function start() {
+    if (window.ChatsiftContentGate && !window.ChatsiftContentGate.isAllowed()) {
+      Logger.info && Logger.info('LegacyCollector', 'blocked: page not allowlisted')
+      return false
+    }
     if (_observer) return true
     await Uploader.start()
     _observer = new MutationObserver(function () { _scheduleCollect() })
@@ -167,7 +175,7 @@
       chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
         if (!message || !message.action) return
         if (message.action === 'START_COLLECTOR') {
-          start().then(function () { sendResponse({ ok: true }) })
+          start().then(function (ok) { sendResponse({ ok: !!ok }) })
           return true
         }
         if (message.action === 'STOP_COLLECTOR') {

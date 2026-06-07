@@ -32,6 +32,7 @@ const ROOT    = __dirname
 //
 const MODULES = [
   // ── V1.9 shared（无依赖，必须最先加载）──────────────────────────
+  'shared/content-gate.js',               // W20-preflight: 平台页面 URL 白名单 gate
   'shared/constants.js',                  // M1: RuntimeState / LK / Stage / Status / FeatureFlagDefaults
   'shared/hash.js',                       // M1: fnv32 / fnv64 / joinAndHash
   'shared/logger.js',                     // M1: console 包装

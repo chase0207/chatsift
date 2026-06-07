@@ -25,7 +25,14 @@
   var DEFAULTS = C.FeatureFlagDefaults || {}
   var _flags   = Object.assign({}, DEFAULTS)
 
-  function get(name) { return !!_flags[name] }
+  function get(name) {
+    if ((name === 'collector_v1_enabled' || name === 'auto_switch_session') &&
+        window.ChatsiftContentGate &&
+        !window.ChatsiftContentGate.isAllowed()) {
+      return false
+    }
+    return !!_flags[name]
+  }
 
   function snapshot() { return Object.assign({}, _flags) }
 
