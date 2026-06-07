@@ -60,6 +60,11 @@ async function employees(req, res) {
 async function assignments(req, res) {
   const id = parseInt(req.params.id)
   try {
+    const [[sa]] = await pool.query('SELECT tenant_id FROM service_accounts WHERE id = ? LIMIT 1', [id])
+    if (!sa) return res.status(404).json({ code: 404, message: '客服账号不存在' })
+    if (req.user.user_type === 'external' && sa.tenant_id !== req.user.tenant_id) {
+      return res.status(403).json({ code: 403, message: '无权查看其他租户的客服账号' })
+    }
     const [rows] = await pool.query(
       'SELECT employee_id FROM employee_service_account WHERE service_account_id = ?', [id]
     )
@@ -107,9 +112,14 @@ async function unassign(req, res) {
   const id = parseInt(req.params.id)
   const employeeId = parseInt(req.params.employeeId)
   try {
+    const [[sa]] = await pool.query('SELECT tenant_id FROM service_accounts WHERE id = ? LIMIT 1', [id])
+    if (!sa) return res.status(404).json({ code: 404, message: '客服账号不存在' })
+    if (req.user.user_type === 'external' && sa.tenant_id !== req.user.tenant_id) {
+      return res.status(403).json({ code: 403, message: '无权解绑其他租户的客服账号' })
+    }
     await pool.query(
-      'DELETE FROM employee_service_account WHERE service_account_id = ? AND employee_id = ?',
-      [id, employeeId]
+      'DELETE FROM employee_service_account WHERE tenant_id = ? AND service_account_id = ? AND employee_id = ?',
+      [sa.tenant_id, id, employeeId]
     )
     res.json({ code: 0 })
   } catch (err) {

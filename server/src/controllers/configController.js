@@ -1,4 +1,5 @@
 const pool = require('../config/db')
+const { applyDataScope } = require('../utils/data-scope')
 
 function parseKeywordRulesText(text) {
   if (!text || !String(text).trim()) return []
@@ -42,10 +43,21 @@ async function saveKeywordRulesText(pluginId, keywordsText) {
   )
 }
 
+async function ensurePluginAccess(req, pluginId) {
+  const scope = applyDataScope(req, { ownerColumn: 'user_id', alias: 'p' })
+  const [[plugin]] = await pool.query(
+    `SELECT p.id FROM plugins p WHERE p.id = ?${scope.sql} LIMIT 1`,
+    [pluginId, ...scope.params]
+  )
+  return plugin
+}
+
 // GET /api/configs/:pluginId/:platform
 async function getConfig(req, res) {
   const { pluginId, platform } = req.params
   try {
+    const plugin = await ensurePluginAccess(req, pluginId)
+    if (!plugin) return res.status(404).json({ code: 404, message: '记录不存在或无权限' })
     const [rows] = await pool.query(
       'SELECT id, plugin_id, platform, config_json, updated_at FROM configs WHERE plugin_id = ? AND platform = ? LIMIT 1',
       [pluginId, platform]
@@ -73,6 +85,8 @@ async function saveConfig(req, res) {
     return res.status(400).json({ code: 400, message: 'config_json 不能为空' })
   }
   try {
+    const plugin = await ensurePluginAccess(req, pluginId)
+    if (!plugin) return res.status(404).json({ code: 404, message: '记录不存在或无权限' })
     const cfgObj = typeof config_json === 'string' ? JSON.parse(config_json) : config_json
     const keywordsText = cfgObj.keywords
     const cfgToStore = { ...cfgObj }

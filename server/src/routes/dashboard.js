@@ -3,11 +3,12 @@ const path       = require('path')
 const fs         = require('fs')
 const router     = express.Router()
 const auth       = require('../middleware/auth')
+const perm       = require('../middleware/permission')
 const controller = require('../controllers/dashboardController')
 
 router.use(auth)
 
-router.get('/stats', controller.stats)
+router.get('/stats', perm('dashboard'), controller.stats)
 
 // 插件更新信息
 router.get('/plugin-update', function (req, res) {
