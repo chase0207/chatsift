@@ -77,7 +77,9 @@
 ### E2 第一轮(2026-06-08)→ 发现 bug → 已修(β)
 - 现象:3 客户只采到 1 个(缺 chase)。根因+修复见 `W20_stageE_diagnosis.md`:heartbeat 冲突未限定"同采集负责人",非采集人管理员A 的实例 block 了合法采集人 B。
 - 修复(Chase 选 β):heartbeat 只治理"同采集负责人多实例";非采集人不参与冲突,只被 batch 闸门拒。Stage D β 自测 19/19。
-- **W20 server 已重启加载 β**。dev 库仍有第一轮残留;**第二轮 O1-O6 前建议清库重测(E1 清库脚本可复用,需 Chase 在场)**——O1 验 session-block 要用同一客服开两个页签。
+- **W20 server 已重启加载 β**。
+- **dev 库已清第一轮残留**(2026-06-08,Chase 授权):业务表 + W20 治理表(service_account_view/audit/collect_instances/esa)全清 0,基础表(tenants/users/platforms)保留 → **ready for 第二轮 E2**。
+- 第二轮提醒:O1 验 session-block 用**同一客服开两个页签**(非 A+B);插件 content.js 未变(本次只改 server),但确认插件 serverUrl 指向 `http://127.0.0.1:3100`。
 
 ## E3 — 三角色×三态 SQL 可见性断言(待 E2 数据)
 
