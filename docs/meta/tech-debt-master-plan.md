@@ -112,7 +112,7 @@
 |---|---|---|---|---|---|
 | M14 | 价格表 Excel 导入空 stub | 🟡 | 还在。importRows 仅 ok({imported:0}) | **按业务定**:要功能→实现解析;不要→拆接口+前端入口(别留假象) | cc-D-A1 / cc2-C1 |
 | M15 | user_type 字段(W16 演变点) | 🟡 待演变 | 内部/外部靠 is_super 二分;未来有"内部非超管员工"时不够 | 出现内部员工时加 user_type(internal/external) | cc2-E1 |
-| M16 | users 双角色字段 role+role_id | 🟢 | 还在。冗余,登录已以 role_id 为准 | 统一 role_id,或登记 role 为兼容字段(多租户演变时) | cc-D-A7 / cc2-C5 |
+| M16 | users 双角色字段 role+role_id | 🟡 | 代码已收口为 role_id/user_type;fresh schema 已无 role;既有环境 DROP 待随新代码部署后执行 | 部署含 M16 代码后,Chase 在场执行 deploy/m16_drop_users_role.sql;执行前确认无旧代码读写 role | cc-D-A7 / cc2-C5 |
 | M17 | data_scope 预留未接入 | 🟢 | 还在。self/all 已接、dept 当 self | 多租户/部门维度时再接 | cc-T3 / cc2-C7 |
 
 ### 第六批 — 文档/收尾(顺手)

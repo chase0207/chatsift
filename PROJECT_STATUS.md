@@ -34,7 +34,7 @@
 - **当前无进行中开发**(W19 发完、收尾善后做完)。
 
 ### 待排期(backlog,非进行中)
-- **M16 第二步**:物理删 `users.role` 字段(W19 只做到代码只读 role_id、保留字段不用)。
+- **M16 users.role 收口**:代码已统一走 role_id/user_type,fresh schema 已无 `users.role`;既有环境物理 DROP 需在对应环境部署含 M16 的新代码后,由用户在场执行。
 - **data_scope 命名澄清**:`utils/data-scope.js` 目前仅用于 plugin/logs 的 user 级授权,不是租户隔离模型;如清理,先做文档/命名澄清,不要顺手改逻辑。
 - **技术债清理周**:M22/M23/U3 + M4/M5/M7-M12/M14/M17-M20 死代码。
 - **未定功能方向**:W20 租户自助管理(成员/菜单/权限)、价格表导入(M1 空壳)、W13 聚合视图、laike/feige 多平台采集。
@@ -66,7 +66,7 @@
 | 数据库 | Docker MySQL |
 | 当前生产版本 | v0.5.0(W17+W19 已部署) |
 | v0.5.0 验证 | test+prod 迁移 schema + 清库 + 部署 + 插件 v0.5.0;E5 真机重采 + 三类角色隔离最终验收通过 |
-| 待办 | M16 物理 DROP `users.role` 需等对应代码部署验证后,用户在场执行 |
+| 待办 | M16 既有环境物理 DROP `users.role`:代码已收口;test/prod/dev 需先确认已部署含 M16 的新代码,再由用户在场执行 deploy/m16_drop_users_role.sql |
 
 ---
 
