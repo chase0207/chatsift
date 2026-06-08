@@ -18,7 +18,8 @@
 | 版本 | 日期 | 变更 |
 |---|---|---|
 | v1.0.0 | 2026-06-08 | 初版:E 验收项清单 + 执行计划 + Chase 在场拍板点 + P2 已知问题 |
-| v1.1.0 | 2026-06-08 | **E0 插件接线完成(代码)**:legacy-collector 加周期 heartbeat(15s)+ block/warn 执行;session-block 暂停本 tab 采集、account-warn 仅强提醒、无冲突恢复、心跳失败 fail-open;content.js 重建(语法过、diff 仅 legacy-collector 段 +77 行)。真机行为验证仍待 E2。commit 见报告。 |
+| v1.1.0 | 2026-06-08 | **E0 插件接线完成(代码)**:legacy-collector 加周期 heartbeat(15s)+ block/warn 执行;session-block 暂停本 tab 采集、account-warn 仅强提醒、无冲突恢复、心跳失败 fail-open;content.js 重建(语法过、diff 仅 legacy-collector 段 +77 行)。真机行为验证仍待 E2。commit 6ce5807。 |
+| v1.2.0 | 2026-06-08 | **E1/E2 执行材料就绪**:见 `W20_stageE_materials.md` + `deploy/w20_preflight_check.sql`(只读预检,本地模拟库已验证);含 nickname-split 去重决策、apply 前后核对、E2 真机观察清单、P3-1/2/3 已知限制。**未碰 dev 库**,E1/E2 执行等 Chase 在场。 |
 
 ---
 
