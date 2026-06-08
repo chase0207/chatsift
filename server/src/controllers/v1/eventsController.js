@@ -163,8 +163,9 @@ async function batch(req, res) {
 }
 
 // W20-B:event → 完整 SA 状态 { id, lifecycle, collector_id, collector_kind, created }。
+//   ★稳定身份 = tenant+platform+page+account_biz_id(不含 account_nickname);昵称为展示字段,变化不拆账号。
 //   缺 account_biz_id / 平台·页面映射不到 → 返回 null(放行/拒绝由阶段C C1 按 page 判)。
-//   命中既有账号 → 返回该行(created:false)。
+//   命中既有账号 → 返回该行(created:false);若传入昵称非空且与库中不同 → 更新展示昵称(同一 service_account_id)。
 //   首见(uk_account 未命中)→ 事务内建 pending + 临时采集权(本员工 collector_kind='temp')
 //     + service_account_view 一行(granted_by=NULL,采集人默认查看权)+ audit first_seen/temp_grant。
 //   ★并发首见:后到者 INSERT 撞 uk_account → 捕获后改查(FOR UPDATE 读最新已提交)命中行返回(created:false)。
@@ -172,7 +173,7 @@ async function resolveServiceAccount(conn, tenant, req, event, cache) {
   const bizId = event.account_biz_id
   if (!bizId) return null
   const nick = event.account_nickname || ''
-  const key = [event.platform, event.platform_page, bizId, nick].join('|')
+  const key = [event.platform, event.platform_page, bizId].join('|') // 稳定身份键,不含昵称
   if (cache.has(key)) return cache.get(key)
 
   const [pf] = await conn.query('SELECT id FROM platforms WHERE platform_key = ? LIMIT 1', [event.platform])
@@ -185,8 +186,15 @@ async function resolveServiceAccount(conn, tenant, req, event, cache) {
   const platformId = pf[0].id
   const pageId = pg[0].id
 
-  const found = await selectServiceAccount(conn, tenant, platformId, pageId, bizId, nick)
-  if (found) { cache.set(key, found); return found }
+  const found = await selectServiceAccount(conn, tenant, platformId, pageId, bizId)
+  if (found) {
+    if (nick && nick !== found.account_nickname) {
+      await conn.query('UPDATE service_accounts SET account_nickname=? WHERE id=?', [nick, found.id])
+      found.account_nickname = nick
+    }
+    cache.set(key, found)
+    return found
+  }
 
   const employeeId = req.user.id
   try {
@@ -216,20 +224,21 @@ async function resolveServiceAccount(conn, tenant, req, event, cache) {
     return created
   } catch (err) {
     if (err && err.code === 'ER_DUP_ENTRY') {
-      const row = await selectServiceAccount(conn, tenant, platformId, pageId, bizId, nick, true)
+      const row = await selectServiceAccount(conn, tenant, platformId, pageId, bizId, true)
       if (row) { cache.set(key, row); return row }
     }
     throw err
   }
 }
 
-async function selectServiceAccount(conn, tenant, platformId, pageId, bizId, nick, forUpdate = false) {
+// ★按稳定身份查询(tenant+platform+page+account_biz_id,不含昵称),与新 uk_account 一致。
+async function selectServiceAccount(conn, tenant, platformId, pageId, bizId, forUpdate = false) {
   const [rows] = await conn.query(
-    `SELECT id, lifecycle, collector_id, collector_kind
+    `SELECT id, lifecycle, collector_id, collector_kind, account_nickname
      FROM service_accounts
-     WHERE tenant_id=? AND platform_id=? AND page_id=? AND account_biz_id=? AND account_nickname=?
+     WHERE tenant_id=? AND platform_id=? AND page_id=? AND account_biz_id=?
      LIMIT 1${forUpdate ? ' FOR UPDATE' : ''}`,
-    [tenant, platformId, pageId, bizId, nick]
+    [tenant, platformId, pageId, bizId]
   )
   if (!rows.length) return null
   return {
@@ -237,6 +246,7 @@ async function selectServiceAccount(conn, tenant, platformId, pageId, bizId, nic
     lifecycle: rows[0].lifecycle,
     collector_id: rows[0].collector_id,
     collector_kind: rows[0].collector_kind,
+    account_nickname: rows[0].account_nickname,
     created: false,
   }
 }

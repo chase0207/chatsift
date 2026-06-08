@@ -4,11 +4,21 @@
 -- 运行顺序:在 02_w19_tenant_asset.sql 之后(依赖 service_accounts / users / tenants 已建)。
 -- W20 与 W19 不混写:本文件是 W20 独立基线,所有 W20 schema 改动只落这里。
 -- init 挂载(fresh DB)与 deploy/w20_account_governance.sql(已有库升级)同源本文件。
--- 只增不改:ALTER ADD service_accounts 四列 + 建三表 + esa 标废弃(不 DROP、不迁移)。
+-- W20.0 重建 uk_account(去昵称)+ ALTER ADD service_accounts 四列 + 建三表 + esa 标废弃。
 -- 依据:docs/research/2026-06-07_W20技术方案.md v1.3 §2。
 -- ============================================================
 
 SET NAMES utf8mb4;
+
+-- ---- W20.0 uk_account 去昵称依赖(★A 闸阻塞项修复)----------
+--   稳定身份 = tenant_id + platform_id + page_id + account_biz_id;account_nickname 降为展示字段。
+--   昵称变化不再拆出新 service_accounts(采集权/查看权/lifecycle 始终挂同一 service_account_id)。
+--   fresh 库:02_w19 CREATE 已是去昵称的新 uk,此处 DROP+ADD 为幂等重建(无害,空表)。
+--   已有库(prod/test/dev):原 uk 含 account_nickname,此处迁移到新 uk。
+--   ★前提:同一 (tenant,platform,page,account_biz_id) 无重复行(无真实用户→空表;如有需先去重)。
+ALTER TABLE service_accounts
+  DROP INDEX uk_account,
+  ADD UNIQUE KEY uk_account (tenant_id, platform_id, page_id, account_biz_id);
 
 -- ---- W20.1 service_accounts 扩生命周期 + 采集负责人 ----------
 --   ★status 与 lifecycle 双字段:status(旧二态)暂留不扩展、不再做业务判断;
@@ -49,7 +59,7 @@ CREATE TABLE IF NOT EXISTS service_account_audit (
   target_employee_id INT DEFAULT NULL,
   service_account_id INT DEFAULT NULL,
   event_type VARCHAR(40) NOT NULL
-    COMMENT 'first_seen/temp_grant/confirm/reassign_collector/view_add/view_remove/reject_collect/pending_grab/instance_conflict/old_collector_blocked',
+    COMMENT 'first_seen/temp_grant/confirm/reassign_collector/view_add/view_remove/reject_collect/pending_grab/instance_conflict/old_collector_blocked/disable/enable',
   before_value JSON DEFAULT NULL,
   after_value JSON DEFAULT NULL,
   device_id VARCHAR(64) DEFAULT NULL,

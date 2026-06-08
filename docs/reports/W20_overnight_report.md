@@ -13,7 +13,9 @@
 > 决策歧义就地合理假设 + 记入 §5【待 Chase 决策清单】,不中途停。
 
 ## 0. 一句话结论
-A→D 四阶段 server + 插件代码全部实现并本地自测通过(**71 项断言全绿**),独立隔离在 `chatsift-w20` worktree 的 `w20-account-governance` 分支(4 个 commit)。**等 Chase 审 → 决定是否 apply 到 dev/test、是否进 E、是否 merge。**
+A→D 四阶段 server + 插件代码全部实现并本地自测通过,独立隔离在 `chatsift-w20` worktree 的 `w20-account-governance` 分支。**等 Chase 审 → 决定是否 apply 到 dev/test、是否进 E、是否 merge。**
+
+> **2026-06-08 追加(Chase 指示)**:已修 **A 闸阻塞项** —— `service_accounts.uk_account` 去除 `account_nickname`,稳定身份 = `tenant_id+platform_id+page_id+account_biz_id`,昵称降为展示字段(昵称变化不拆账号);顺手修 Q6(audit 注释补 disable/enable)。新增独立 commit + 84 项断言全绿(B25/C34/D12 + **uk 修复 13**)。采集侧 `resolveServiceAccount/selectServiceAccount` 改按稳定身份查询、命中后更新展示昵称。详见 §2、§5(Q6 已修)与 `W20_stageA_acceptance §0`。
 
 ## 1. 阶段速览
 | 阶段 | 内容 | 自测 | commit |
@@ -25,8 +27,9 @@ A→D 四阶段 server + 插件代码全部实现并本地自测通过(**71 项�
 
 各阶段详细见 `W20_stage{A,B,C,D}_acceptance.md`。复跑指引见 §7。
 
-## 2. ★Chase 第一审:完整 schema diff(A 闸,详见 W20_stageA_acceptance §3)
-- `service_accounts` +lifecycle(NOT NULL DEFAULT 'pending', AFTER status)/+first_seen_by/+collector_id/+collector_kind + idx_lifecycle(tenant_id,lifecycle) + 2 FK→users。**uk_account/status/既有 FK 不动**。
+## 2. ★Chase 第一审:完整 schema diff(A 闸,详见 W20_stageA_acceptance §0/§3)
+- ★**uk_account 去昵称(A 闸阻塞项已修复)**:`(tenant_id, platform_id, page_id, account_biz_id)`,去掉 account_nickname。三处 02_w19 CREATE 同步 + `03_w20` 加 `W20.0 DROP/ADD uk_account` 兼容已建库。两路径(fresh / 已有库迁移)uk 一致、DROP INDEX 无 FK 阻塞。
+- `service_accounts` +lifecycle(NOT NULL DEFAULT 'pending', AFTER status)/+first_seen_by/+collector_id/+collector_kind + idx_lifecycle(tenant_id,lifecycle) + 2 FK→users。**status/既有 FK 不动**。
 - `service_account_view`(uk_view(sa_id,emp) + idx_tenant_emp + 3 FK);`service_account_audit`(before/after JSON,无 FK);`collect_instances`(collector_instance_id NOT NULL,uk_instance(tenant,cid),无 FK)。
 - `employee_service_account` 仅改表注释为废弃,**不 DROP、不迁移**。
 - 双路径验证:`chatsift_w20_base`(已有库 apply deploy/w20)与 `chatsift_w20_fresh`(init 全量)逐表 SHOW CREATE **一致**。
@@ -49,7 +52,7 @@ A→D 四阶段 server + 插件代码全部实现并本地自测通过(**71 项�
 - **Q3 confirm 权限**:internal 平台管理员(is_super)目前也能 confirm 租户账号。→ 推荐:允许(平台全权);如要禁止加 denyInternal。
 - **Q4 disabled 写操作**:scope 的 disabled 排除同样作用于 leads/workorders 的 update/convert/assign → disabled 账号业务数据变只读(冻结)。→ 推荐:一致冻结(已实现);如要 disabled 仍可改,需把排除限定在读。
 - **Q5 /assignments 别名**:旧 `/assignments` 端点保留但已改操作 view 表(不破坏现 admin UI)。→ 推荐:保留别名,待 W20 admin UI 落地后下线。
-- **Q6 audit disable/enable 枚举**:新增 disable/enable 两 audit event_type(03_w20 schema 注释枚举为示例性、VARCHAR 接受,未改 schema 文件)。→ 推荐:可接受;如要进注释枚举我补。
+- **Q6 audit disable/enable 枚举**:**已修复** —— disable/enable 已补进 `service_account_audit.event_type` 的 schema 注释(三处 W20 文件),与代码实现一致。**(已落地)**
 - **Q7 warn 是否审计**:仅 session-block 写 audit instance_conflict;account-warn 不审计。→ 推荐:遵 §6 不审计 warn;如要 warn 也入审计我加。
 - **Q8 heartbeat 窗口**:活跃窗口硬编码 60s。→ 推荐:够用;如要可配我抽成 env。
 - **Q9 并发首见**:FOR UPDATE 回查逻辑就位,未做多进程压测。→ 推荐:Stage E 真机/压测复核。

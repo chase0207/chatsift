@@ -12,6 +12,13 @@
 > 依据:技术方案 v1.3 §2 / W20_tasks 阶段A / Chase 夜间指令"W20 独立、不与 W19 混在一起"。
 > ★本阶段是 Chase 第一个要审的硬闸(A 闸比 B-D 严):**完整 schema diff 见 §3**。
 
+## 0. ★A 闸阻塞项已修复(2026-06-08 追加,Chase 指示)
+- **`service_accounts.uk_account` 去除 `account_nickname`**:唯一身份改为 `tenant_id + platform_id + page_id + account_biz_id`。
+- `account_nickname` **降级为展示字段**:同一 `account_biz_id` 昵称变化**不再拆出新 service_accounts**,采集权/查看权/lifecycle 始终挂同一 `service_account_id`;命中后若昵称非空且不同则更新展示昵称。
+- 三处 02_w19 CREATE(server/sql + deploy/conf/init + deploy/w19)同步去昵称;W20 增量 `03_w20` 加 `W20.0` `ALTER ... DROP INDEX uk_account / ADD UNIQUE KEY ...` 兼容已建库。
+- 顺手修 Q6:`service_account_audit.event_type` schema 注释补 `disable/enable`(与代码实现一致)。
+- 验收:见 §2 "uk 修复验收 13/13"(昵称变化不拆账号 + 昵称更新 + 治理挂同一 id + 空昵称不覆盖)。
+
 ## 1. 做了什么
 | 项 | 落点 |
 |---|---|
@@ -37,6 +44,8 @@
 - [x] status 与 lifecycle 双字段:status 暂留不扩展、注释写明业务只读 lifecycle;lifecycle 默认 pending。
 - [x] 新增 sql 文件 → check-version:server/sql 4 文件 == prod/test compose 各 4 挂载,**Status: SYNCED**。
 - [x] 升级 migration 与 fresh 基线 schema 一致(双路径 diff 通过)。
+- [x] **uk_account 去昵称**:fresh(02_w19 新 uk + 03_w20 的 W20.0 幂等重建)与"已有库迁移"(旧含昵称 uk → deploy/w20 的 W20.0 DROP/ADD)两库 uk_account 均为 `(tenant_id,platform_id,page_id,account_biz_id)`,SHOW CREATE 一致;DROP INDEX 无 FK 阻塞。
+- [x] **uk 修复功能验收 13/13**(`/tmp/w20_uk_test.js`):同 account_biz_id 昵称 A 建 1 账号 → 昵称 B 不新增账号、昵称更新为 B、采集权/查看权/lifecycle 挂同一 service_account_id、空昵称不覆盖。
 
 ## 3. ★完整 schema diff(Chase 第一个审)
 
@@ -49,9 +58,11 @@
 + KEY idx_lifecycle (tenant_id, lifecycle)
 + CONSTRAINT fk_sa_first_seen FOREIGN KEY (first_seen_by) REFERENCES users(id)
 + CONSTRAINT fk_sa_collector  FOREIGN KEY (collector_id)  REFERENCES users(id)
-  (uk_account / status / 既有 FK 不动)
+~ uk_account 改为去昵称(见 §0):(tenant_id, platform_id, page_id, account_biz_id)  -- status / 既有 FK 不动
 ```
 实测:lifecycle=varchar(16) NOT NULL DEFAULT 'pending';first_seen_by/collector_id=int NULL 带 FK→users;idx_lifecycle(tenant_id,lifecycle) 在。
+实测 uk_account 列(fresh 与"已有库迁移"两库一致):`tenant_id,platform_id,page_id,account_biz_id`(无 account_nickname);两库 SHOW CREATE 完全一致。
+实测 audit event_type 注释含 `disable/enable`。
 
 ### 3.2 service_account_view(新表)
 ```
@@ -88,7 +99,7 @@ idx_conv (tenant_id, platform, platform_page, account_biz_id, conversation_id)
 
 ## 4. 红线复核
 - W17:position/message_id/段时间 **未动**(本阶段纯加列/建表)。
-- W19:资产模型 **未破坏**(service_accounts 既有列/uk_account/既有 FK 全保留;esa 不 DROP)。
+- W19:资产模型 **未破坏**(service_accounts 既有列/既有 FK 全保留;esa 不 DROP)。`uk_account` 去昵称是 Chase 指示的 W20 身份修正(account_biz_id 为稳定身份),非破坏。
 - 只读定位:无发送入口(本阶段无接口)。
 
 ## 5. 待 Chase 决策点(本阶段)
