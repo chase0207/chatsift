@@ -1,13 +1,21 @@
 ---
-文档: W20 夜间无人值守总报告(A→D)— 待 Chase 一次性审
-版本: v1.0.0
+文档: W20 客服账号采集权/查看权治理 — 总报告(活文档)
+版本: v1.1.0
 周次: W20
 落位: docs/reports/
-状态: Draft(夜间产出,天亮交付)
+状态: Draft(待 Chase 审;持续更新)
 身份: DEV(CC4) / 环境: 本地 worktree chatsift-w20 / 分支: w20-account-governance(未 merge/未 push)
 ---
 
-# W20 夜间无人值守总报告 · A→D
+# W20 客服账号采集权/查看权治理 · 总报告
+
+> 本报告是 W20 的活文档(living doc):每完成一轮即更新本报告 + 下方变更日志。repo 级 CHANGELOG.md(发版记录)归 QA/Chase,本报告不动它。
+
+## 变更日志
+| 版本 | 日期 | 变更 |
+|---|---|---|
+| v1.0.0 | 2026-06-08 | 夜间无人值守完成 A→D server+插件实现 + 本地自测(71 项)+ 4 feat/1 docs commit;待 Chase 一次性审 |
+| v1.1.0 | 2026-06-08 | 修 A 闸阻塞项:uk_account 去 account_nickname(稳定身份=tenant+platform+page+account_biz_id,昵称降展示字段、变化不拆账号);顺手修 Q6(audit 注释补 disable/enable);新增 uk 验收 13 项(累计 84 项全绿);commit 3526b88 |
 
 > 模式:夜间自主推进 A→D,本地自测 + 本地分支 commit,**未 merge / 未 push / 未碰 E / 未碰 test·prod / 未碰主库**。
 > 决策歧义就地合理假设 + 记入 §5【待 Chase 决策清单】,不中途停。
