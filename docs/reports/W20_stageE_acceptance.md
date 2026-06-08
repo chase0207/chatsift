@@ -95,6 +95,12 @@
 | 3306 | dev 库 chatsift | 已清空,W20 schema |
 - ★浏览器用 `http://localhost:5173`(Vite 绑 IPv6 localhost)。租户超管登录(如 18651359635)→ 客服账号菜单 → W20 治理页。
 
+### E2 第二轮修复(2026-06-08):首见抢占 + 插件状态可见
+- **采集权口径修复**(commit fcb172e):首见**始终建 pending**(不管谁发现);但**临时采集权只授 agent 发现者**;**admin 发现 → collector=NULL + 其采集 no_collect_permission 拒**(管理员不天然获得采集权);**agent 采无人 pending → 认领**(grantTempCollector)。采集权 E2E 25/25(+case8)+ B/C/D 回归全过。修复"管理员首见抢占采集权挡住 agent"。
+- **插件状态进消息日志**(commit 0b18584,Chase 选复用 popup 消息日志):event-uploader 把 batch reject_reasons 汇总中文 APPEND_LOG(`[采集]: N条·你不是该账号采集负责人，未上报`);legacy-collector 实例冲突 block/warn/恢复 APPEND_LOG(`[实例]: 同会话其他设备在采，已暂停`);均节流,`[采集]`/`[实例]:` 格式匹配 popup `shouldShowRuntimeLog` 白名单 → popup「消息日志」标签可见。
+- **第三轮 E2 环境**:W20 server 重启(采集权 fix 已加载,3100);dev 库已清空;★**content.js 变了,Chase 需重新加载插件**(reload unpacked);插件 serverUrl 指向 127.0.0.1:3100。
+  - 测法:用**客服B 的插件**采集(B 发现→认领→采);若 admin 插件也开,admin 不再抢采集权。状态看 popup「消息日志」。
+
 ## E3 — 三角色×三态 SQL 可见性断言(待 E2 数据)
 
 ## E4 — 红线复核 + 验收收口(待 E2/E3)
