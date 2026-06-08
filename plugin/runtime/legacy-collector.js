@@ -177,22 +177,18 @@
       }
     } catch (_) {}
   }
-  function _notifyConflict(level, context) {
-    Logger.warn && Logger.warn('LegacyCollector', 'instance conflict', {
-      level: level, account_biz_id: context && context.account_biz_id, conversation_id: context && context.conversation_id,
-    })
+  function _notifyConflict(context) {
+    var bizId = context && context.account_biz_id
+    Logger.warn && Logger.warn('LegacyCollector', 'instance conflict', { account_biz_id: bizId })
     try {
       window.dispatchEvent(new CustomEvent('chatsift:collect-conflict', {
-        detail: { level: level, action: level === 'session' ? 'block' : 'warn', context: context },
+        detail: { conflict: 'account', action: 'block', context: context },
       }))
     } catch (_) {}
-    // W20:写入插件消息日志(节流:同 level+会话 不重复刷)
-    var key = level + '|' + (context && context.account_biz_id) + '|' + (context && context.conversation_id)
-    if (key === _lastConflictKey) return
-    _lastConflictKey = key
-    _appendPluginLog(level === 'session'
-      ? '[实例]: 同会话其他设备/页签在采集，已暂停本页采集'
-      : '[实例]: 同账号其他会话也在采集（提醒）')
+    // W20:写入插件消息日志(节流:同账号不重复刷)
+    if (bizId === _lastConflictKey) return
+    _lastConflictKey = bizId
+    _appendPluginLog('[实例]: 同一客服账号已在其他设备/页签采集，已暂停本页采集')
   }
 
   // 周期心跳:session-block → 暂停本 tab 采集;account-warn → 仅强提醒不停采;无冲突 → 解除阻断恢复采集。
@@ -206,14 +202,13 @@
     try {
       var res = await Identity.sendHeartbeat(context)
       if (!res) return
-      if (res.conflict === 'session' && res.action === 'block') {
-        if (!_blocked) { _blocked = true; _notifyConflict('session', context) }
-      } else if (res.action === 'warn') {
-        _notifyConflict('account', context)
+      // ★账号级:server 判同客服账号另有活跃实例 → action='block' → 暂停本页采集
+      if (res.action === 'block') {
+        if (!_blocked) { _blocked = true; _notifyConflict(context) }
       } else if (_blocked) {
         _blocked = false
         _lastConflictKey = ''
-        Logger.info && Logger.info('LegacyCollector', 'session conflict cleared, collection resumed')
+        Logger.info && Logger.info('LegacyCollector', 'instance conflict cleared, collection resumed')
         _appendPluginLog('[实例]: 冲突解除，恢复采集')
       }
     } catch (err) {

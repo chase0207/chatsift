@@ -328,12 +328,12 @@ async function resolveAccountCollector(conn, tenant, platform, platformPage, biz
 
 // W20-D2:采集实例 heartbeat + 冲突检测(★β 口径:只治理"同采集负责人"多实例,PRD §6.3)。
 //   始终 upsert collect_instances(uk=tenant+collector_instance_id,保留所有实例记录)。
-//   冲突仅在"本账号采集负责人本人的多实例"之间判:
+//   冲突仅在"本账号采集负责人本人的多实例"之间判,且★颗粒度=客服账号(account_biz_id),非会话:
 //     · 解析不到 service_account / 本员工≠collector_id → 不返回冲突、不写 instance_conflict
-//       (非采集负责人由 batch 采集权闸门拒,不参与 heartbeat block/warn)。
-//     · 本员工==collector_id → 只和本员工自己的其他活跃实例(同 platform/page/account_biz_id,60s)比:
-//         同 conversation_id → {conflict:'session',action:'block'} + audit instance_conflict;
-//         同账号不同会话    → {conflict:'account',action:'warn'}。
+//       (非采集负责人由 batch 采集权闸门拒,不参与 heartbeat block)。
+//     · 本员工==collector_id 且同账号(platform/page/account_biz_id)另有活跃实例(60s,排自身)
+//       → {conflict:'account',action:'block'} + audit instance_conflict。
+//       (同客服账号下会话列表一致,所有会话都冲突,故账号级直接阻止,不细分会话/warn。)
 //   ★阻止是采集实例治理(停该 tab 采集),非踢登录会话(PRD §6.1)。无 collector_instance_id → 向后兼容仅回基础。
 const HEARTBEAT_WINDOW_SECONDS = 60
 
@@ -373,23 +373,22 @@ async function heartbeat(req, res) {
       ? await resolveAccountCollector(conn, tenant, platform, platformPage, accountBizId)
       : null
     if (collectorId != null && collectorId === req.user.id) {
+      // ★账号级:同采集负责人本人在同一客服账号上另有活跃实例 → 冲突 block(不分会话)
       const [others] = await conn.query(
-        `SELECT conversation_id FROM collect_instances
+        `SELECT 1 FROM collect_instances
          WHERE tenant_id=? AND employee_id=? AND platform=? AND platform_page=? AND account_biz_id=?
            AND collector_instance_id<>?
-           AND last_seen_at >= DATE_SUB(NOW(), INTERVAL ${HEARTBEAT_WINDOW_SECONDS} SECOND)`,
+           AND last_seen_at >= DATE_SUB(NOW(), INTERVAL ${HEARTBEAT_WINDOW_SECONDS} SECOND)
+         LIMIT 1`,
         [tenant, req.user.id, platform, platformPage, accountBizId, cid]
       )
-      const sessionHit = conversationId && others.some((o) => o.conversation_id === conversationId)
-      if (sessionHit) {
-        conflict = 'session'; action = 'block'
+      if (others.length) {
+        conflict = 'account'; action = 'block'
         await insertAudit(conn, {
           tenantId: tenant, targetEmployeeId: req.user.id, eventType: 'instance_conflict',
           afterValue: { conflict, account_biz_id: accountBizId, conversation_id: conversationId },
           deviceId: body.device_id || null, browserProfileId: body.browser_profile_id || null, tabId: body.tab_id || null,
         })
-      } else if (others.length) {
-        conflict = 'account'; action = 'warn'
       }
     }
     ok(res, Object.assign(base, { conflict, action }))
