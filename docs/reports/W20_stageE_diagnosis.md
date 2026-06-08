@@ -78,8 +78,34 @@ WHERE tenant_id=? AND employee_id=? AND account_biz_id=? AND collector_instance_
 - 回归:B25/C34/UK13 全绿(累计 91 断言)。
 - W20 server 已重启加载 β。dev 库仍有第一轮残留(1 pending 账号 + 2 会话 + 37 消息);**再测建议先清库(E1 脚本可复用,需 Chase 在场)**,或保留观察。
 
+## 7. E2 第二轮诊断(2026-06-08):管理员首见抢占采集权 + 悬浮栏调研
+
+### 7.1 现象
+B 采到小正、"没采到"车评老帅;管理员A 未采到。待办 ② 不通过。
+
+### 7.2 铁证(dev 库)
+- service_accounts:1 个(active,collector=4 即 B)。
+- **审计时间线**:`first_seen` 是 **emp 2(管理员A)** @18:23 → temp_grant collector=**2**;`pending_grab`(拒)**emp 4(B)** @18:24-18:36;`confirm`@19:28 → collector=4(B);此后 `reject_collect` emp 2(A 不再是采集人)。
+- conversations(都挂账号16):小正(18:23,33msg,last 21:35)、chase(18:37,8msg)、车评老帅(18:38,40msg,last 18:34)。
+
+### 7.3 根因
+**管理员A 的插件先首见账号 → 自动成临时采集人(collector=2),把客服B 在 pending 期 pending_grab 挡住。** A 在 pending 期采了全部 3 客户;confirm 后 collector=B,B 只补采了小正,没再打开车评老帅 → B 视角"没采到车评老帅"。
+- 违反 Chase 要求"管理员不天然获得采集权;管理员打开插件若不是 collector 应被拒"。**首见自动授采集权落到了 admin 头上**——这是设计缺口。
+
+### 7.4 修复方案(待 Chase 确认口径)
+**首见自动建号+授临时采集权,限定为 agent(客服)。** 非 agent(tenant_admin)首见未知账号 → `no_collect_permission` 拒、**不建号**;待 agent 采集才首见建号。admin 只能经 confirm/reassign 显式获得采集权(PRD §5.1)。
+- 落点:`resolveServiceAccount` 首见分支加 `req.user.role_code==='agent'` 判定;否则返回 reject 标记,gate 拒。
+- 备选 β:admin 首见也建号但 collector=NULL(进待确认列表待指派)。推荐 α(更简,账号由 agent 认领才生)。
+
+### 7.5 插件悬浮栏/消息日志调研
+- **当前 chatsift 插件无页面悬浮栏**(content.js 无 position:fixed/shadowRoot 注入)。
+- **弹窗(popup)有"消息日志"**:`page-logs` 标签 → `logList` → `GET_LOGS`(运行时日志缓冲)→ `shouldShowRuntimeLog` 白名单过滤(`[发送/会话/消息/看门狗/...]`、`^[Tag]:` 等)。W20 状态(采集权拒/实例冲突)**目前没接进去**。
+- 旧 chat_rpa 有 `dom-collector/overlay.css`(独立 dom-collector 的页面浮层),**当前 chatsift 没迁移**。
+- 接 W20 状态两条路:(a)**复用 popup 消息日志**——给 首见pending/采集权拒(pending_grab/not_collector/disabled)/实例冲突block·warn 发用户友好中文日志行(format 配 shouldShowRuntimeLog);采集权拒来自 server reject_reasons(event-uploader 补一行 Logger),实例冲突已在 legacy-collector(改友好文案)。工作量小。(b)新建页面悬浮栏(新 UI,工作量大)。推荐 (a)。
+
 ## 变更日志
 | 版本 | 日期 | 变更 |
 |---|---|---|
 | v1.0.0 | 2026-06-08 | E2 第一轮:根因=heartbeat 冲突未按 employee_id 限定,非采集人实例阻断了合法采集人 → 缺 chase。修复=查询加 employee_id。待 Chase 确认落地。 |
 | v1.1.0 | 2026-06-08 | Chase 选 β,修复落地(只改 heartbeat,加 resolveAccountCollector;只治理同采集负责人多实例);Stage D β 自测 19/19 + B/C/UK 回归;W20 server 重启。 |
+| v1.2.0 | 2026-06-08 | E2 第二轮:根因=管理员首见抢占采集权(admin 自动成临时采集人挡住 agent);修复方案=首见限定 agent(待确认 α/β)。悬浮栏调研:当前无页面浮层,popup 有消息日志可复用接 W20 状态。 |
