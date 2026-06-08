@@ -1,6 +1,6 @@
 ---
 文档: W20 客服账号采集权/查看权治理 — 总报告(活文档)
-版本: v1.1.0
+版本: v1.2.0
 周次: W20
 落位: docs/reports/
 状态: Draft(待 Chase 审;持续更新)
@@ -16,6 +16,7 @@
 |---|---|---|
 | v1.0.0 | 2026-06-08 | 夜间无人值守完成 A→D server+插件实现 + 本地自测(71 项)+ 4 feat/1 docs commit;待 Chase 一次性审 |
 | v1.1.0 | 2026-06-08 | 修 A 闸阻塞项:uk_account 去 account_nickname(稳定身份=tenant+platform+page+account_biz_id,昵称降展示字段、变化不拆账号);顺手修 Q6(audit 注释补 disable/enable);新增 uk 验收 13 项(累计 84 项全绿);commit 3526b88 |
+| v1.2.0 | 2026-06-08 | Chase 拍板 Q1-Q10(§5 标记已拍板);A 闸修复复核通过(3526b88 保留);进入 Stage E 计划阶段 → 见 W20_stageE_plan.md;记录 P2(并发首见昵称不刷新,放 E 压测) |
 
 > 模式:夜间自主推进 A→D,本地自测 + 本地分支 commit,**未 merge / 未 push / 未碰 E / 未碰 test·prod / 未碰主库**。
 > 决策歧义就地合理假设 + 记入 §5【待 Chase 决策清单】,不中途停。
@@ -52,8 +53,8 @@ A→D 四阶段 server + 插件代码全部实现并本地自测通过,独立隔
 - **W19**:资产模型未破坏;esa 表保留零读写;fail-closed 隔离保留并增强。
 - **只读**:无任何发送入口;新端点均为治理元数据读写;插件实例标识仅随机指纹+采集维度。
 
-## 5. 【待 Chase 决策清单】(逐条可回,附推荐)
-> 夜间均已就地按推荐项实现,Chase 确认或改即可。
+## 5. 【决策清单】(2026-06-08 Chase 已全部拍板)
+> ✅ **Q1-Q10 全部拍板**:Q1 独立 03_w20 / Q2 存量默认 pending / Q3 internal 可 confirm / Q4 disabled 业务冻结 / Q5 /assignments 别名保留(操作 view) / Q6 disable·enable 注释已补 / Q7 仅 session-block 审计 / Q8 heartbeat 60s hardcode / Q9 并发首见放 E 压测 / Q10 D1 周期 heartbeat·block 接线放 E。**均按夜间推荐项落地,无需返工。** 下方保留原始条目备查。
 
 - **Q1 结构(已遵夜间指示)**:W20 用独立 `03_w20_account_governance.sql`,**未并入 02_w19**。brief 字面写"并入 02_w19",以 Chase 夜间口头"不与 W19 混"为准。→ 推荐:保持独立。**(已落地)**
 - **Q2 存量 lifecycle**:已有库跑升级 migration 后,存量 service_accounts 落 'pending'(DEFAULT)需管理员确认。→ 推荐:无真实用户,接受 pending;如要存量直接 active 我补一条 UPDATE。
