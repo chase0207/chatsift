@@ -197,38 +197,30 @@ async function resolveServiceAccount(conn, tenant, req, event, cache) {
   }
 
   const employeeId = req.user.id
-  // ★口径(Chase):不管是谁发现新账号都建 pending;但临时采集权只授给 agent 发现者。
-  //   admin/非客服发现 → 建号但 collector=NULL(管理员不天然获得采集权),其采集事件由 gate 拒;
-  //   后续 agent 采集该无人 pending 账号时认领(grantTempCollector)。
-  const isAgent = req.user.role_code === 'agent'
+  // ★口径(Chase):不管是谁发现新账号都建 pending;★不区分角色,谁发现就把临时采集权给谁(含管理员)。
+  //   管理员若发现即临时采集人,可采;后续管理员 confirm 时再指派正式采集人(可改)。
   try {
     const [ins] = await conn.query(
       `INSERT INTO service_accounts
          (tenant_id, platform_id, page_id, account_biz_id, account_nickname,
           status, lifecycle, first_seen_at, first_seen_by, collector_id, collector_kind)
-       VALUES (?,?,?,?,?, 1, 'pending', NOW(), ?, ?, ?)`,
-      [tenant, platformId, pageId, bizId, nick, employeeId, isAgent ? employeeId : null, isAgent ? 'temp' : null]
+       VALUES (?,?,?,?,?, 1, 'pending', NOW(), ?, ?, 'temp')`,
+      [tenant, platformId, pageId, bizId, nick, employeeId, employeeId]
     )
     const saId = ins.insertId
+    await conn.query(
+      `INSERT INTO service_account_view (tenant_id, service_account_id, employee_id, granted_by) VALUES (?,?,?,NULL)`,
+      [tenant, saId, employeeId]
+    )
     await insertAudit(conn, {
       tenantId: tenant, targetEmployeeId: employeeId, serviceAccountId: saId,
       eventType: 'first_seen', afterValue: { account_biz_id: bizId, account_nickname: nick, lifecycle: 'pending' },
     })
-    if (isAgent) {
-      // 采集人默认查看权 + 临时采集权审计
-      await conn.query(
-        `INSERT INTO service_account_view (tenant_id, service_account_id, employee_id, granted_by) VALUES (?,?,?,NULL)`,
-        [tenant, saId, employeeId]
-      )
-      await insertAudit(conn, {
-        tenantId: tenant, targetEmployeeId: employeeId, serviceAccountId: saId,
-        eventType: 'temp_grant', afterValue: { collector_id: employeeId, collector_kind: 'temp' },
-      })
-    }
-    const created = {
-      id: saId, lifecycle: 'pending',
-      collector_id: isAgent ? employeeId : null, collector_kind: isAgent ? 'temp' : null, created: true,
-    }
+    await insertAudit(conn, {
+      tenantId: tenant, targetEmployeeId: employeeId, serviceAccountId: saId,
+      eventType: 'temp_grant', afterValue: { collector_id: employeeId, collector_kind: 'temp' },
+    })
+    const created = { id: saId, lifecycle: 'pending', collector_id: employeeId, collector_kind: 'temp', created: true }
     cache.set(key, created)
     return created
   } catch (err) {
@@ -260,32 +252,12 @@ async function selectServiceAccount(conn, tenant, platformId, pageId, bizId, for
   }
 }
 
-// 授临时采集权(认领):set collector(仅当原为 NULL)+ 默认查看权 view + audit temp_grant。
-//   返回 true=认领成功;false=已被他人占(并发)。供 gate 的"agent 采无人 pending 认领"用。
-async function grantTempCollector(conn, tenant, saId, employeeId) {
-  const [r] = await conn.query(
-    `UPDATE service_accounts SET collector_id=?, collector_kind='temp' WHERE id=? AND collector_id IS NULL`,
-    [employeeId, saId]
-  )
-  if (!r.affectedRows) return false
-  await conn.query(
-    `INSERT IGNORE INTO service_account_view (tenant_id, service_account_id, employee_id, granted_by) VALUES (?,?,?,NULL)`,
-    [tenant, saId, employeeId]
-  )
-  await insertAudit(conn, {
-    tenantId: tenant, targetEmployeeId: employeeId, serviceAccountId: saId,
-    eventType: 'temp_grant', afterValue: { collector_id: employeeId, collector_kind: 'temp', claim: true },
-  })
-  return true
-}
-
 // W20-C1:采集权判定闸门(返回 {reject, reason})。★HTTP 仍 200,只在 event 级拒绝。
 //   sa==null:private-message 缺 account_biz_id → 拒;laike/feige 等未治理页 → 放行(留 NULL)。
-//   disabled → 拒 account_disabled。本员工==collector_id → 放行(含 agent 首见者/被指派人)。
-//   ★collector_id=NULL 的 pending(admin 发现的无人账号):agent 采 → 认领(grantTempCollector)放行;
-//     非 agent(admin)采 → 拒 no_collect_permission(管理员不天然获得采集权)。
+//   sa.created:首见已建临时采集权(collector=发现者本人)→ 放行。
+//   disabled → 拒 account_disabled。本员工==collector_id → 放行(发现者/被指派人,不论角色)。
 //   有 collector 但非本人:pending→pending_grab;active→not_collector(旧采集人→old_collector_blocked)。
-//   同账号 batch 内 memoize,audit/认领只一次。
+//   同账号 batch 内 memoize,audit 只写一次。
 async function collectGate(conn, tenant, req, event, sa, cache) {
   if (sa == null) {
     if (event.platform_page === 'private-message' && !event.account_biz_id) {
@@ -295,9 +267,10 @@ async function collectGate(conn, tenant, req, event, sa, cache) {
   }
   if (cache.has(sa.id)) return cache.get(sa.id)
 
-  const isAgent = req.user.role_code === 'agent'
   let decision
-  if (sa.lifecycle === 'disabled') {
+  if (sa.created) {
+    decision = { reject: false }
+  } else if (sa.lifecycle === 'disabled') {
     await insertAudit(conn, {
       tenantId: tenant, targetEmployeeId: req.user.id, serviceAccountId: sa.id,
       eventType: 'reject_collect', afterValue: { reason: 'account_disabled' },
@@ -305,19 +278,6 @@ async function collectGate(conn, tenant, req, event, sa, cache) {
     decision = { reject: true, reason: 'account_disabled' }
   } else if (sa.collector_id === req.user.id) {
     decision = { reject: false }
-  } else if (sa.collector_id == null && sa.lifecycle === 'pending') {
-    // 无人采集的 pending(admin 发现的)→ agent 认领;admin 不采
-    if (isAgent && (await grantTempCollector(conn, tenant, sa.id, req.user.id))) {
-      decision = { reject: false }
-    } else if (isAgent) {
-      decision = { reject: true, reason: 'pending_grab' } // 并发被他人认领
-    } else {
-      await insertAudit(conn, {
-        tenantId: tenant, targetEmployeeId: req.user.id, serviceAccountId: sa.id,
-        eventType: 'reject_collect', afterValue: { reason: 'no_collect_permission' },
-      })
-      decision = { reject: true, reason: 'no_collect_permission' }
-    }
   } else {
     let reason, eventType
     if (sa.lifecycle === 'pending') {
