@@ -2,7 +2,10 @@
 -- W20 阶段E · E1 dev 库 apply 只读预检(★只 SELECT,不改任何数据)
 -- ============================================================
 -- 用法:mysql -uroot <dev库名> < deploy/w20_preflight_check.sql
--- 时机:Chase 在场、dev 库已备份(离机+验证可解压)之后;apply 前跑一次、apply 后再跑一次对比。
+-- 时机:
+--   本只读预检可**先跑**(纯 SELECT,不改数据),用于判断是否需要去重/清库——无需备份、无需 Chase 在场。
+--   备份是 **apply / 去重 / 清库前的强制步骤**(离机 + 验证可解压)。
+--   **apply 前的最终预检需 Chase 在场**,确认 §0 目标库是 dev、不是 test/prod;apply 后再跑一次对比。
 -- 判读:
 --   apply 前期望:§2 w20_cols=0 / w20_tables=0 / uk 含 account_nickname;§3 空(无重复)。
 --   apply 后期望:§2 w20_cols=4 / w20_tables=3 / uk 去 account_nickname;§3 仍空;§4 行数与 apply 前一致。
@@ -47,4 +50,3 @@ SELECT (SELECT COUNT(*) FROM service_accounts)         AS service_accounts,
 
 -- 注:本文件 pre-apply / post-apply 均可安全运行(纯 SELECT,不引用 W20 新列,避免 pre-apply 报错中断)。
 -- apply 后另跑一行看生命周期分布:SELECT lifecycle, COUNT(*) FROM service_accounts GROUP BY lifecycle;
-

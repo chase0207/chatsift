@@ -17,14 +17,18 @@
 | 版本 | 日期 | 变更 |
 |---|---|---|
 | v1.0.0 | 2026-06-08 | 初版:E1 预检 SQL + apply 前后核对 + 去重决策;E2 真机观察清单(含 Chase 两点 caveat);P3 已知限制 |
+| v1.1.0 | 2026-06-08 | 修正措辞:只读预检可先跑(判断去重/清库需求,无需备份/Chase);备份是 apply/去重/清库前强制;apply 前最终预检需 Chase 在场确认目标库非 test/prod。预检 SQL 去尾部空行(git diff --check 通过) |
 
 ---
 
 ## 一、E1 — dev 库 apply 执行材料
 
-### 1.1 预检脚本(只读,apply 前后各跑一次)
+### 1.1 预检脚本(只读)
 - 脚本:`deploy/w20_preflight_check.sql`(纯 SELECT,不改数据,pre/post 均可安全运行)。
-- 跑法(★Chase 在场、备份后):`mysql -uroot <dev库名> < deploy/w20_preflight_check.sql`
+- 跑法:`mysql -uroot <dev库名> < deploy/w20_preflight_check.sql`
+- **时机**:
+  - 只读预检**可先跑**(不改数据)→ 用于判断是否需要去重/清库;**无需备份、无需 Chase 在场**。
+  - **apply 前的最终预检需 Chase 在场**,确认 §0 `target_db` 是 dev、**不是 test/prod**;apply 后再跑一次对比。
 - **判读(本地模拟库实测样例)**:
 
 | 段 | apply 前期望 | apply 后期望 |
@@ -46,7 +50,8 @@
   - 选项C:无重复(§3 空)→ 直接进 1.3。
 - 推荐:先看 §3 结果;若 dev 无真实用户、§3 命中也只是测试脏数据 → 选 B 清库最干净。
 
-### 1.3 备份(apply / 去重前强制)
+### 1.3 备份(apply / 去重 / 清库前强制)
+- 触发任一**写操作**(apply schema / 去重改数据 / 清库重采)前**必须**先备份;只读预检不需要。
 - `mysqldump -uroot <dev库名> > /离机路径/chatsift_dev_<日期>.sql`
 - **下载离机 + 验证可解压**(`gzip -t` 或试 `head`/`mysql --force` 导入到临时库),不是 dump 完就算(prod-safety §8)。
 
