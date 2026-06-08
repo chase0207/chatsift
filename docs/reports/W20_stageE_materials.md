@@ -18,6 +18,7 @@
 |---|---|---|
 | v1.0.0 | 2026-06-08 | 初版:E1 预检 SQL + apply 前后核对 + 去重决策;E2 真机观察清单(含 Chase 两点 caveat);P3 已知限制 |
 | v1.1.0 | 2026-06-08 | 修正措辞:只读预检可先跑(判断去重/清库需求,无需备份/Chase);备份是 apply/去重/清库前强制;apply 前最终预检需 Chase 在场确认目标库非 test/prod。预检 SQL 去尾部空行(git diff --check 通过) |
+| v1.2.0 | 2026-06-08 | **E1 只读预检已对 dev 库 chatsift 实跑**(纯 SELECT,未改数据):W20 未 apply、§3 无 nickname-split 重复(无需去重)、存量 1 账号/4 会话/79 消息。新增 1.1.5 实测 + 1.2.5 apply 方式决策(A 原地/B 清库重采,推荐 B)。已停在 apply/清库前等 Chase。 |
 
 ---
 
@@ -40,6 +41,21 @@
 | §4 数据量 | 记录 service_accounts/conversations/messages/esa 行数 | **与 apply 前完全一致**(无丢失) |
 
 实测样例(模拟库):pre §2 = `0 / 0 / tenant_id,platform_id,page_id,account_biz_id,account_nickname`;post §2 = `4 / 3 / tenant_id,platform_id,page_id,account_biz_id`。
+
+### 1.1.5 E1 预检实测(dev 库 `chatsift` @ 127.0.0.1:3306,2026-06-08,只读)
+> dev 库拓扑确认:主库 `~/vscode/chatsift/server/.env` → DB_HOST=127.0.0.1 / DB_PORT=3306 / DB_NAME=chatsift(无 docker 容器、3307 关闭),即 dev server(3100)所用库。MySQL 9.6.0。
+- §0:target_db=**chatsift**(确认非 test/prod)。
+- §1:W19 基线在位;roles=platform_admin/tenant_admin/agent;users 4 个(admin internal / 18651359635 租户1超管 / tenant 租户1客服 / 15376985994 租户2超管)。
+- §2:W20 **未 apply**(w20_cols=0 / w20_tables=0 / uk 含 account_nickname)→ 干净 pre-apply 态。
+- §3:**空 → 无 nickname-split 重复 → uk 迁移安全,无需去重。** ✅
+- §4:存量 service_accounts=**1** / conversations=**4** / messages=**79** / esa_rows=**1**。
+- **结论**:可安全 apply(无重复阻塞);但存量有 1 个账号 + 4 会话 + 79 消息,**apply 方式需 Chase 拍板(见 1.2.5)**。**已停在 apply/清库前,等 Chase 在场。**
+
+### 1.2.5 ★apply 方式决策(存量数据处理,★Chase 在场)
+存量虽小但非空,apply 后行为不同,需 Chase 定:
+- **选项A 原地 apply**:1 个存量 service_account → lifecycle='pending'、collector_id/first_seen_by=NULL(新列默认)、无 view 行 → **仅租户超管可见,客服看不到**,需管理员 confirm 并指派采集人后才进正常流。存量 4 会话/79 消息保留。
+- **选项B 清库重采(推荐)**:dev 是测试数据(非真实用户),清库后真机重采走 W20 完整链路(首见→pending→临时采集权→view→confirm),试点最干净、最能验收 E2 全流程。**会丢 79 条测试消息。**
+- 两者都需:**先备份(1.3)+ Chase 在场**。推荐 B(测试数据、量小、验收更完整);若要保留现有数据则 A。
 
 ### 1.2 ★nickname-split 重复(uk 迁移前提)
 - §3 命中(非空)即存在同 `(tenant,platform,page,account_biz_id)` 多昵称行 → `W20.0 ADD UNIQUE KEY uk_account` 会因重复键**失败**。
