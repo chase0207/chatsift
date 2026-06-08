@@ -11,12 +11,19 @@
   if (!Flags || !Registry || !Collector || !Uploader || !Dom || !PositionTracker) {
     throw new Error('[W4] legacy collector dependencies missing')
   }
+  var Identity = window.RpaInstanceIdentity   // W20-D1:可选,缺失则不做实例冲突心跳(不影响采集)
 
   var _observer = null
   var _timer = null
   var _collecting = false
   var _debounce = null
   var COLLECT_DEBOUNCE_MS = 10000
+
+  // W20-D1:采集实例冲突心跳 + 阻断态。
+  var _blocked = false          // 被 session 级冲突阻断 → 暂停本 tab 采集
+  var _hbTimer = null
+  var _hbInflight = false
+  var HEARTBEAT_INTERVAL_MS = 15000
 
   function _readNickname(adapter) {
     var ctx = adapter && adapter.buildRuntimeContext ? adapter.buildRuntimeContext() : {}
@@ -84,6 +91,11 @@
   }
 
   async function collectMessageSession(sessionInfo) {
+    if (_blocked) {
+      // W20-D1:session 级实例冲突阻断中,暂停本 tab 采集(心跳解除后自动恢复)
+      Logger.warn && Logger.warn('LegacyCollector', 'skip collect: blocked by session-level instance conflict')
+      return { ok: false, reason: 'instance-blocked' }
+    }
     if (window.ChatsiftContentGate && !window.ChatsiftContentGate.isAllowed()) {
       Logger.debug && Logger.debug('LegacyCollector', 'skip collect: page not allowlisted')
       return { ok: false, reason: 'page-not-allowlisted' }
@@ -142,6 +154,68 @@
     }, COLLECT_DEBOUNCE_MS)
   }
 
+  // W20-D1:取当前会话的实例冲突心跳上下文(无打开会话/无商家账号 → null,不参与冲突)
+  function _currentHeartbeatContext() {
+    if (window.ChatsiftContentGate && !window.ChatsiftContentGate.isAllowed()) return null
+    var adapter = Registry.resolve(location)
+    if (!adapter) return null
+    var info = _buildSessionInfo(adapter)
+    if (!info || !info.accountBizId) return null   // laike/feige 等无 bizId → 不做实例冲突
+    return {
+      platform: 'douyin',
+      platform_page: info.pageKey,
+      account_biz_id: info.accountBizId,
+      conversation_id: info.conversationId,
+    }
+  }
+
+  function _notifyConflict(level, context) {
+    Logger.warn && Logger.warn('LegacyCollector', 'instance conflict', {
+      level: level, account_biz_id: context && context.account_biz_id, conversation_id: context && context.conversation_id,
+    })
+    try {
+      window.dispatchEvent(new CustomEvent('chatsift:collect-conflict', {
+        detail: { level: level, action: level === 'session' ? 'block' : 'warn', context: context },
+      }))
+    } catch (_) {}
+  }
+
+  // 周期心跳:session-block → 暂停本 tab 采集;account-warn → 仅强提醒不停采;无冲突 → 解除阻断恢复采集。
+  // ★心跳失败(网络/无 token,sendHeartbeat 返回 null)→ fail-open,不改变采集态,绝不误停合法采集。
+  async function _heartbeatTick() {
+    if (_hbInflight || !Identity || !Identity.sendHeartbeat) return
+    if (!Flags.get('collector_v1_enabled')) return
+    var context = _currentHeartbeatContext()
+    if (!context) return
+    _hbInflight = true
+    try {
+      var res = await Identity.sendHeartbeat(context)
+      if (!res) return
+      if (res.conflict === 'session' && res.action === 'block') {
+        if (!_blocked) { _blocked = true; _notifyConflict('session', context) }
+      } else if (res.action === 'warn') {
+        _notifyConflict('account', context)
+      } else if (_blocked) {
+        _blocked = false
+        Logger.info && Logger.info('LegacyCollector', 'session conflict cleared, collection resumed')
+      }
+    } catch (err) {
+      Logger.warn && Logger.warn('LegacyCollector', 'heartbeat tick failed', err && err.message)
+    } finally {
+      _hbInflight = false
+    }
+  }
+
+  function _startHeartbeat() {
+    if (_hbTimer || !Identity || !Identity.sendHeartbeat) return
+    _hbTimer = setInterval(function () { _heartbeatTick() }, HEARTBEAT_INTERVAL_MS)
+  }
+
+  function _stopHeartbeat() {
+    if (_hbTimer) { clearInterval(_hbTimer); _hbTimer = null }
+    _blocked = false   // 停采时清阻断态,下次 start 重新检测
+  }
+
   async function start() {
     if (window.ChatsiftContentGate && !window.ChatsiftContentGate.isAllowed()) {
       Logger.info && Logger.info('LegacyCollector', 'blocked: page not allowlisted')
@@ -149,6 +223,7 @@
     }
     if (_observer) return true
     await Uploader.start()
+    _startHeartbeat()
     _observer = new MutationObserver(function () { _scheduleCollect() })
     _observer.observe(document.body || document.documentElement, { childList: true, subtree: true, characterData: true })
     _scheduleCollect()
@@ -161,6 +236,7 @@
     if (_observer) _observer.disconnect()
     _observer = null
     Uploader.stop()
+    _stopHeartbeat()
     Logger.info && Logger.info('LegacyCollector', 'stopped')
   }
 
@@ -194,6 +270,7 @@
     start: start,
     stop: stop,
     collectMessageSession: collectMessageSession,
+    isBlocked: function () { return _blocked },   // W20-D1:观测当前是否被实例冲突阻断
   }
 
   boot()

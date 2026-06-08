@@ -18,6 +18,7 @@
 | 版本 | 日期 | 变更 |
 |---|---|---|
 | v1.0.0 | 2026-06-08 | 初版:E 验收项清单 + 执行计划 + Chase 在场拍板点 + P2 已知问题 |
+| v1.1.0 | 2026-06-08 | **E0 插件接线完成(代码)**:legacy-collector 加周期 heartbeat(15s)+ block/warn 执行;session-block 暂停本 tab 采集、account-warn 仅强提醒、无冲突恢复、心跳失败 fail-open;content.js 重建(语法过、diff 仅 legacy-collector 段 +77 行)。真机行为验证仍待 E2。commit 见报告。 |
 
 ---
 
@@ -46,13 +47,14 @@
 ## 2. 执行计划(顺序 + 责任 + 是否需 Chase 在场)
 > 每步标注:【自主】可本地做 / 【★Chase 在场】高风险或需真机/真实账号。
 
-### 步骤 E0 — D1 插件接线(【自主】本地代码,无破坏性)
-- 周期 heartbeat:在采集运行态绑定当前会话 `account_biz_id`/`conversation_id`,定时(如 15s)调 `RpaInstanceIdentity.sendHeartbeat(context)`。
-- block/warn 执行:`action='block'` → 停该 tab 采集上报(暂停 EventUploader/采集);`action='warn'` → 强提醒(不停采)。
-- 取消 block:冲突解除(下次 heartbeat 无 conflict)后恢复采集。
-- 本地 `npm run build:plugin -- --check` 重建 content.js。
-- ⚠️ **不真机不算完成**:停采是有副作用控制动作,行为正确性在 E-H 真机验。
-- 风险:误停合法采集 → 接线需保守(只在明确 session-block 停;warn 绝不停)。
+### 步骤 E0 — D1 插件接线(【自主】本地代码,无破坏性)— ✅ 代码完成(待 E2 真机验)
+落点:`plugin/runtime/legacy-collector.js`(tab 采集驱动,有当前会话上下文与 start/stop 生命周期)。
+- 周期 heartbeat:`start()` 起 15s 定时 `_heartbeatTick`,从 `_buildSessionInfo` 取当前会话 `account_biz_id`/`conversation_id`(与采集事件同源,server 可对齐),调 `RpaInstanceIdentity.sendHeartbeat(context)`;`stop()` 停心跳。无打开会话/无 bizId(laike/feige)→ 跳过。
+- block/warn 执行:`conflict='session' && action='block'` → `_blocked=true`,`collectMessageSession` 入口拦截、暂停本 tab 采集;`action='warn'` → 仅 `_notifyConflict`(Logger.warn + 派发 `chatsift:collect-conflict` 事件)**不停采**。
+- 恢复:下次 heartbeat 无冲突 → `_blocked=false` 恢复采集。
+- ★保守:`Identity` 缺失或 `sendHeartbeat` 返回 null(网络/无 token)→ **fail-open,不改采集态,绝不误停合法采集**;`_hbInflight` 防重入;`isBlocked()` 供观测。
+- 验证:`npm run build:plugin -- --check` 通过;content.js diff 仅 legacy-collector 段 +77 行、无散落改动。
+- ⚠️ **真机行为(停采/恢复/双实例触发)在 E-H/E2 验**——停采是副作用动作,代码已就位但需真机确认。
 
 ### 步骤 E1 — dev 库 apply(【★Chase 在场】)
 1. 环境三确认:`pwd`(本地 worktree)、目标 = dev 库 `chatsift`(非 test/prod)、`git status`。
