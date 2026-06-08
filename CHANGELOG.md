@@ -6,6 +6,17 @@
 
 ---
 
+## v0.6.0 — 未发版(W20,w20-account-governance 分支,待 Chase 审/发)
+- 关联:**W20 客服账号采集权/查看权治理**
+- 范围:server + plugin + 数据库迁移(server/sql/03_w20_account_governance.sql + deploy/w20_account_governance.sql + 02_w19 uk 修正)
+- 变更:
+  - **A 数据模型**:service_accounts 扩 lifecycle(pending/active/disabled,业务只看它)/first_seen_by/collector_id/collector_kind;新建 service_account_view(查看权多人)、service_account_audit(治理审计)、collect_instances(采集实例 heartbeat);employee_service_account 标废弃(不 DROP)。★**uk_account 去 account_nickname**,稳定身份=tenant+platform+page+account_biz_id;昵称降为展示字段(变化不拆账号、命中后更新)。
+  - **B 首见+确认**:首见自动建 pending+临时采集权(采集人)+默认查看权+审计;管理员 confirm 转 active+正式采集负责人+配查看人;首页待确认待办。
+  - **C 采集权/查看权分离**:采集入库 event 级采集权闸门(非负责人/pending抢占/disabled → 该 event rejected,HTTP 仍 200,严禁整批 403);查看权改读 service_account_view(带 tenant_id);admin 查看权增删/采集权重分配/停用恢复/冲突记录/列表扩字段;业务页按 lifecycle 隐藏 disabled。
+  - **D 采集实例冲突**:server heartbeat 维护 collect_instances,同账号同会话多实例阻止、同账号不同会话强提醒+审计;插件生成 device/profile/tab/collector_instance_id 并上报透传(周期心跳调度 + block 停采执行待真机 Stage E)。
+- 复盘:(发版后补)
+- 备注:本条为 w20 分支准备稿,**未发版/未打 tag/未改 VERSION**;本地自测 84 项断言全绿(B25/C34/D12/uk13);阶段E(清库/真机回归/部署)与 merge 待 Chase。详见 docs/reports/W20_overnight_report.md 及各阶段 acceptance。
+
 ## v0.5.0 — 2026-06-07
 - 关联:**W17 消息位置标识 + W19 租户资产模型**(一次清库重采、一起发版,design §8.2)
 - 范围:server + admin + plugin + 数据库迁移(deploy/w17_message_position.sql + deploy/w19_tenant_asset.sql)
