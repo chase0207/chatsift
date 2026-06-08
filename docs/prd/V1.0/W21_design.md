@@ -1,12 +1,19 @@
 # W21 Design: 辅助采集器(Assisted Collector)
 
-> 版本: v1.0.0  
+> 版本: v1.1.0
 > 日期: 2026-06-08  
 > 状态: Draft  
 > 定位: 用户显式授权的低频辅助采集,不再沿用 W18 AutoScanner 编号与方案  
 > 范围: 先做抖音私信单页面试点,不做全平台通用巡检
 
 ---
+
+## 变更日志
+
+| 版本 | 日期 | 变更 |
+|---|---|---|
+| v1.0.0 | 2026-06-08 | 初版:显式授权低频辅助采集,替代 W18 夜间巡检 |
+| v1.1.0 | 2026-06-08 | 修正采集时序:legacy collector 有 10s debounce,W21 切换后不能只等 3s;候选 DOM 节点每次切换前重检;采集权接口归 W20 域;heartbeat/block-warn 标为 W20 交付依赖 |
 
 ## 1. 背景
 
@@ -119,17 +126,25 @@ W21 必须接入 W20 的账号治理口径:
 
 每个候选会话:
 
-1. 调用 adapter `switchSession(session)`。
-2. 等待活动会话确认。
-3. 等待 DOM 稳定 1.5 秒。
-4. 给现有采集链路 3 秒缓冲。
-5. 进入下一个候选。
+1. 每次切换前重新 `detectSessions()`。
+2. 用稳定候选键重新匹配目标会话,不复用上一轮缓存的 `dom_ref`。
+3. 调用 adapter `switchSession(session)`。
+4. 等待活动会话确认。
+5. 触发或等待现有采集链路完成。
+6. 进入下一个候选。
+
+采集完成策略二选一,写代码前必须定死:
+
+- 推荐:切换后显式调用 legacy collector 的立即采集入口,例如 `collectNow()`。
+- 备选:每个候选停留至少 12 秒,覆盖 legacy collector 当前 10 秒 debounce 窗口,确认采集 fire 后才切下一个。
 
 节流:
 
-- 两次切换间隔随机 5-12 秒。
+- 两次切换间隔不得低于 12 秒,并叠加随机抖动。
 - 单轮结束后至少等待 3 分钟再进入下一轮。
 - 单账号每分钟自动切换不超过 6 次。
+
+说明:现有 legacy collector 通过 MutationObserver 触发 `_scheduleCollect()`,且 debounce 为 10 秒。如果 W21 切换后只等 3 秒就切下一个,会反复重置 debounce,导致被切会话不入库。
 
 ### 5.7 block / warn 行为
 
@@ -168,7 +183,9 @@ W21 必须接入 W20 的账号治理口径:
 - W20 `service_accounts.lifecycle`
 - W20 `collector_id`
 - W20 `collect_instances`
-- W20 heartbeat 冲突检测
+- W20 heartbeat 冲突检测(block/warn;待 W20 Phase D/E 验收并合回 main 后作为 W21 依赖)
+
+采集权只读能力归属 W20 域。若 W21 需要 `collect-permission` 只读接口,由 W20 收口阶段提供接口契约和实现,W21 只消费,不在 W21 分支新开 server 采集权接口。
 
 如需记录运行日志,优先走现有插件日志或运行质量日志,不新增强状态表。
 
@@ -260,4 +277,3 @@ W21 是新的执行编号和新方案:
 - 从“全量红点回扫”改为“当前可见候选低频切换”。
 - 从“复杂 scan_status 状态机”改为“复用现有采集链路和 W20 治理”。
 - 从“尽量无人值守”改为“用户可控、可暂停、可解释”。
-

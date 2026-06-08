@@ -1,12 +1,19 @@
 # W21 Tasks: 辅助采集器
 
-> 版本: v1.0.0  
+> 版本: v1.1.0
 > 日期: 2026-06-08  
 > 状态: Draft  
 > 输入: `W21_design.md` + `2026-06-08_W21技术方案.md`  
 > 边界: 当前只出任务文档;W21 代码任务等 W20 E1/E2 验收、W20 merge 回 main 后执行
 
 ---
+
+## 变更日志
+
+| 版本 | 日期 | 变更 |
+|---|---|---|
+| v1.0.0 | 2026-06-08 | 初版:W21 辅助采集器任务拆解 |
+| v1.1.0 | 2026-06-08 | 增补 P0 修正任务:legacy 10s debounce 采集触发、候选 DOM 重匹配、W20 依赖口径 |
 
 ## 0. 启动前置
 
@@ -16,6 +23,8 @@ W21 代码开工前必须满足:
 - W20 E2 真机回归通过。
 - W20 acceptance 已写。
 - W20 分支已 merge 回 main。
+- W20 heartbeat block/warn 已通过 W20 merge 在 main 可用。
+- W20 采集权只读能力已通过 W20 merge 在 main 可用;如需新增接口,归 W20 域完成,W21 只消费。
 - 从最新 main 切 `w21-assisted-collector` 分支。
 
 若上述任一不满足,W21 只能继续做文档/调研,不能写代码。
@@ -44,6 +53,8 @@ W21 代码开工前必须满足:
 - `detectSessions`
 - unread badge
 - W20 heartbeat/block 依赖点
+- legacy collector 10 秒 debounce 与采集触发方式
+- 候选 `dom_ref` 跨切换失效风险
 
 验收:
 
@@ -86,6 +97,21 @@ plugin/runtime/assisted-collector.js
 - 非目标页面不启动。
 - `node --check plugin/runtime/assisted-collector.js` 通过。
 
+### Task B1.5 legacy 立即采集入口
+
+> 仅在 W20 merge 后执行。该任务触碰 legacy collector,必须小改、单独验收。
+
+实现二选一:
+
+- 推荐:在 `RpaLegacyCollector` 暴露 `collectNow()` 安全入口,内部复用现有 `collectMessageSession()`。
+- 备选:W21 每个候选停留至少 12 秒,通过日志确认 legacy debounce 已 fire。
+
+验收:
+
+- 推荐方案下,`collectNow()` 不改 position/message_id/occurred_at。
+- 连续切换 3 个候选,每个候选都能触发采集。
+- 若采用备选方案,必须证明 10 秒 debounce 没被下一次切换重置。
+
 ### Task B2 人工互锁
 
 实现:
@@ -107,14 +133,18 @@ plugin/runtime/assisted-collector.js
 - 调用 `adapter.detectSessions()`。
 - 只取 `unread_count > 0` 且有 `dom_ref` 的当前可见候选。
 - 单轮最多 5 个。
-- 两次切换随机 5-12 秒。
+- 两次切换间隔不低于 12 秒,再叠加随机抖动。
 - 单轮后冷却 3 分钟。
+- 轮首只记录候选稳定键,不跨候选复用缓存的 `dom_ref`。
+- 每次切换前重新 `detectSessions()`,按稳定键重匹配当前 DOM 节点。
 
 验收:
 
 - 候选 0 个时不动作。
 - 候选 >5 个时只处理 5 个。
 - 不滚动会话列表。
+- 列表重渲染后不会点击旧 `dom_ref`。
+- 找不到候选新节点时跳过,不误点。
 
 ### Task B4 通过 adapter 切换
 
@@ -123,12 +153,14 @@ plugin/runtime/assisted-collector.js
 - 只能调用 `adapter.switchSession(session)`。
 - 不直接调用 `Dom.simulateClick`。
 - 切换后调用 `adapter.confirmActiveSession(session)`。
+- 切换确认后调用 `collectNow()` 或停留至少 12 秒等待 legacy debounce 完成。
 
 验收:
 
 - `auto_switch_session=false` 时返回 `auto-switch-disabled`。
 - `switch-timeout` 只记录,不重试刷屏。
 - 静态 grep 确认 assisted collector 不直接调用 `simulateClick`。
+- 不能只等待 3 秒就切下一个候选。
 
 ### Task B5 W20 状态联动
 
@@ -202,12 +234,14 @@ rg "simulateClick" plugin/runtime/assisted-collector.js
 - W17 position/message_id/occurred_at 不变。
 - W20 batch 采集权拒绝仍生效。
 - W20 heartbeat block/warn 仍生效。
+- W21 依赖的 W20 采集权只读能力可用。
 
 通过标准:
 
 - 采集事件入库后 position 连续。
 - message_id 不因 W21 改变。
 - 非采集负责人 event rejected。
+- 连续切换不会让 legacy debounce 一直重置导致漏采。
 
 ## Phase D — Acceptance
 
@@ -233,4 +267,3 @@ docs/reports/W21_acceptance.md
 - 不做跨平台通用。
 - 不新增发送入口。
 - 不在 W20 未合并前写代码。
-
