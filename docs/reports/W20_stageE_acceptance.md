@@ -58,7 +58,20 @@
 
 ---
 
-## E2 — 真机全链路回归(待 Chase 在场)
+## E2 — 真机全链路回归(运行环境已就绪,真机采集待 Chase 操作)
+
+### 运行环境切换(2026-06-08,按 Chase 运行方案)✅
+1. 停 main server:kill nodemon(31813)+ node(87665)→ 3100 释放。
+2. 起 W20 server:`cd ~/vscode/chatsift-w20/server && NODE_PATH=~/vscode/chatsift/node_modules node src/app.js`(后台,复用 main `.env`,同 dev 库 127.0.0.1:3306/chatsift)。
+   - worktree 无 node_modules → 用 NODE_PATH 指向主库 root node_modules(不建软链,避免污染 git;worktree git 仍干净)。
+   - `.env` 从 main 复制到 worktree server(gitignored)。
+3. **W20 代码确认**:启动日志 `Chatsift Server running on port 3100` + `analyzer worker started`;`GET /api/v1/home`(tenant_admin)返回含 **`pending_accounts:{count:0,list:[]}`**(W20 专有字段,旧代码无)→ W20 代码在跑、连 dev 库(board 业务计数全 0 = 已清库)。
+
+### 待 Chase 操作(真机)
+- 加载插件:Chrome 扩展 → 加载已解压 → `~/vscode/chatsift-w20/plugin/`(manifest.json + 重建后的 content.js)。
+- 真机抖音私信采集,按 `W20_stageE_materials.md §二` O1-O6 跑;采集产生数据后我可查 dev 库 / 看 server 日志协助核对。
+- E2 完成后再决定是否切回 main server(Chase 运行方案 §5)。
+
 观察清单见 `W20_stageE_materials.md §二`(O1-O6 + 三角色×三态 SQL 断言)。
 
 ## E3 — 三角色×三态 SQL 可见性断言(待 E2 数据)
