@@ -1,7 +1,7 @@
 const pool = require('../config/db')
 const { insertAudit } = require('../utils/account-audit')
 
-// W20:校验 employeeId 是 sa 同租户的客服(external + role_code='agent')。返回 { ok, reason }。
+// W20:校验 employeeId 是 sa 同租户的客服(external + role_code='agent')。用于查看权指派。返回 { ok, reason }。
 async function validateAgentInTenant(conn, employeeId, tenantId) {
   const [[emp]] = await conn.query(
     'SELECT u.tenant_id, u.user_type, r.role_code FROM users u LEFT JOIN roles r ON r.id = u.role_id WHERE u.id = ? LIMIT 1',
@@ -10,6 +10,21 @@ async function validateAgentInTenant(conn, employeeId, tenantId) {
   if (!emp) return { ok: false, reason: '员工不存在' }
   if (emp.tenant_id !== tenantId) return { ok: false, reason: '员工与客服账号不属同一租户' }
   if (emp.user_type !== 'external' || emp.role_code !== 'agent') return { ok: false, reason: '只能指派给本租户客服(agent)' }
+  return { ok: true }
+}
+
+// W20:校验 employeeId 可作为采集人 —— 同租户 external 员工(agent 或 tenant_admin)。
+//   PRD §5.1:租户管理员可给自己或他人分配采集权,故采集人不限于 agent;internal/他租户/未知一律拒。
+async function validateCollectorInTenant(conn, employeeId, tenantId) {
+  const [[emp]] = await conn.query(
+    'SELECT u.tenant_id, u.user_type, r.role_code FROM users u LEFT JOIN roles r ON r.id = u.role_id WHERE u.id = ? LIMIT 1',
+    [employeeId]
+  )
+  if (!emp) return { ok: false, reason: '员工不存在' }
+  if (emp.tenant_id !== tenantId) return { ok: false, reason: '员工与客服账号不属同一租户' }
+  if (emp.user_type !== 'external' || (emp.role_code !== 'agent' && emp.role_code !== 'tenant_admin')) {
+    return { ok: false, reason: '采集人必须是本租户员工(客服或管理员)' }
+  }
   return { ok: true }
 }
 
@@ -60,12 +75,13 @@ async function employees(req, res) {
     : (req.query.tenant_id ? parseInt(req.query.tenant_id) : null)
   if (!tenantId) return res.status(400).json({ code: 400, message: '缺少 tenant_id' })
   try {
-    // 仅客服(agent)可分配账号:租户超管按 design §5.4 看本租户全部、不受分配限制,故不列入
+    // W20:返回本租户 external 员工(agent + tenant_admin)。采集人可为二者之一(PRD §5.1);
+    //   查看人前端只取 agent(管理员默认看全租户,无需查看权)。role_code 供前端区分。
     const [rows] = await pool.query(
       `SELECT u.id, u.username, COALESCE(r.name,'') AS role_name, r.role_code
        FROM users u LEFT JOIN roles r ON r.id = u.role_id
-       WHERE u.tenant_id = ? AND u.user_type = 'external' AND r.role_code = 'agent'
-       ORDER BY u.id`,
+       WHERE u.tenant_id = ? AND u.user_type = 'external' AND r.role_code IN ('agent','tenant_admin')
+       ORDER BY FIELD(r.role_code,'agent','tenant_admin'), u.id`,
       [tenantId]
     )
     res.json({ code: 0, data: rows })
@@ -177,7 +193,7 @@ async function reassignCollector(req, res) {
   try {
     const sa = await loadSaScoped(req, res, id)
     if (!sa) { conn.release(); return }
-    const v = await validateAgentInTenant(conn, employeeId, sa.tenant_id)
+    const v = await validateCollectorInTenant(conn, employeeId, sa.tenant_id)
     if (!v.ok) { conn.release(); return res.status(400).json({ code: 400, message: v.reason }) }
     if (sa.collector_id === employeeId) { conn.release(); return res.json({ code: 0 }) }
 
@@ -275,7 +291,7 @@ async function confirm(req, res) {
 
     const collectorId = req.body.collector_id ? parseInt(req.body.collector_id) : sa.collector_id
     if (!collectorId) { conn.release(); return res.status(400).json({ code: 400, message: '缺少采集负责人' }) }
-    const vc = await validateAgentInTenant(conn, collectorId, sa.tenant_id)
+    const vc = await validateCollectorInTenant(conn, collectorId, sa.tenant_id)
     if (!vc.ok) { conn.release(); return res.status(400).json({ code: 400, message: vc.reason }) }
 
     const viewerIds = Array.isArray(req.body.viewer_ids) ? req.body.viewer_ids.map((v) => parseInt(v)).filter(Boolean) : []
