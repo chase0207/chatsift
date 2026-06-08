@@ -64,7 +64,22 @@ WHERE tenant_id=? AND employee_id=? AND account_biz_id=? AND collector_instance_
 - P3-1(conversation_id 含昵称)本轮未踩:三个会话 id(c35fc8d8/a402b372/5d46c12c)各不相同,无碰撞。
 - 当前 dev 库残留本轮测试数据(1 账号 pending + 2 会话 + 37 消息 + 审计);修复后建议再清一次重测(E1 清库脚本可复用),或保留观察由 Chase 定。
 
+## 6. 修复落地(β,2026-06-08,Chase 拍板选 β)
+- 只改 `eventsController.heartbeat` + 新增 `resolveAccountCollector` 助手;**未动 schema、未动采集权闸门**。
+- 逻辑:仍 upsert 全部实例;按 platform/page/account_biz_id 解析 service_account 的 collector_id;
+  - 解析不到 / 本员工≠collector_id → 不返回冲突、不写 instance_conflict;
+  - 本员工==collector_id → 只和本员工自己其他活跃实例(同 platform/page/account_biz_id,60s,排自身)比:同会话→session/block+audit;同账号不同会话→account/warn。
+- 自测(`/tmp/w20_stageD_test.js`,β)**19/19 PASS**,覆盖 Chase 4 场景:
+  1. 同采集人同账号同会话两实例→session/block ✅
+  2. 同采集人同账号不同会话→account/warn ✅
+  3. 采集人B+非采集人A 同会话→互不 block、A batch 仍 pending_grab 拒 ✅
+  4. 非采集人自己两实例→无 heartbeat 冲突、batch 仍拒 ✅
+  + 兼容(uk幂等/窗口/无cid/无account_biz_id)。
+- 回归:B25/C34/UK13 全绿(累计 91 断言)。
+- W20 server 已重启加载 β。dev 库仍有第一轮残留(1 pending 账号 + 2 会话 + 37 消息);**再测建议先清库(E1 脚本可复用,需 Chase 在场)**,或保留观察。
+
 ## 变更日志
 | 版本 | 日期 | 变更 |
 |---|---|---|
 | v1.0.0 | 2026-06-08 | E2 第一轮:根因=heartbeat 冲突未按 employee_id 限定,非采集人实例阻断了合法采集人 → 缺 chase。修复=查询加 employee_id。待 Chase 确认落地。 |
+| v1.1.0 | 2026-06-08 | Chase 选 β,修复落地(只改 heartbeat,加 resolveAccountCollector;只治理同采集负责人多实例);Stage D β 自测 19/19 + B/C/UK 回归;W20 server 重启。 |

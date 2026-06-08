@@ -308,11 +308,32 @@ async function wasFormerCollector(conn, saId, employeeId) {
   return rows.length > 0
 }
 
-// W20-D2:采集实例 heartbeat + 冲突检测。
-//   upsert collect_instances(uk=tenant+collector_instance_id,刷新 last_seen_at + 当前 account/conv)。
-//   查同租户其他活跃实例(60s 窗口,排除自身):
-//     会话级命中(同 account_biz_id+conversation_id)→ {conflict:'session',action:'block'} + audit instance_conflict。
-//     账号级命中(同 account_biz_id,会话不同)→ {conflict:'account',action:'warn'}。
+// W20-D2(β):按 platform/page/account_biz_id 解析账号采集负责人 collector_id;解析不到 → null。
+async function resolveAccountCollector(conn, tenant, platform, platformPage, bizId) {
+  if (!platform || !platformPage || !bizId) return null
+  const [pf] = await conn.query('SELECT id FROM platforms WHERE platform_key = ? LIMIT 1', [platform])
+  if (!pf.length) return null
+  const [pg] = await conn.query(
+    'SELECT id FROM platform_pages WHERE platform_id = ? AND page_key = ? LIMIT 1',
+    [pf[0].id, platformPage]
+  )
+  if (!pg.length) return null
+  const [sa] = await conn.query(
+    'SELECT collector_id FROM service_accounts WHERE tenant_id=? AND platform_id=? AND page_id=? AND account_biz_id=? LIMIT 1',
+    [tenant, pf[0].id, pg[0].id, bizId]
+  )
+  if (!sa.length) return null
+  return sa[0].collector_id // 可能为 null(无采集人)
+}
+
+// W20-D2:采集实例 heartbeat + 冲突检测(★β 口径:只治理"同采集负责人"多实例,PRD §6.3)。
+//   始终 upsert collect_instances(uk=tenant+collector_instance_id,保留所有实例记录)。
+//   冲突仅在"本账号采集负责人本人的多实例"之间判:
+//     · 解析不到 service_account / 本员工≠collector_id → 不返回冲突、不写 instance_conflict
+//       (非采集负责人由 batch 采集权闸门拒,不参与 heartbeat block/warn)。
+//     · 本员工==collector_id → 只和本员工自己的其他活跃实例(同 platform/page/account_biz_id,60s)比:
+//         同 conversation_id → {conflict:'session',action:'block'} + audit instance_conflict;
+//         同账号不同会话    → {conflict:'account',action:'warn'}。
 //   ★阻止是采集实例治理(停该 tab 采集),非踢登录会话(PRD §6.1)。无 collector_instance_id → 向后兼容仅回基础。
 const HEARTBEAT_WINDOW_SECONDS = 60
 
@@ -325,6 +346,8 @@ async function heartbeat(req, res) {
     return ok(res, base)
   }
 
+  const platform = body.platform || null
+  const platformPage = body.platform_page || null
   const accountBizId = body.account_biz_id || null
   const conversationId = body.conversation_id || null
   const conn = await pool.getConnection()
@@ -340,17 +363,22 @@ async function heartbeat(req, res) {
          account_biz_id=VALUES(account_biz_id), conversation_id=VALUES(conversation_id),
          last_seen_at=NOW(), status='active'`,
       [tenant, req.user.id, cid, body.device_id || null, body.browser_profile_id || null, body.tab_id || null,
-       body.platform || null, body.platform_page || null, accountBizId, conversationId]
+       platform, platformPage, accountBizId, conversationId]
     )
 
     let conflict = null
     let action = null
-    if (accountBizId) {
+    // β:仅"本账号采集负责人本人"参与实例冲突;非采集负责人 → 不返回冲突(其采集由闸门拒)。
+    const collectorId = accountBizId
+      ? await resolveAccountCollector(conn, tenant, platform, platformPage, accountBizId)
+      : null
+    if (collectorId != null && collectorId === req.user.id) {
       const [others] = await conn.query(
         `SELECT conversation_id FROM collect_instances
-         WHERE tenant_id=? AND account_biz_id=? AND collector_instance_id<>?
+         WHERE tenant_id=? AND employee_id=? AND platform=? AND platform_page=? AND account_biz_id=?
+           AND collector_instance_id<>?
            AND last_seen_at >= DATE_SUB(NOW(), INTERVAL ${HEARTBEAT_WINDOW_SECONDS} SECOND)`,
-        [tenant, accountBizId, cid]
+        [tenant, req.user.id, platform, platformPage, accountBizId, cid]
       )
       const sessionHit = conversationId && others.some((o) => o.conversation_id === conversationId)
       if (sessionHit) {

@@ -74,6 +74,11 @@
 
 观察清单见 `W20_stageE_materials.md §二`(O1-O6 + 三角色×三态 SQL 断言)。
 
+### E2 第一轮(2026-06-08)→ 发现 bug → 已修(β)
+- 现象:3 客户只采到 1 个(缺 chase)。根因+修复见 `W20_stageE_diagnosis.md`:heartbeat 冲突未限定"同采集负责人",非采集人管理员A 的实例 block 了合法采集人 B。
+- 修复(Chase 选 β):heartbeat 只治理"同采集负责人多实例";非采集人不参与冲突,只被 batch 闸门拒。Stage D β 自测 19/19。
+- **W20 server 已重启加载 β**。dev 库仍有第一轮残留;**第二轮 O1-O6 前建议清库重测(E1 清库脚本可复用,需 Chase 在场)**——O1 验 session-block 要用同一客服开两个页签。
+
 ## E3 — 三角色×三态 SQL 可见性断言(待 E2 数据)
 
 ## E4 — 红线复核 + 验收收口(待 E2/E3)
