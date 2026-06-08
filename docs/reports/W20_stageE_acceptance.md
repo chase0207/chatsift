@@ -81,6 +81,20 @@
 - **dev 库已清第一轮残留**(2026-06-08,Chase 授权):业务表 + W20 治理表(service_account_view/audit/collect_instances/esa)全清 0,基础表(tenants/users/platforms)保留 → **ready for 第二轮 E2**。
 - 第二轮提醒:O1 验 session-block 用**同一客服开两个页签**(非 A+B);插件 content.js 未变(本次只改 server),但确认插件 serverUrl 指向 `http://127.0.0.1:3100`。
 
+### E2 阻塞修复:采集权模型核查 + admin 治理闭环(2026-06-08,Chase P0)
+两件 P0:
+- **采集权核查(任务1)**:确认 events/batch 采集闸门**不依赖**旧 employee_service_account/scope/查看分配(只用 `collector_id`)。放宽 collector 校验允许 tenant_admin 当采集人(PRD §5.1 管理员可给自己分配采集权;新增 `validateCollectorInTenant`;employees 下拉纳入 admin)。采集权 E2E `/tmp/w20_collectperm_test.js` **21/21** 覆盖 Chase 7 用例:
+  1. B 首次未预分配→pending,collector=B ✅ 2. A 管理员随后→pending_grab 拒、不影响 B ✅ 3. confirm 保持 collector=B→B 可采 ✅ 4. 重分配 collector=A(管理员)→B 拒、A 可采 ✅ 5. 查看权给 C→能看不能采 ✅ 6. disabled→全员冻结 ✅ 7. 既有分配/查看权不限制首次采集 ✅。commit fcf54de。
+- **admin 闭环(任务2)**:`ServiceAccounts.vue` 重建——lifecycle 过滤(待确认 badge)、列表展示(状态/采集人 temp·formal/查看人数/首次发现/最近采集/平台·页面/biz_id/昵称)、确认对话框(选采集人+查看人)、重分配采集人、查看人增删、停用/恢复;API client 补 confirm/setCollector/disable/enable。vite build 编译过。commit f333874。**不再依赖手写 SQL。**
+
+### E2 运行环境(第二轮就绪)
+| 端口 | 服务 | 说明 |
+|---|---|---|
+| 3100 | W20 server | β heartbeat + 采集权 fix,连 dev 库 |
+| 5173 | **W20 admin**(http://localhost:5173) | 从 worktree 起,VITE_API_URL→3100;已停旧 main admin |
+| 3306 | dev 库 chatsift | 已清空,W20 schema |
+- ★浏览器用 `http://localhost:5173`(Vite 绑 IPv6 localhost)。租户超管登录(如 18651359635)→ 客服账号菜单 → W20 治理页。
+
 ## E3 — 三角色×三态 SQL 可见性断言(待 E2 数据)
 
 ## E4 — 红线复核 + 验收收口(待 E2/E3)
