@@ -82,6 +82,7 @@
         try { json = await resp.json() } catch (_) {}
         await Queue.persist()
         Logger.info && Logger.info('EventUploader', 'uploaded', json.data || json)
+        _logRejectReasons(json.data && json.data.reject_reasons) // W20:采集权拒/原因写入消息日志
         return { ok: true, response: json }
       }
       Queue.requeueFront(batch)
@@ -94,6 +95,37 @@
     } finally {
       _uploading = false
     }
+  }
+
+  // W20:把 server 返回的 reject_reasons 汇总成中文写入插件消息日志(节流:同一汇总不重复刷)。
+  var _lastRejectSig = ''
+  var REJECT_LABEL = {
+    missing_account_biz_id: '私信缺商家账号ID',
+    account_disabled: '账号已停用，采集冻结',
+    pending_grab: '账号待确认且采集权属他人',
+    not_collector: '你不是该账号采集负责人',
+    no_collect_permission: '无采集权（账号待客服认领/确认）',
+  }
+  function _logRejectReasons(reasons) {
+    if (!reasons || !reasons.length) { _lastRejectSig = ''; return }
+    var counts = {}
+    reasons.forEach(function (r) {
+      var k = r && r.reason
+      if (k && k !== 'invalid_event') counts[k] = (counts[k] || 0) + 1
+    })
+    var parts = Object.keys(counts).map(function (k) { return counts[k] + '条·' + (REJECT_LABEL[k] || k) })
+    if (!parts.length) return
+    var msg = '[采集]: ' + parts.join('；') + '，未上报'
+    if (msg === _lastRejectSig) return // 节流:同样的拒绝汇总不重复刷屏
+    _lastRejectSig = msg
+    _appendPluginLog(msg)
+  }
+  function _appendPluginLog(message) {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+        chrome.runtime.sendMessage({ action: 'APPEND_LOG', message: message, level: 'warn' })
+      }
+    } catch (_) {}
   }
 
   async function start() {
