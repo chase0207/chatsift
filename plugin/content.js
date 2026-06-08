@@ -4914,18 +4914,21 @@
       }
     } catch (_) {}
   }
-  function _notifyConflict(context) {
+  function _notifyConflict(kind, context) {
     var bizId = context && context.account_biz_id
-    Logger.warn && Logger.warn('LegacyCollector', 'instance conflict', { account_biz_id: bizId })
+    Logger.warn && Logger.warn('LegacyCollector', 'instance conflict', { kind: kind, account_biz_id: bizId })
     try {
       window.dispatchEvent(new CustomEvent('chatsift:collect-conflict', {
-        detail: { conflict: 'account', action: 'block', context: context },
+        detail: { conflict: 'account', action: kind, context: context },
       }))
     } catch (_) {}
-    // W20:写入插件消息日志(节流:同账号不重复刷)
-    if (bizId === _lastConflictKey) return
-    _lastConflictKey = bizId
-    _appendPluginLog('[实例]: 同一客服账号已在其他设备/页签采集，已暂停本页采集')
+    // W20:写入插件消息日志(节流:同 kind+账号 不重复刷)
+    var key = kind + '|' + bizId
+    if (key === _lastConflictKey) return
+    _lastConflictKey = key
+    _appendPluginLog(kind === 'block'
+      ? '[实例]: 同一客服账号已有更早的采集实例在运行，本页已暂停采集'
+      : '[实例]: 检测到同账号其他采集实例，本实例为最早，继续采集')
   }
 
   // 周期心跳:session-block → 暂停本 tab 采集;account-warn → 仅强提醒不停采;无冲突 → 解除阻断恢复采集。
@@ -4939,14 +4942,20 @@
     try {
       var res = await Identity.sendHeartbeat(context)
       if (!res) return
-      // ★账号级:server 判同客服账号另有活跃实例 → action='block' → 暂停本页采集
+      // ★账号级 + 仲裁:server 按注册先后判定 —— action='block'(更晚,暂停)/'primary'(最早,继续)/无(独占)。
       if (res.action === 'block') {
-        if (!_blocked) { _blocked = true; _notifyConflict(context) }
-      } else if (_blocked) {
-        _blocked = false
+        _blocked = true
+        _notifyConflict('block', context)
+      } else if (res.action === 'primary') {
+        if (_blocked) { _blocked = false; Logger.info && Logger.info('LegacyCollector', 'now primary, collection resumed') }
+        _notifyConflict('primary', context)
+      } else {
+        if (_blocked) {
+          _blocked = false
+          Logger.info && Logger.info('LegacyCollector', 'instance conflict cleared, collection resumed')
+          _appendPluginLog('[实例]: 冲突解除，恢复采集')
+        }
         _lastConflictKey = ''
-        Logger.info && Logger.info('LegacyCollector', 'instance conflict cleared, collection resumed')
-        _appendPluginLog('[实例]: 冲突解除，恢复采集')
       }
     } catch (err) {
       Logger.warn && Logger.warn('LegacyCollector', 'heartbeat tick failed', err && err.message)

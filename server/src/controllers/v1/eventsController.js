@@ -373,22 +373,33 @@ async function heartbeat(req, res) {
       ? await resolveAccountCollector(conn, tenant, platform, platformPage, accountBizId)
       : null
     if (collectorId != null && collectorId === req.user.id) {
-      // ★账号级:同采集负责人本人在同一客服账号上另有活跃实例 → 冲突 block(不分会话)
-      const [others] = await conn.query(
-        `SELECT 1 FROM collect_instances
+      // ★账号级 + 仲裁:同采集负责人本人在同一客服账号上若另有活跃实例,
+      //   按注册先后(collect_instances.id)仲裁 —— 最早注册者为主继续(primary),更晚者暂停(block)。
+      const [[me]] = await conn.query(
+        'SELECT id FROM collect_instances WHERE tenant_id=? AND collector_instance_id=? LIMIT 1',
+        [tenant, cid]
+      )
+      const myId = me ? me.id : null
+      const [[agg]] = await conn.query(
+        `SELECT COUNT(*) AS n, MIN(id) AS min_id FROM collect_instances
          WHERE tenant_id=? AND employee_id=? AND platform=? AND platform_page=? AND account_biz_id=?
            AND collector_instance_id<>?
-           AND last_seen_at >= DATE_SUB(NOW(), INTERVAL ${HEARTBEAT_WINDOW_SECONDS} SECOND)
-         LIMIT 1`,
+           AND last_seen_at >= DATE_SUB(NOW(), INTERVAL ${HEARTBEAT_WINDOW_SECONDS} SECOND)`,
         [tenant, req.user.id, platform, platformPage, accountBizId, cid]
       )
-      if (others.length) {
-        conflict = 'account'; action = 'block'
-        await insertAudit(conn, {
-          tenantId: tenant, targetEmployeeId: req.user.id, eventType: 'instance_conflict',
-          afterValue: { conflict, account_biz_id: accountBizId, conversation_id: conversationId },
-          deviceId: body.device_id || null, browserProfileId: body.browser_profile_id || null, tabId: body.tab_id || null,
-        })
+      if (agg.n > 0) {
+        if (myId != null && agg.min_id != null && agg.min_id < myId) {
+          // 有更早注册的活跃实例 → 本实例让步暂停
+          conflict = 'account'; action = 'block'
+          await insertAudit(conn, {
+            tenantId: tenant, targetEmployeeId: req.user.id, eventType: 'instance_conflict',
+            afterValue: { conflict, action, account_biz_id: accountBizId, conversation_id: conversationId },
+            deviceId: body.device_id || null, browserProfileId: body.browser_profile_id || null, tabId: body.tab_id || null,
+          })
+        } else {
+          // 本实例最早注册 → 为主,继续采集(通知存在更晚的实例)
+          conflict = 'account'; action = 'primary'
+        }
       }
     }
     ok(res, Object.assign(base, { conflict, action }))
