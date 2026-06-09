@@ -1,7 +1,7 @@
 # W21 Tasks: 辅助采集器
 
-> 版本: v1.1.0
-> 日期: 2026-06-08  
+> 版本: v1.2.0
+> 日期: 2026-06-09
 > 状态: Draft  
 > 输入: `W21_design.md` + `2026-06-08_W21技术方案.md`  
 > 边界: 当前只出任务文档;W21 代码任务等 W20 E1/E2 验收、W20 merge 回 main 后执行
@@ -14,6 +14,7 @@
 |---|---|---|
 | v1.0.0 | 2026-06-08 | 初版:W21 辅助采集器任务拆解 |
 | v1.1.0 | 2026-06-08 | 增补 P0 修正任务:legacy 10s debounce 采集触发、候选 DOM 重匹配、W20 依赖口径 |
+| v1.2.0 | 2026-06-09 | 明确插件面板开关入口;同步 W20 账号级 block 实例冲突口径;移除 warn 依赖;补充 Phase B 实施顺序 |
 
 ## 0. 启动前置
 
@@ -23,7 +24,7 @@ W21 代码开工前必须满足:
 - W20 E2 真机回归通过。
 - W20 acceptance 已写。
 - W20 分支已 merge 回 main。
-- W20 heartbeat block/warn 已通过 W20 merge 在 main 可用。
+- W20 heartbeat 账号级实例冲突 block 已通过 W20 merge 在 main 可用。
 - W20 采集权只读能力已通过 W20 merge 在 main 可用;如需新增接口,归 W20 域完成,W21 只消费。
 - 从最新 main 切 `w21-assisted-collector` 分支。
 
@@ -47,12 +48,13 @@ W21 代码开工前必须满足:
 盘点:
 
 - `auto_switch_session`
+- 插件面板“客服配置-自动化配置-自动切换会话”入口
 - popup 开关
 - `ChatsiftContentGate`
 - `switchSession`
 - `detectSessions`
 - unread badge
-- W20 heartbeat/block 依赖点
+- W20 heartbeat account/block 依赖点
 - legacy collector 10 秒 debounce 与采集触发方式
 - 候选 `dom_ref` 跨切换失效风险
 
@@ -74,6 +76,27 @@ W21 代码开工前必须满足:
 ## Phase B — 本地插件最小实现
 
 > Phase B 仅在 W20 merge 后执行。
+
+### Task B0 开关入口确认
+
+确认并复用现有入口:
+
+```text
+插件面板 -> 客服配置 -> 自动化配置 -> 自动切换会话
+```
+
+要求:
+
+- 不新增第二个 W21 开关。
+- 默认值保持 `auto_switch_session=false`。
+- 用户关闭后立即停止 assisted collector 的 timer 和本轮调度。
+- 开启提示必须说明“会低频自动切换当前客服页面会话,人工操作时会暂停”。
+
+验收:
+
+- 页面刷新、插件重启后默认不自动开启。
+- 关闭开关后不再调用 `switchSession()`。
+- 开关文案不承诺全量无漏。
 
 ### Task B1 新增 assisted collector 模块
 
@@ -166,16 +189,17 @@ plugin/runtime/assisted-collector.js
 
 接入:
 
-- session block:停止调度。
-- account warn:暂停当前轮,不停 legacy 采集。
+- account block:停止调度。
 - 采集权不可用:不自动切换。
+- disabled:不自动切换。
 
 验收:
 
 - 非采集负责人不切换。
 - disabled 不切换。
 - block 不切换。
-- warn 不继续本轮自动切换。
+- 不依赖 session 级冲突。
+- 不依赖 warn。
 
 ## Phase C — 验收与真机回归
 
@@ -204,7 +228,7 @@ rg "simulateClick" plugin/runtime/assisted-collector.js
 - 非目标页面。
 - 人工操作暂停。
 - 候选限量。
-- block/warn。
+- account block。
 
 通过标准:
 
@@ -233,7 +257,7 @@ rg "simulateClick" plugin/runtime/assisted-collector.js
 
 - W17 position/message_id/occurred_at 不变。
 - W20 batch 采集权拒绝仍生效。
-- W20 heartbeat block/warn 仍生效。
+- W20 heartbeat account/block 仍生效。
 - W21 依赖的 W20 采集权只读能力可用。
 
 通过标准:
