@@ -1,9 +1,9 @@
 ---
 文档: W20 阶段E 验收(试点回归)— 活文档
-版本: v1.1.0
+版本: v1.2.0
 周次: W20
 落位: docs/reports/
-状态: ★E1/E2 验收通过(2026-06-09);E3/E4 收尾待续
+状态: ★E1-E4 全部完成(2026-06-09);具备 merge 回 main 条件(代码层),merge/发版留 Chase
 身份: DEV(CC4) / 环境: dev 库 chatsift @ 127.0.0.1:3306 / 分支: w20-account-governance(未 merge/push/deploy)
 ---
 
@@ -14,6 +14,7 @@
 |---|---|---|
 | v1.0.0 | 2026-06-08 | E1 dev 库清库重采 + W20 apply 执行完成(Chase 在场,选项B);post-check + 只读 smoke 全过。E2/E3/E4 待续。 |
 | v1.1.0 | 2026-06-09 | **★E1、E2 验收通过(Chase 确认)**。E2 经多轮真机修复后全链路跑通,见 §E1/E2 验收通过总结。 |
+| v1.2.0 | 2026-06-09 | **E3 可见性矩阵 11/11、E4 红线复核全过**;补 E5 收口 + merge 就绪检查。W20 本地开发+自测+E1-E4 验收全部完成,具备 merge 回 main 条件(留 Chase)。 |
 
 ---
 
@@ -129,6 +130,41 @@ E3 三角色×三态 SQL 可见性断言、E4 红线复核收口、merge/部署(
 - **第三轮 E2 环境**:W20 server 重启(采集权 fix 已加载,3100);dev 库已清空;★**content.js 变了,Chase 需重新加载插件**(reload unpacked);插件 serverUrl 指向 127.0.0.1:3100。
   - 测法:用**客服B 的插件**采集(B 发现→认领→采);若 admin 插件也开,admin 不再抢采集权。状态看 popup「消息日志」。
 
-## E3 — 三角色×三态 SQL 可见性断言(待 E2 数据)
+## E3 — 三角色×三态 可见性断言 ✅(2026-06-09,11/11)
+> 脚本 `/tmp/w20_e3_test.js`:建 pending/active/disabled 三态账号(采集人=ag1;active 给 ag2 查看权),
+> 对各角色跑 `conversationsController.list` 断言可见会话集,对齐技术方案 §7。
 
-## E4 — 红线复核 + 验收收口(待 E2/E3)
+| 角色 \ 账号态 | pending | active | disabled |
+|---|---|---|---|
+| internal 平台方(无 tenant_id) | ✗ | ✗ | ✗ |
+| internal 平台方(带 tenant_id=1) | ✓ | ✓ | ✗(隐藏) |
+| tenant_admin 租户超管 | ✓ | ✓ | ✗(隐藏) |
+| agent 采集人(ag1,有 view) | ✓(临时采集人) | ✓ | ✗(隐藏) |
+| agent 查看人(ag2,仅 active 有 view) | ✗(无 view) | ✓ | ✗(隐藏) |
+
+口径符合 §7:pending=管理员+临时采集人/active=查看权+管理员/disabled=业务列表一律隐藏(管理·审计页另查)。**11/11 PASS**。
+
+## E4 — 红线复核 ✅(2026-06-09)
+- **W17**:`messages` INSERT 写法保留(platform_message_id/direction/position/occurred_at/segment_at 未动);`plugin/runtime/position-tracker.js`、`shared/dom-utils.js`(synthMessageId)对 main **零改动**。位置/去重/时间逻辑未碰。
+- **W19**:`employee_service_account` **未 DROP**(03_w20 仅 ALTER COMMENT 标废弃);service_accounts 既有列/既有 FK 保留(`uk_account` 去昵称是 W20 身份修正,非破坏)。资产模型未破坏。
+- **只读**:W20 改动文件(server/plugin/admin)**无** sendReply/verifySent/simulateInput/simulateClick/textarea/contenteditable 发送或输入实现(admin 的 `.value=` 均为 Vue ref 赋值,非 DOM input)。后台无发送入口。
+
+## E5 — W20 收口 + merge 就绪检查
+| 项 | 结果 |
+|---|---|
+| 本地自测全绿 | A/B 25 / C 34 / D(仲裁)19 / uk 13 / 采集权 E2E 24 / E3 11 |
+| E1 dev 库落地 | ✅ 通过(清库重采+apply,post-check+smoke 10/10) |
+| E2 真机全链路 | ✅ 通过(Chase 确认) |
+| E3 可见性矩阵 | ✅ 11/11 |
+| E4 红线 W17/W19/只读 | ✅ 全过 |
+| schema 同步 | check-version SYNCED(server/sql 4==prod/test compose 各 4);03_w20 + dev 副本 + deploy/w20 升级 migration 三处一致 |
+| 静态检查 | git diff --check / build:plugin --check / node -c server/src 全过(见 §E5 末) |
+| 边界 | 未 merge / 未部署 / 未碰 test·prod;w20 分支已 push origin |
+
+### merge 回 main 前置(留 Chase 决策,DEV 不自行 merge)
+1. **代码**:W20 分支(server 采集权闸门+heartbeat+schema、admin 治理页、插件实例标识/启停)→ main。**W21 依赖此 merge**(W21 assisted collector 需 main 上有 W20 采集权/account-block)。
+2. **数据库**:prod/test 升级用 `deploy/w20_account_governance.sql`(发版批次,QA/Chase 在场;含 uk DROP/ADD 需空表或先去重——预检 `deploy/w20_preflight_check.sql`)。
+3. **清库口径**:W20 改了 uk_account/采集权契约,prod 上线按 W17/W19 同款"清库重采"纪律(Chase 定)。
+4. **发版**:VERSION/CHANGELOG/tag 由 QA 写(AGENTS §7);本分支未动。
+
+> 结论:**W20 本地开发 + 自测 + E1-E4 验收全部完成,具备 merge 回 main 条件**(代码层);merge/发版/部署动作留 Chase。
