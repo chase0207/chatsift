@@ -3809,18 +3809,21 @@
 
   var SELECTORS = {
     contactItem: [
-      '[data-qa-id="qa-conversation-chat-item"]',
+      '[class*="conversationItem-"]',             // 抖音私信新版会话项(conversationItem-<hash>)
+      '[data-qa-id="qa-conversation-chat-item"]', // 旧版兜底
       '[class*="conversation"][class*="item"]',
       '[class*="contactCard"]',
       '[role="option"]',
       '[role="listitem"]',
     ],
     activeContactItem: [
+      '[class*="conversationActiveItem"]',        // 新版激活项(与 conversationItem 并存)
       '[data-qa-id="qa-conversation-chat-item"][class*="active"]',
       '[data-qa-id="qa-conversation-chat-item"][class*="selected"]',
       '[class*="conversation"][class*="active"]',
     ],
     nickname: [
+      '[class*="conversationName"]',              // 新版会话名(conversationName-<hash>)
       '[class*="nickname"]',
       '[class*="userName"]',
       '[class*="title"]',
@@ -3834,9 +3837,10 @@
       '[class*="header-title"]',
     ],
     unreadBadge: [
-      'sup[class*="byted-badge-type-danger"]',
-      'sup[class*="byted"]',
+      'sup[class*="byted-badge-sup-show"]',       // 新版:未读红点显示态(激活/已读项的 sup 无 -show)
+      '[class*="newConv"]',                        // 新版:"[新会话]"标识
       '[aria-label*="未读"]',
+      'sup[class*="byted-badge-type-danger"]',
       '[class*="badge"][class*="count"]',
       '[class*="unread"]',
     ],
@@ -3899,9 +3903,9 @@
     if (!item) return null
     var nicknameEl = Dom.queryFirst(SELECTORS.nickname, item)
     var nickname   = Dom.getText(nicknameEl)
-    var badgeEl    = Dom.queryFirst(SELECTORS.unreadBadge, item)
-    var unreadStr  = Dom.getText(badgeEl)
-    var unread     = parseInt(unreadStr, 10) || (badgeEl ? 1 : 0)
+    // 未读判定:红点显示态(byted-badge-sup-show)或"[新会话]"标识即视为未读。
+    // 数字红点是 byted-animated-number(CSS 位移动画),文本解析不可靠 → 用存在性,unread=1。
+    var unread     = Dom.queryFirst(SELECTORS.unreadBadge, item) ? 1 : 0
     return Helpers.buildRawSession({
       raw_id:    Dom.getAttr(item, ['data-conversation-id', 'data-session-id', 'data-id', 'data-qa-id']),
       nickname:  nickname,
