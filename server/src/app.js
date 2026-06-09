@@ -46,6 +46,7 @@ app.use('/api/v1/price-table', require('./routes/v1/priceTable'))
 app.use('/api/v1/llm-config', require('./routes/v1/llmConfig'))
 app.use('/api/v1/analytics', require('./routes/v1/analytics'))
 app.use('/api/v1/home', require('./routes/v1/home'))
+app.use('/api/v1/service-accounts', require('./routes/v1/serviceAccounts'))
 
 const publicDir = path.join(__dirname, '..', 'public')
 app.use(express.static(publicDir))
