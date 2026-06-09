@@ -19,3 +19,24 @@ export function assignEmployee(saId, employeeId) {
 export function unassignEmployee(saId, employeeId) {
   return request.delete(`/service-accounts/${saId}/assignments/${employeeId}`)
 }
+
+// W20 治理
+export function confirmAccount(saId, payload) {
+  return request.post(`/service-accounts/${saId}/confirm`, payload)
+}
+
+export function setCollector(saId, employeeId) {
+  return request.put(`/service-accounts/${saId}/collector`, { employee_id: employeeId })
+}
+
+export function disableAccount(saId) {
+  return request.put(`/service-accounts/${saId}/disable`)
+}
+
+export function enableAccount(saId) {
+  return request.put(`/service-accounts/${saId}/enable`)
+}
+
+export function getConflicts(saId) {
+  return request.get(`/service-accounts/${saId}/conflicts`)
+}

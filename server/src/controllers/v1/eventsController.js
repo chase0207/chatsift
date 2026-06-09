@@ -1,5 +1,6 @@
 const pool = require('../../config/db')
 const { ok, fail, tenantId, toMysqlDate, jsonValue } = require('./_shared')
+const { insertAudit } = require('../../utils/account-audit')
 
 async function batch(req, res) {
   const events = req.body && req.body.events
@@ -12,11 +13,12 @@ async function batch(req, res) {
     return fail(res, 403, 1003, '平台方账号不可上报采集数据')
   }
   const conn = await pool.getConnection()
-  const saCache = new Map()    // batch 内 account → sa_id memoize
-  const boundCache = new Map() // batch 内已自动绑定的 sa_id
+  const saCache = new Map()      // batch 内 account → 完整 sa 状态对象 memoize(W20)
+  const gateCache = new Map()    // batch 内 account → 采集权判定结果 memoize(W20-C1)
   let accepted = 0
   let duplicated = 0
   let rejected = 0
+  const rejectReasons = []       // W20-C1:[{platform_message_id, reason}]
 
   try {
     await conn.beginTransaction()
@@ -33,6 +35,7 @@ async function batch(req, res) {
       // W17:放开"无 occurred_at 即 reject"(D4),允许 outbound occurred_at=NULL 正常入库
       if (!platform || !platformConversationId || !platformMessageId || !direction) {
         rejected += 1
+        rejectReasons.push({ platform_message_id: platformMessageId || null, reason: 'invalid_event' })
         continue
       }
 
@@ -45,8 +48,17 @@ async function batch(req, res) {
         continue
       }
 
-      // B2:account_biz_id+昵称 → service_account_id(缺/映射不到 → null,放行留 NULL,Q1)
-      const saId = await resolveServiceAccountId(conn, tenant, event, saCache)
+      // W20-B:account_biz_id+昵称 → 完整 SA 状态(缺/映射不到 → null);首见在此建 pending+临时采集权+view+audit。
+      const sa = await resolveServiceAccount(conn, tenant, req, event, saCache)
+
+      // W20-C1:采集权判定闸门(★event 级 rejected,HTTP 仍 200;非整批 403)。
+      const gate = await collectGate(conn, tenant, req, event, sa, gateCache)
+      if (gate.reject) {
+        rejected += 1
+        rejectReasons.push({ platform_message_id: platformMessageId, reason: gate.reason })
+        continue
+      }
+      const saId = sa ? sa.id : null
 
       let conversationId
       const [conversationRows] = await conn.query(
@@ -136,13 +148,11 @@ async function batch(req, res) {
         [tenant, saId, messageResult.insertId, conversationId]
       )
 
-      // B2:客服上报首见账号 → 自动绑定 employee_service_account(隔离闭环)
-      await autoBindAgent(conn, tenant, req, saId, boundCache)
       accepted += 1
     }
 
     await conn.commit()
-    ok(res, { accepted, duplicated, rejected })
+    ok(res, { accepted, duplicated, rejected, reject_reasons: rejectReasons })
   } catch (err) {
     await conn.rollback()
     console.error('[v1.events.batch]', err)
@@ -152,14 +162,20 @@ async function batch(req, res) {
   }
 }
 
-// B2:event.platform/platform_page 字符串 → service_accounts.id(按 biz_id+昵称 upsert);
-//     缺 account_biz_id / 平台·页面映射不到 → 返回 null(放行,service_account_id 留 NULL,Q1)
-async function resolveServiceAccountId(conn, tenant, event, cache) {
+// W20-B:event → 完整 SA 状态 { id, lifecycle, collector_id, collector_kind, created }。
+//   ★稳定身份 = tenant+platform+page+account_biz_id(不含 account_nickname);昵称为展示字段,变化不拆账号。
+//   缺 account_biz_id / 平台·页面映射不到 → 返回 null(放行/拒绝由阶段C C1 按 page 判)。
+//   命中既有账号 → 返回该行(created:false);若传入昵称非空且与库中不同 → 更新展示昵称(同一 service_account_id)。
+//   首见(uk_account 未命中)→ 事务内建 pending + 临时采集权(本员工 collector_kind='temp')
+//     + service_account_view 一行(granted_by=NULL,采集人默认查看权)+ audit first_seen/temp_grant。
+//   ★并发首见:后到者 INSERT 撞 uk_account → 捕获后改查(FOR UPDATE 读最新已提交)命中行返回(created:false)。
+async function resolveServiceAccount(conn, tenant, req, event, cache) {
   const bizId = event.account_biz_id
   if (!bizId) return null
   const nick = event.account_nickname || ''
-  const key = [event.platform, event.platform_page, bizId, nick].join('|')
+  const key = [event.platform, event.platform_page, bizId].join('|') // 稳定身份键,不含昵称
   if (cache.has(key)) return cache.get(key)
+
   const [pf] = await conn.query('SELECT id FROM platforms WHERE platform_key = ? LIMIT 1', [event.platform])
   if (!pf.length) { cache.set(key, null); return null }
   const [pg] = await conn.query(
@@ -167,33 +183,232 @@ async function resolveServiceAccountId(conn, tenant, event, cache) {
     [pf[0].id, event.platform_page]
   )
   if (!pg.length) { cache.set(key, null); return null }
-  const [up] = await conn.query(
-    `INSERT INTO service_accounts (tenant_id, platform_id, page_id, account_biz_id, account_nickname, first_seen_at)
-     VALUES (?,?,?,?,?,NOW())
-     ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id), updated_at = NOW()`,
-    [tenant, pf[0].id, pg[0].id, bizId, nick]
-  )
-  cache.set(key, up.insertId)
-  return up.insertId
+  const platformId = pf[0].id
+  const pageId = pg[0].id
+
+  const found = await selectServiceAccount(conn, tenant, platformId, pageId, bizId)
+  if (found) {
+    if (nick && nick !== found.account_nickname) {
+      await conn.query('UPDATE service_accounts SET account_nickname=? WHERE id=?', [nick, found.id])
+      found.account_nickname = nick
+    }
+    cache.set(key, found)
+    return found
+  }
+
+  const employeeId = req.user.id
+  // ★口径(Chase):不管是谁发现新账号都建 pending;★不区分角色,谁发现就把临时采集权给谁(含管理员)。
+  //   管理员若发现即临时采集人,可采;后续管理员 confirm 时再指派正式采集人(可改)。
+  try {
+    const [ins] = await conn.query(
+      `INSERT INTO service_accounts
+         (tenant_id, platform_id, page_id, account_biz_id, account_nickname,
+          status, lifecycle, first_seen_at, first_seen_by, collector_id, collector_kind)
+       VALUES (?,?,?,?,?, 1, 'pending', NOW(), ?, ?, 'temp')`,
+      [tenant, platformId, pageId, bizId, nick, employeeId, employeeId]
+    )
+    const saId = ins.insertId
+    await conn.query(
+      `INSERT INTO service_account_view (tenant_id, service_account_id, employee_id, granted_by) VALUES (?,?,?,NULL)`,
+      [tenant, saId, employeeId]
+    )
+    await insertAudit(conn, {
+      tenantId: tenant, targetEmployeeId: employeeId, serviceAccountId: saId,
+      eventType: 'first_seen', afterValue: { account_biz_id: bizId, account_nickname: nick, lifecycle: 'pending' },
+    })
+    await insertAudit(conn, {
+      tenantId: tenant, targetEmployeeId: employeeId, serviceAccountId: saId,
+      eventType: 'temp_grant', afterValue: { collector_id: employeeId, collector_kind: 'temp' },
+    })
+    const created = { id: saId, lifecycle: 'pending', collector_id: employeeId, collector_kind: 'temp', created: true }
+    cache.set(key, created)
+    return created
+  } catch (err) {
+    if (err && err.code === 'ER_DUP_ENTRY') {
+      const row = await selectServiceAccount(conn, tenant, platformId, pageId, bizId, true)
+      if (row) { cache.set(key, row); return row }
+    }
+    throw err
+  }
 }
 
-// B2:客服(role_code='agent')上报首见账号 → 自动建 employee_service_account(系统来源,uk_assign 幂等);
-//     租户超管不自动绑(默认看全租户,codex#5)
-async function autoBindAgent(conn, tenant, req, saId, bound) {
-  if (saId == null || req.user.role_code !== 'agent' || bound.has(saId)) return
-  await conn.query(
-    `INSERT IGNORE INTO employee_service_account (tenant_id, employee_id, service_account_id, assigned_by)
-     VALUES (?,?,?,NULL)`,
-    [tenant, req.user.id, saId]
+// ★按稳定身份查询(tenant+platform+page+account_biz_id,不含昵称),与新 uk_account 一致。
+async function selectServiceAccount(conn, tenant, platformId, pageId, bizId, forUpdate = false) {
+  const [rows] = await conn.query(
+    `SELECT id, lifecycle, collector_id, collector_kind, account_nickname
+     FROM service_accounts
+     WHERE tenant_id=? AND platform_id=? AND page_id=? AND account_biz_id=?
+     LIMIT 1${forUpdate ? ' FOR UPDATE' : ''}`,
+    [tenant, platformId, pageId, bizId]
   )
-  bound.set(saId, true)
+  if (!rows.length) return null
+  return {
+    id: rows[0].id,
+    lifecycle: rows[0].lifecycle,
+    collector_id: rows[0].collector_id,
+    collector_kind: rows[0].collector_kind,
+    account_nickname: rows[0].account_nickname,
+    created: false,
+  }
 }
+
+// W20-C1:采集权判定闸门(返回 {reject, reason})。★HTTP 仍 200,只在 event 级拒绝。
+//   sa==null:private-message 缺 account_biz_id → 拒;laike/feige 等未治理页 → 放行(留 NULL)。
+//   sa.created:首见已建临时采集权(collector=发现者本人)→ 放行。
+//   disabled → 拒 account_disabled。本员工==collector_id → 放行(发现者/被指派人,不论角色)。
+//   有 collector 但非本人:pending→pending_grab;active→not_collector(旧采集人→old_collector_blocked)。
+//   同账号 batch 内 memoize,audit 只写一次。
+async function collectGate(conn, tenant, req, event, sa, cache) {
+  if (sa == null) {
+    if (event.platform_page === 'private-message' && !event.account_biz_id) {
+      return { reject: true, reason: 'missing_account_biz_id' }
+    }
+    return { reject: false }
+  }
+  if (cache.has(sa.id)) return cache.get(sa.id)
+
+  let decision
+  if (sa.created) {
+    decision = { reject: false }
+  } else if (sa.lifecycle === 'disabled') {
+    await insertAudit(conn, {
+      tenantId: tenant, targetEmployeeId: req.user.id, serviceAccountId: sa.id,
+      eventType: 'reject_collect', afterValue: { reason: 'account_disabled' },
+    })
+    decision = { reject: true, reason: 'account_disabled' }
+  } else if (sa.collector_id === req.user.id) {
+    decision = { reject: false }
+  } else {
+    let reason, eventType
+    if (sa.lifecycle === 'pending') {
+      reason = 'pending_grab'; eventType = 'pending_grab'
+    } else {
+      reason = 'not_collector'
+      eventType = (await wasFormerCollector(conn, sa.id, req.user.id)) ? 'old_collector_blocked' : 'reject_collect'
+    }
+    await insertAudit(conn, {
+      tenantId: tenant, targetEmployeeId: req.user.id, serviceAccountId: sa.id,
+      eventType, afterValue: { reason, lifecycle: sa.lifecycle },
+    })
+    decision = { reject: true, reason }
+  }
+  cache.set(sa.id, decision)
+  return decision
+}
+
+// 该员工是否曾是此账号采集负责人(被管理员重分配后被拒)→ audit 用 old_collector_blocked 区分
+async function wasFormerCollector(conn, saId, employeeId) {
+  const [rows] = await conn.query(
+    `SELECT 1 FROM service_account_audit
+     WHERE service_account_id = ? AND event_type = 'reassign_collector'
+       AND JSON_EXTRACT(before_value, '$.collector_id') = ?
+     LIMIT 1`,
+    [saId, employeeId]
+  )
+  return rows.length > 0
+}
+
+// W20-D2(β):按 platform/page/account_biz_id 解析账号采集负责人 collector_id;解析不到 → null。
+async function resolveAccountCollector(conn, tenant, platform, platformPage, bizId) {
+  if (!platform || !platformPage || !bizId) return null
+  const [pf] = await conn.query('SELECT id FROM platforms WHERE platform_key = ? LIMIT 1', [platform])
+  if (!pf.length) return null
+  const [pg] = await conn.query(
+    'SELECT id FROM platform_pages WHERE platform_id = ? AND page_key = ? LIMIT 1',
+    [pf[0].id, platformPage]
+  )
+  if (!pg.length) return null
+  const [sa] = await conn.query(
+    'SELECT collector_id FROM service_accounts WHERE tenant_id=? AND platform_id=? AND page_id=? AND account_biz_id=? LIMIT 1',
+    [tenant, pf[0].id, pg[0].id, bizId]
+  )
+  if (!sa.length) return null
+  return sa[0].collector_id // 可能为 null(无采集人)
+}
+
+// W20-D2:采集实例 heartbeat + 冲突检测(★β 口径:只治理"同采集负责人"多实例,PRD §6.3)。
+//   始终 upsert collect_instances(uk=tenant+collector_instance_id,保留所有实例记录)。
+//   冲突仅在"本账号采集负责人本人的多实例"之间判,且★颗粒度=客服账号(account_biz_id),非会话:
+//     · 解析不到 service_account / 本员工≠collector_id → 不返回冲突、不写 instance_conflict
+//       (非采集负责人由 batch 采集权闸门拒,不参与 heartbeat block)。
+//     · 本员工==collector_id 且同账号(platform/page/account_biz_id)另有活跃实例(60s,排自身)
+//       → {conflict:'account',action:'block'} + audit instance_conflict。
+//       (同客服账号下会话列表一致,所有会话都冲突,故账号级直接阻止,不细分会话/warn。)
+//   ★阻止是采集实例治理(停该 tab 采集),非踢登录会话(PRD §6.1)。无 collector_instance_id → 向后兼容仅回基础。
+const HEARTBEAT_WINDOW_SECONDS = 60
 
 async function heartbeat(req, res) {
-  ok(res, {
-    server_time: new Date().toISOString(),
-    config_version: 1,
-  })
+  const base = { server_time: new Date().toISOString(), config_version: 1 }
+  const tenant = tenantId(req)
+  const body = req.body || {}
+  const cid = body.collector_instance_id
+  if (req.user.user_type === 'internal' || tenant == null || !cid) {
+    return ok(res, base)
+  }
+
+  const platform = body.platform || null
+  const platformPage = body.platform_page || null
+  const accountBizId = body.account_biz_id || null
+  const conversationId = body.conversation_id || null
+  const conn = await pool.getConnection()
+  try {
+    await conn.query(
+      `INSERT INTO collect_instances
+         (tenant_id, employee_id, collector_instance_id, device_id, browser_profile_id, tab_id,
+          platform, platform_page, account_biz_id, conversation_id, last_seen_at, status)
+       VALUES (?,?,?,?,?,?,?,?,?,?,NOW(),'active')
+       ON DUPLICATE KEY UPDATE
+         employee_id=VALUES(employee_id), device_id=VALUES(device_id), browser_profile_id=VALUES(browser_profile_id),
+         tab_id=VALUES(tab_id), platform=VALUES(platform), platform_page=VALUES(platform_page),
+         account_biz_id=VALUES(account_biz_id), conversation_id=VALUES(conversation_id),
+         last_seen_at=NOW(), status='active'`,
+      [tenant, req.user.id, cid, body.device_id || null, body.browser_profile_id || null, body.tab_id || null,
+       platform, platformPage, accountBizId, conversationId]
+    )
+
+    let conflict = null
+    let action = null
+    // β:仅"本账号采集负责人本人"参与实例冲突;非采集负责人 → 不返回冲突(其采集由闸门拒)。
+    const collectorId = accountBizId
+      ? await resolveAccountCollector(conn, tenant, platform, platformPage, accountBizId)
+      : null
+    if (collectorId != null && collectorId === req.user.id) {
+      // ★账号级 + 仲裁:同采集负责人本人在同一客服账号上若另有活跃实例,
+      //   按注册先后(collect_instances.id)仲裁 —— 最早注册者为主继续(primary),更晚者暂停(block)。
+      const [[me]] = await conn.query(
+        'SELECT id FROM collect_instances WHERE tenant_id=? AND collector_instance_id=? LIMIT 1',
+        [tenant, cid]
+      )
+      const myId = me ? me.id : null
+      const [[agg]] = await conn.query(
+        `SELECT COUNT(*) AS n, MIN(id) AS min_id FROM collect_instances
+         WHERE tenant_id=? AND employee_id=? AND platform=? AND platform_page=? AND account_biz_id=?
+           AND collector_instance_id<>?
+           AND last_seen_at >= DATE_SUB(NOW(), INTERVAL ${HEARTBEAT_WINDOW_SECONDS} SECOND)`,
+        [tenant, req.user.id, platform, platformPage, accountBizId, cid]
+      )
+      if (agg.n > 0) {
+        if (myId != null && agg.min_id != null && agg.min_id < myId) {
+          // 有更早注册的活跃实例 → 本实例让步暂停
+          conflict = 'account'; action = 'block'
+          await insertAudit(conn, {
+            tenantId: tenant, targetEmployeeId: req.user.id, eventType: 'instance_conflict',
+            afterValue: { conflict, action, account_biz_id: accountBizId, conversation_id: conversationId },
+            deviceId: body.device_id || null, browserProfileId: body.browser_profile_id || null, tabId: body.tab_id || null,
+          })
+        } else {
+          // 本实例最早注册 → 为主,继续采集(通知存在更晚的实例)
+          conflict = 'account'; action = 'primary'
+        }
+      }
+    }
+    ok(res, Object.assign(base, { conflict, action }))
+  } catch (err) {
+    console.error('[v1.events.heartbeat]', err)
+    fail(res, 500, 5000, '服务器内部错误')
+  } finally {
+    conn.release()
+  }
 }
 
 async function domAdapterConfig(req, res) {
@@ -204,4 +419,4 @@ async function domAdapterConfig(req, res) {
   })
 }
 
-module.exports = { batch, heartbeat, domAdapterConfig }
+module.exports = { batch, heartbeat, domAdapterConfig, resolveServiceAccount }

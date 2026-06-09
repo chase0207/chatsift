@@ -223,7 +223,7 @@
     send_confirm_v19:   false,
     watchdog_v19:       false,
     auto_switch_session:false,
-    collector_v1_enabled: true,
+    collector_v1_enabled: false,  // ★默认关:必须点"启动"(START_PLATFORM 写 storage=true)才采集;停止=false
   }
 
   // ── 协议常量（V1.9_Runtime_Protocol 关键阈值，便于集中调整） ─────────
@@ -1915,6 +1915,126 @@
 })()
 
 // ============================================================
+// MODULE: runtime/instance-identity.js
+// ============================================================
+
+;(function () {
+  'use strict'
+
+  // W20-D1:采集实例标识 + heartbeat。
+  //   device_id / browser_profile_id:chrome.storage.local 持久(首次随机),跨会话稳定。
+  //   tab_id:sessionStorage 每页签一个。collector_instance_id = hash(三者),作 server 实例唯一键。
+  //   getIdentity() 取/首次生成;sendHeartbeat(context) 上报当前 account/conv,返回 {conflict, action}。
+  //   ★只生成随机标识 + 采集维度,只读不越界(红线 R4)。
+
+  var Hash = window.RpaHash
+  var Logger = window.RpaLogger || console
+  var DEFAULT_SERVER_URL = 'https://admin.kongyuekeji.com'
+  var DEVICE_KEY = 'w20_device_id'
+  var PROFILE_KEY = 'w20_browser_profile_id'
+  var TAB_KEY = 'w20_tab_id'
+  var _identity = null
+
+  function _hasStorage() {
+    return typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local
+  }
+  function _get(keys) {
+    return new Promise(function (resolve) {
+      if (!_hasStorage()) return resolve({})
+      chrome.storage.local.get(keys, function (d) {
+        if (chrome.runtime && chrome.runtime.lastError) return resolve({})
+        resolve(d || {})
+      })
+    })
+  }
+  function _set(obj) {
+    return new Promise(function (resolve) {
+      if (!_hasStorage()) return resolve(false)
+      chrome.storage.local.set(obj, function () { resolve(!(chrome.runtime && chrome.runtime.lastError)) })
+    })
+  }
+  function _rand() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 10) }
+
+  function _sessionTabId() {
+    try {
+      var v = window.sessionStorage.getItem(TAB_KEY)
+      if (!v) { v = 't_' + _rand(); window.sessionStorage.setItem(TAB_KEY, v) }
+      return v
+    } catch (_) {
+      return 't_' + _rand() // sessionStorage 不可用 → 退化为内存标识
+    }
+  }
+
+  async function getIdentity() {
+    if (_identity) return _identity
+    var data = await _get([DEVICE_KEY, PROFILE_KEY])
+    var deviceId = data[DEVICE_KEY]
+    var profileId = data[PROFILE_KEY]
+    var toSet = {}
+    if (!deviceId) { deviceId = 'd_' + _rand(); toSet[DEVICE_KEY] = deviceId }
+    if (!profileId) { profileId = 'bp_' + _rand(); toSet[PROFILE_KEY] = profileId }
+    if (Object.keys(toSet).length) await _set(toSet)
+    var tabId = _sessionTabId()
+    var cid = Hash && Hash.joinAndHash
+      ? Hash.joinAndHash([deviceId, profileId, tabId])
+      : String(deviceId) + String(profileId) + String(tabId)
+    _identity = { device_id: deviceId, browser_profile_id: profileId, tab_id: tabId, collector_instance_id: cid }
+    return _identity
+  }
+
+  function _normalizeBaseUrl(url) {
+    var n = String(url || DEFAULT_SERVER_URL).replace(/\/$/, '')
+    if (n === 'http://127.0.0.1:3000' || n === 'http://localhost:3000') return DEFAULT_SERVER_URL
+    return n
+  }
+  async function _loadAuth() {
+    var data = await _get(['token', 'authToken', 'accessToken', 'cfg', 'serverUrl', 'auth'])
+    var cfg = data.cfg || {}
+    var auth = data.auth || {}
+    return {
+      token: data.token || data.authToken || data.accessToken || auth.token || auth.accessToken || '',
+      serverUrl: _normalizeBaseUrl(cfg.serverUrl || data.serverUrl || auth.serverUrl),
+    }
+  }
+
+  // 上报当前采集上下文的 heartbeat。返回 {conflict, action} 或 null(失败不阻断采集)。
+  async function sendHeartbeat(context) {
+    try {
+      var id = await getIdentity()
+      var auth = await _loadAuth()
+      if (!auth.token) return null
+      var body = {
+        collector_instance_id: id.collector_instance_id,
+        device_id: id.device_id,
+        browser_profile_id: id.browser_profile_id,
+        tab_id: id.tab_id,
+        platform: (context && context.platform) || null,
+        platform_page: (context && context.platform_page) || null,
+        account_biz_id: (context && context.account_biz_id) || null,
+        conversation_id: (context && context.conversation_id) || null,
+      }
+      var resp = await fetch(auth.serverUrl + '/api/v1/events/heartbeat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + auth.token },
+        body: JSON.stringify(body),
+      })
+      if (!resp.ok) return null
+      var json = {}
+      try { json = await resp.json() } catch (_) {}
+      return (json && json.data) || null
+    } catch (err) {
+      Logger.warn && Logger.warn('InstanceIdentity', 'heartbeat failed', { error: err && err.message })
+      return null
+    }
+  }
+
+  window.RpaInstanceIdentity = {
+    getIdentity: getIdentity,
+    sendHeartbeat: sendHeartbeat,
+  }
+})()
+
+// ============================================================
 // MODULE: runtime/event-uploader.js
 // ============================================================
 
@@ -1976,19 +2096,33 @@
         Logger.warn && Logger.warn('EventUploader', 'missing token, requeued', { count: batch.length })
         return { ok: false, status: 401, reason: 'missing-token' }
       }
+      // W20-D1:批量上报透传采集实例标识(server 侧统一识别实例,§2.5)
+      var payload = { events: batch }
+      if (window.RpaInstanceIdentity && window.RpaInstanceIdentity.getIdentity) {
+        try {
+          var ident = await window.RpaInstanceIdentity.getIdentity()
+          if (ident) {
+            payload.collector_instance_id = ident.collector_instance_id
+            payload.device_id = ident.device_id
+            payload.browser_profile_id = ident.browser_profile_id
+            payload.tab_id = ident.tab_id
+          }
+        } catch (_) {}
+      }
       var resp = await fetch(auth.serverUrl + '/api/v1/events/batch', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ' + auth.token,
         },
-        body: JSON.stringify({ events: batch }),
+        body: JSON.stringify(payload),
       })
       if (resp.ok) {
         var json = {}
         try { json = await resp.json() } catch (_) {}
         await Queue.persist()
         Logger.info && Logger.info('EventUploader', 'uploaded', json.data || json)
+        _logRejectReasons(json.data && json.data.reject_reasons) // W20:采集权拒/原因写入消息日志
         return { ok: true, response: json }
       }
       Queue.requeueFront(batch)
@@ -2001,6 +2135,37 @@
     } finally {
       _uploading = false
     }
+  }
+
+  // W20:把 server 返回的 reject_reasons 汇总成中文写入插件消息日志(节流:同一汇总不重复刷)。
+  var _lastRejectSig = ''
+  var REJECT_LABEL = {
+    missing_account_biz_id: '私信缺商家账号ID',
+    account_disabled: '账号已停用，采集冻结',
+    pending_grab: '账号待确认且采集权属他人',
+    not_collector: '你不是该账号采集负责人',
+    no_collect_permission: '无采集权（账号待客服认领/确认）',
+  }
+  function _logRejectReasons(reasons) {
+    if (!reasons || !reasons.length) { _lastRejectSig = ''; return }
+    var counts = {}
+    reasons.forEach(function (r) {
+      var k = r && r.reason
+      if (k && k !== 'invalid_event') counts[k] = (counts[k] || 0) + 1
+    })
+    var parts = Object.keys(counts).map(function (k) { return counts[k] + '条·' + (REJECT_LABEL[k] || k) })
+    if (!parts.length) return
+    var msg = '[采集]: ' + parts.join('；') + '，未上报'
+    if (msg === _lastRejectSig) return // 节流:同样的拒绝汇总不重复刷屏
+    _lastRejectSig = msg
+    _appendPluginLog(msg)
+  }
+  function _appendPluginLog(message) {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+        chrome.runtime.sendMessage({ action: 'APPEND_LOG', message: message, level: 'warn' })
+      }
+    } catch (_) {}
   }
 
   async function start() {
@@ -4583,12 +4748,19 @@
   if (!Flags || !Registry || !Collector || !Uploader || !Dom || !PositionTracker) {
     throw new Error('[W4] legacy collector dependencies missing')
   }
+  var Identity = window.RpaInstanceIdentity   // W20-D1:可选,缺失则不做实例冲突心跳(不影响采集)
 
   var _observer = null
   var _timer = null
   var _collecting = false
   var _debounce = null
   var COLLECT_DEBOUNCE_MS = 10000
+
+  // W20-D1:采集实例冲突心跳 + 阻断态。
+  var _blocked = false          // 被 session 级冲突阻断 → 暂停本 tab 采集
+  var _hbTimer = null
+  var _hbInflight = false
+  var HEARTBEAT_INTERVAL_MS = 15000
 
   function _readNickname(adapter) {
     var ctx = adapter && adapter.buildRuntimeContext ? adapter.buildRuntimeContext() : {}
@@ -4656,6 +4828,11 @@
   }
 
   async function collectMessageSession(sessionInfo) {
+    if (_blocked) {
+      // W20-D1:session 级实例冲突阻断中,暂停本 tab 采集(心跳解除后自动恢复)
+      Logger.warn && Logger.warn('LegacyCollector', 'skip collect: blocked by session-level instance conflict')
+      return { ok: false, reason: 'instance-blocked' }
+    }
     if (window.ChatsiftContentGate && !window.ChatsiftContentGate.isAllowed()) {
       Logger.debug && Logger.debug('LegacyCollector', 'skip collect: page not allowlisted')
       return { ok: false, reason: 'page-not-allowlisted' }
@@ -4714,6 +4891,89 @@
     }, COLLECT_DEBOUNCE_MS)
   }
 
+  // W20-D1:取当前会话的实例冲突心跳上下文(无打开会话/无商家账号 → null,不参与冲突)
+  function _currentHeartbeatContext() {
+    if (window.ChatsiftContentGate && !window.ChatsiftContentGate.isAllowed()) return null
+    var adapter = Registry.resolve(location)
+    if (!adapter) return null
+    var info = _buildSessionInfo(adapter)
+    if (!info || !info.accountBizId) return null   // laike/feige 等无 bizId → 不做实例冲突
+    return {
+      platform: 'douyin',
+      platform_page: info.pageKey,
+      account_biz_id: info.accountBizId,
+      conversation_id: info.conversationId,
+    }
+  }
+
+  var _lastConflictKey = ''
+  function _appendPluginLog(message) {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+        chrome.runtime.sendMessage({ action: 'APPEND_LOG', message: message, level: 'warn' })
+      }
+    } catch (_) {}
+  }
+  function _notifyConflict(kind, context) {
+    var bizId = context && context.account_biz_id
+    Logger.warn && Logger.warn('LegacyCollector', 'instance conflict', { kind: kind, account_biz_id: bizId })
+    try {
+      window.dispatchEvent(new CustomEvent('chatsift:collect-conflict', {
+        detail: { conflict: 'account', action: kind, context: context },
+      }))
+    } catch (_) {}
+    // W20:写入插件消息日志(节流:同 kind+账号 不重复刷)
+    var key = kind + '|' + bizId
+    if (key === _lastConflictKey) return
+    _lastConflictKey = key
+    _appendPluginLog(kind === 'block'
+      ? '[实例]: 同一客服账号已有更早的采集实例在运行，本页已暂停采集'
+      : '[实例]: 检测到同账号其他采集实例，本实例为最早，继续采集')
+  }
+
+  // 周期心跳:session-block → 暂停本 tab 采集;account-warn → 仅强提醒不停采;无冲突 → 解除阻断恢复采集。
+  // ★心跳失败(网络/无 token,sendHeartbeat 返回 null)→ fail-open,不改变采集态,绝不误停合法采集。
+  async function _heartbeatTick() {
+    if (_hbInflight || !Identity || !Identity.sendHeartbeat) return
+    if (!Flags.get('collector_v1_enabled')) return
+    var context = _currentHeartbeatContext()
+    if (!context) return
+    _hbInflight = true
+    try {
+      var res = await Identity.sendHeartbeat(context)
+      if (!res) return
+      // ★账号级 + 仲裁:server 按注册先后判定 —— action='block'(更晚,暂停)/'primary'(最早,继续)/无(独占)。
+      if (res.action === 'block') {
+        _blocked = true
+        _notifyConflict('block', context)
+      } else if (res.action === 'primary') {
+        if (_blocked) { _blocked = false; Logger.info && Logger.info('LegacyCollector', 'now primary, collection resumed') }
+        _notifyConflict('primary', context)
+      } else {
+        if (_blocked) {
+          _blocked = false
+          Logger.info && Logger.info('LegacyCollector', 'instance conflict cleared, collection resumed')
+          _appendPluginLog('[实例]: 冲突解除，恢复采集')
+        }
+        _lastConflictKey = ''
+      }
+    } catch (err) {
+      Logger.warn && Logger.warn('LegacyCollector', 'heartbeat tick failed', err && err.message)
+    } finally {
+      _hbInflight = false
+    }
+  }
+
+  function _startHeartbeat() {
+    if (_hbTimer || !Identity || !Identity.sendHeartbeat) return
+    _hbTimer = setInterval(function () { _heartbeatTick() }, HEARTBEAT_INTERVAL_MS)
+  }
+
+  function _stopHeartbeat() {
+    if (_hbTimer) { clearInterval(_hbTimer); _hbTimer = null }
+    _blocked = false   // 停采时清阻断态,下次 start 重新检测
+  }
+
   async function start() {
     if (window.ChatsiftContentGate && !window.ChatsiftContentGate.isAllowed()) {
       Logger.info && Logger.info('LegacyCollector', 'blocked: page not allowlisted')
@@ -4721,6 +4981,7 @@
     }
     if (_observer) return true
     await Uploader.start()
+    _startHeartbeat()
     _observer = new MutationObserver(function () { _scheduleCollect() })
     _observer.observe(document.body || document.documentElement, { childList: true, subtree: true, characterData: true })
     _scheduleCollect()
@@ -4733,6 +4994,7 @@
     if (_observer) _observer.disconnect()
     _observer = null
     Uploader.stop()
+    _stopHeartbeat()
     Logger.info && Logger.info('LegacyCollector', 'stopped')
   }
 
@@ -4766,6 +5028,7 @@
     start: start,
     stop: stop,
     collectMessageSession: collectMessageSession,
+    isBlocked: function () { return _blocked },   // W20-D1:观测当前是否被实例冲突阻断
   }
 
   boot()

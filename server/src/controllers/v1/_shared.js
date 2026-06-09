@@ -25,40 +25,49 @@ async function scope(req, opts = {}) {
   const saCol = opts.saCol || null
   const u = (req && req.user) || {}
 
+  let base
   if (u.user_type === 'internal') {
     const target = (req.query && req.query.tenant_id) || (req.body && req.body.tenant_id)
-    if (target) return { sql: ` AND ${tenantCol} = ?`, params: [target] }
-    return { sql: ' AND 1=0', params: [] }
-  }
-
-  if (u.tenant_id == null) return { sql: ' AND 1=0', params: [] }
-
-  // 租户超管:正判,看本租户全部
-  if (u.role_code === 'tenant_admin') {
-    return { sql: ` AND ${tenantCol} = ?`, params: [u.tenant_id] }
-  }
-
-  // 客服:正判,仅本租户 + 分配到的 service_account;无分配/无账号维度 → 看不到
-  if (u.role_code === 'agent') {
-    if (!saCol) return { sql: ' AND 1=0', params: [] }
-    const ids = await assignedAccountIds(req)
-    if (!ids.length) return { sql: ' AND 1=0', params: [] }
-    return {
-      sql: ` AND ${tenantCol} = ? AND ${saCol} IN (${ids.map(() => '?').join(',')})`,
-      params: [u.tenant_id, ...ids],
+    base = target
+      ? { sql: ` AND ${tenantCol} = ?`, params: [target], granted: true }
+      : { sql: ' AND 1=0', params: [], granted: false }
+  } else if (u.tenant_id == null) {
+    base = { sql: ' AND 1=0', params: [], granted: false }
+  } else if (u.role_code === 'tenant_admin') {
+    // 租户超管:正判,看本租户全部
+    base = { sql: ` AND ${tenantCol} = ?`, params: [u.tenant_id], granted: true }
+  } else if (u.role_code === 'agent') {
+    // 客服:正判,仅本租户 + 有查看权的 service_account;无查看权/无账号维度 → 看不到
+    if (!saCol) {
+      base = { sql: ' AND 1=0', params: [], granted: false }
+    } else {
+      const ids = await assignedAccountIds(req)
+      if (!ids.length) base = { sql: ' AND 1=0', params: [], granted: false }
+      else base = {
+        sql: ` AND ${tenantCol} = ? AND ${saCol} IN (${ids.map(() => '?').join(',')})`,
+        params: [u.tenant_id, ...ids],
+        granted: true,
+      }
     }
+  } else {
+    // 未知角色(自定义/role_code 缺失/补全失败)→ fail-closed,绝不 fallthrough 放大
+    base = { sql: ' AND 1=0', params: [], granted: false }
   }
 
-  // 未知角色(自定义/role_code 缺失/补全失败)→ fail-closed,绝不 fallthrough 放大
-  return { sql: ' AND 1=0', params: [] }
+  // W20-C4:有 saCol 的业务视图统一隐藏 disabled 账号(NULL service_account_id=未治理放行);
+  //   pending/active 可见性由上面查看权集 + 租户超管看全租户天然满足(§7 口径)。
+  if (base.granted && saCol) {
+    base.sql += ` AND (${saCol} IS NULL OR ${saCol} NOT IN (SELECT id FROM service_accounts WHERE lifecycle = 'disabled'))`
+  }
+  return { sql: base.sql, params: base.params }
 }
 
-// 客服分配的 service_account 集合(单请求内 memoize,避免 detail 多查询重复打库)
+// W20-C2:客服查看权 service_account 集合(改读 service_account_view,★带 tenant_id;单请求内 memoize)
 async function assignedAccountIds(req) {
   if (req._w19AssignedSa) return req._w19AssignedSa
   const [rows] = await pool.query(
-    'SELECT service_account_id FROM employee_service_account WHERE employee_id = ?',
-    [req.user.id]
+    'SELECT service_account_id FROM service_account_view WHERE tenant_id = ? AND employee_id = ?',
+    [req.user.tenant_id, req.user.id]
   )
   req._w19AssignedSa = rows.map((r) => r.service_account_id).filter((v) => v != null)
   return req._w19AssignedSa

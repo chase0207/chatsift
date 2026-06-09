@@ -131,7 +131,7 @@
     send_confirm_v19:   false,
     watchdog_v19:       false,
     auto_switch_session:false,
-    collector_v1_enabled: true,
+    collector_v1_enabled: false,  // ★默认关:必须点"启动"(START_PLATFORM 写 storage=true)才采集;停止=false
   }
 
   // ── 协议常量（V1.9_Runtime_Protocol 关键阈值，便于集中调整） ─────────

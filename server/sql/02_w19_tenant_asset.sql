@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS service_accounts (
   remark            VARCHAR(255) DEFAULT NULL,
   created_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uk_account (tenant_id, platform_id, page_id, account_biz_id, account_nickname),
+  UNIQUE KEY uk_account (tenant_id, platform_id, page_id, account_biz_id),  -- W20:稳定身份去昵称,account_nickname 降为展示字段
   KEY idx_tenant (tenant_id),
   CONSTRAINT fk_sa_tenant   FOREIGN KEY (tenant_id)   REFERENCES tenants(id),
   CONSTRAINT fk_sa_platform FOREIGN KEY (platform_id) REFERENCES platforms(id),
