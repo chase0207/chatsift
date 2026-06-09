@@ -22,8 +22,13 @@
   var COOLDOWN_MS = 3 * 60 * 1000      // 单轮后冷却
   var RATE_PER_MIN = 6                 // 单账号每分钟最多切换次数
   var CONFIRM_WAIT_MS = 1500           // 切换确认后等 DOM 稳定
+  var SUPPRESS_MS = 3500               // 切换前后抑制"弱人工事件"窗口(吸收切换/重排引发的 mousemove/focus)
   var TARGET_ADAPTER = 'douyin/private-message'
   var DEFAULT_SERVER_URL = 'https://admin.kongyuekeji.com'
+
+  // 强人工事件:始终暂停(真人点击/打字),不被抑制窗口屏蔽;弱事件:切换窗口内忽略(可能由切换/页面重排引发)。
+  var STRONG_EVENTS = { mousedown: 1, keydown: 1 }
+  var WEAK_EVENTS = { mousemove: 1, wheel: 1, focus: 1 }
 
   var STATE = {
     DISABLED: 'disabled', IDLE: 'idle', PAUSED_HUMAN: 'paused_by_human',
@@ -41,6 +46,7 @@
   var _switchTs = []                   // 限速时间戳
   var _bound = false
   var _lastLog = ''
+  var _suppressHumanUntil = 0          // 切换抑制窗口截止(此前的弱人工事件忽略)
 
   function _now() { return Date.now() }
   function _sleep(ms) { return new Promise(function (r) { setTimeout(r, ms) }) }
@@ -62,7 +68,8 @@
   }
   function _stateMessage(s, reason) {
     switch (s) {
-      case STATE.PAUSED_HUMAN: return '[自动切换]: 检测到人工操作，已暂停'
+      // PAUSED_HUMAN 不在此处记:扫描中由 _onHuman 带 event type 记;轮首人工活跃静默(避免刷屏)
+      case STATE.PAUSED_HUMAN: return ''
       case STATE.BLOCKED: return '[自动切换]: 该客服账号被实例冲突阻断，暂停自动切换'
       case STATE.SCANNING: return '[自动切换]: 开始一轮自动切换'
       case STATE.COOLDOWN: return '[自动切换]: 本轮结束，进入冷却'
@@ -173,27 +180,30 @@
       if (!plan.length) { _appendLog('[自动切换]: 当前无未读候选'); return }
       _appendLog('[自动切换]: 本轮候选 ' + plan.length + ' 个(最多 ' + MAX_CANDIDATES + ')')
       for (var i = 0; i < plan.length; i++) {
-        // 每候选前复查:人工 / 开关 / block / 限速
-        if (_abortRound || _humanActiveRecently()) { _setState(STATE.PAUSED_HUMAN); return }
+        // 每候选前复查:人工(_abortRound 由真实人工事件置位)/ 开关 / block / 限速
+        if (_abortRound) { _setState(STATE.PAUSED_HUMAN); return }
         if (!Flags.get('auto_switch_session')) { _setState(STATE.DISABLED); return }
         if (Legacy && Legacy.isBlocked && Legacy.isBlocked()) { _setState(STATE.BLOCKED); return }
         if (i > 0) {
           await _sleepInterruptible(SWITCH_GAP_MS + Math.floor(Math.random() * SWITCH_JITTER_MS))
-          if (_abortRound || _humanActiveRecently()) { _setState(STATE.PAUSED_HUMAN); return }
+          if (_abortRound) { _setState(STATE.PAUSED_HUMAN); return }
         }
         if (!_rateOk()) { _appendLog('[自动切换]: 达单账号每分钟上限，跳过'); continue }
         // ★每次切换前重新 detect + 按稳定键重匹配当前 DOM 节点(不复用旧 dom_ref)
         var fresh = await adapter.detectSessions()
         var cand = _rematch(fresh, plan[i].key)
         if (!cand) { _appendLog('[自动切换]: 候选已不在列表，跳过'); continue }
+        _suppress(SUPPRESS_MS) // ★切换前开抑制窗口:吸收切换/页面重排引发的弱事件(mousemove/focus)
         var sw = await adapter.switchSession(cand) // 只走 adapter,内部硬闸再校验 auto_switch_session
         if (!sw || !sw.ok) { _appendLog('[自动切换]: 切换未成(' + (sw && sw.reason) + ')'); continue }
         _recordSwitch()
+        _suppress(SUPPRESS_MS) // 延续抑制覆盖确认+稳定+采集
         var confirmed = await adapter.confirmActiveSession(cand)
         if (!confirmed) { _appendLog('[自动切换]: 激活确认失败，跳过采集'); continue }
         await _sleepInterruptible(CONFIRM_WAIT_MS)
         if (_abortRound) { _setState(STATE.PAUSED_HUMAN); return }
         if (Legacy && Legacy.collectNow) {
+          _suppress(SUPPRESS_MS) // 覆盖 collectNow 的 DOM 读取重排
           var r = await Legacy.collectNow() // 显式采集(复用 legacy 链路,不改 position/message_id)
           _appendLog('[自动切换]: 已切换并采集(' + (r && r.ok ? ('收 ' + (r.collected || 0)) : ('未采:' + (r && r.reason))) + ')')
         }
@@ -202,6 +212,7 @@
       _appendLog('[自动切换]: 本轮异常 ' + (err && err.message))
     } finally {
       _scanning = false
+      _suppressHumanUntil = 0
       _cooldownUntil = _now() + COOLDOWN_MS
       _setState(STATE.COOLDOWN)
     }
@@ -219,11 +230,23 @@
   }
 
   // ── 人工互锁监听 ───────────────────────────────────────
-  function _onHuman() { _lastHumanActionAt = _now(); if (_scanning) _abortRound = true }
+  //   ★区分真人 vs 插件/页面:isTrusted=false(脚本派发的合成事件)直接忽略;
+  //   强事件(mousedown/keydown)始终暂停;弱事件(mousemove/wheel/focus)在切换抑制窗口内忽略。
+  function _suppress(ms) { var u = _now() + ms; if (u > _suppressHumanUntil) _suppressHumanUntil = u }
+  function _onHuman(e) {
+    if (!e || e.isTrusted === false) return // 插件自身/脚本合成事件不算人工
+    var type = e.type
+    if (WEAK_EVENTS[type] && _now() < _suppressHumanUntil) return // 切换抑制窗口内弱事件忽略
+    _lastHumanActionAt = _now()
+    if (_scanning && !_abortRound) {
+      _abortRound = true
+      _appendLog('[自动切换]: 检测到人工操作(' + type + ')，暂停本轮')
+    }
+  }
   function _bindHuman() {
     if (_bound) return
     _bound = true
-    ;['mousemove', 'mousedown', 'keydown', 'wheel', 'focus'].forEach(function (ev) {
+    Object.keys(STRONG_EVENTS).concat(Object.keys(WEAK_EVENTS)).forEach(function (ev) {
       try { window.addEventListener(ev, _onHuman, { passive: true, capture: true }) } catch (_) {}
     })
   }
@@ -261,6 +284,9 @@
   window.RpaAssistedCollector = {
     getState: function () { return _state },
     _syncEnabled: _syncEnabled,
-    _debugSetHumanIdleMs: function (ms) { HUMAN_IDLE_MS = ms | 0 }, // DevTools 调试用,真机验收可降阈值
+    // DevTools 调试用,真机验收可临时调小;不改默认值
+    _debugSetHumanIdleMs: function (ms) { HUMAN_IDLE_MS = ms | 0 },
+    _debugSetSwitchGapMs: function (ms) { SWITCH_GAP_MS = ms | 0 },
+    _debugSetCooldownMs: function (ms) { COOLDOWN_MS = ms | 0 },
   }
 })()
