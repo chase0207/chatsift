@@ -286,11 +286,21 @@
     _timer = setInterval(_syncFlag, 1000)
   }
 
+  // W21:安全显式采集当前会话入口(供 assisted collector 切换确认后立即采集)。
+  //   复用 collectMessageSession()——★不改 position/message_id/occurred_at/batch 契约;
+  //   仍受 _blocked(实例冲突)与 collector_v1_enabled 门控,不绕过任何采集约束。
+  async function collectNow() {
+    if (_blocked) return { ok: false, reason: 'instance-blocked' }
+    if (!Flags.get('collector_v1_enabled')) return { ok: false, reason: 'collector-disabled' }
+    return collectMessageSession()
+  }
+
   window.RpaLegacyCollector = {
     boot: boot,
     start: start,
     stop: stop,
     collectMessageSession: collectMessageSession,
+    collectNow: collectNow,                        // W21:显式采集入口
     isBlocked: function () { return _blocked },   // W20-D1:观测当前是否被实例冲突阻断
   }
 
