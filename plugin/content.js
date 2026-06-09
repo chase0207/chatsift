@@ -5067,18 +5067,57 @@
   var Logger = window.RpaLogger || console
   if (!Flags || !Registry) return // 缺核心依赖则不启用(不影响采集)
 
-  // ── 常量 ────────────────────────────────────────────────
-  var TICK_MS = 5000
-  var HUMAN_IDLE_MS = 15 * 60 * 1000   // 默认 15min 无人工操作才扫描
-  var MAX_CANDIDATES = 5
-  var SWITCH_GAP_MS = 12000            // 两次切换最小间隔
-  var SWITCH_JITTER_MS = 4000          // 叠加随机抖动
-  var COOLDOWN_MS = 3 * 60 * 1000      // 单轮后冷却
-  var RATE_PER_MIN = 6                 // 单账号每分钟最多切换次数
-  var CONFIRM_WAIT_MS = 1500           // 切换确认后等 DOM 稳定
-  var SUPPRESS_MS = 3500               // 切换前后抑制"弱人工事件"窗口(吸收切换/重排引发的 mousemove/focus)
+  // ── 常量(环境无关)────────────────────────────────────
   var TARGET_ADAPTER = 'douyin/private-message'
   var DEFAULT_SERVER_URL = 'https://admin.kongyuekeji.com'
+
+  // ── 时间参数 Profile:prod 与 test/local 两套,按 serverUrl 环境固化进代码 ──
+  //   ★环境判据(_detectProfile):原始 serverUrl 含 localhost / 127.0.0.1 / "test" => test/local;
+  //     否则默认 prod(保守)。SWITCH_JITTER 用 [min,max] 表达 prod 的 3000~6000 抖动区间。
+  var PROFILES = {
+    prod: {
+      HUMAN_IDLE_MS: 5 * 60 * 1000,   // 5min 无人工才扫描
+      SWITCH_GAP_MS: 12000,            // 两次切换最小间隔
+      SWITCH_JITTER_MIN_MS: 3000,      // 抖动下限
+      SWITCH_JITTER_MAX_MS: 6000,      // 抖动上限(实际抖动随机落在 [3000,6000])
+      COOLDOWN_MS: 180000,             // 单轮后冷却 3min
+      RATE_PER_MIN: 6,                 // 单账号每分钟最多切换次数
+      MAX_CANDIDATES: 5,
+      SUPPRESS_MS: 3500,               // 切换前后抑制弱人工事件窗口
+      CONFIRM_WAIT_MS: 1500,           // 切换确认后等 DOM 稳定
+      TICK_MS: 5000,
+    },
+    test: {
+      HUMAN_IDLE_MS: 5000,
+      SWITCH_GAP_MS: 4000,
+      SWITCH_JITTER_MIN_MS: 0,
+      SWITCH_JITTER_MAX_MS: 1000,      // test 抖动 [0,1000]
+      COOLDOWN_MS: 15000,
+      RATE_PER_MIN: 12,
+      MAX_CANDIDATES: 5,
+      SUPPRESS_MS: 3500,
+      CONFIRM_WAIT_MS: 1500,
+      TICK_MS: 2000,
+    },
+  }
+
+  var _profile = 'prod'
+  var TICK_MS, HUMAN_IDLE_MS, MAX_CANDIDATES, SWITCH_GAP_MS,
+    SWITCH_JITTER_MIN_MS, SWITCH_JITTER_MAX_MS, COOLDOWN_MS, RATE_PER_MIN,
+    CONFIRM_WAIT_MS, SUPPRESS_MS
+  function _applyProfile(name) {
+    _profile = PROFILES[name] ? name : 'prod'
+    var p = PROFILES[_profile]
+    TICK_MS = p.TICK_MS; HUMAN_IDLE_MS = p.HUMAN_IDLE_MS; MAX_CANDIDATES = p.MAX_CANDIDATES
+    SWITCH_GAP_MS = p.SWITCH_GAP_MS; SWITCH_JITTER_MIN_MS = p.SWITCH_JITTER_MIN_MS; SWITCH_JITTER_MAX_MS = p.SWITCH_JITTER_MAX_MS
+    COOLDOWN_MS = p.COOLDOWN_MS; RATE_PER_MIN = p.RATE_PER_MIN; CONFIRM_WAIT_MS = p.CONFIRM_WAIT_MS; SUPPRESS_MS = p.SUPPRESS_MS
+  }
+  function _detectProfile(rawServerUrl) {
+    var u = String(rawServerUrl || '').toLowerCase()
+    if (u.indexOf('localhost') >= 0 || u.indexOf('127.0.0.1') >= 0 || u.indexOf('test') >= 0) return 'test'
+    return 'prod'
+  }
+  _applyProfile('prod') // 同步默认 prod;init 异步读 serverUrl 后按环境切换
 
   // 强人工事件:始终暂停(真人点击/打字),不被抑制窗口屏蔽;弱事件:切换窗口内忽略(可能由切换/页面重排引发)。
   var STRONG_EVENTS = { mousedown: 1, keydown: 1 }
@@ -5239,7 +5278,8 @@
         if (!Flags.get('auto_switch_session')) { _setState(STATE.DISABLED); return }
         if (Legacy && Legacy.isBlocked && Legacy.isBlocked()) { _setState(STATE.BLOCKED); return }
         if (i > 0) {
-          await _sleepInterruptible(SWITCH_GAP_MS + Math.floor(Math.random() * SWITCH_JITTER_MS))
+          var _jit = SWITCH_JITTER_MIN_MS + Math.floor(Math.random() * (SWITCH_JITTER_MAX_MS - SWITCH_JITTER_MIN_MS + 1))
+          await _sleepInterruptible(SWITCH_GAP_MS + _jit)
           if (_abortRound) { _setState(STATE.PAUSED_HUMAN); return }
         }
         if (!_rateOk()) { _appendLog('[自动切换]: 达单账号每分钟上限，跳过'); continue }
@@ -5333,15 +5373,36 @@
     }
   } catch (_) {}
   _bindHuman()
-  setTimeout(_syncEnabled, 1500) // 等 feature-flags 从 storage 载入持久开关后再判
+  // 异步探测环境(原始 serverUrl,不经 normalize)→ 固化时间参数 profile;再判开关。两者都默认 prod,竞态安全。
+  ;(async function _initProfile() {
+    try {
+      var data = await _storageGet(['cfg', 'serverUrl', 'auth'])
+      var cfg = data.cfg || {}, auth = data.auth || {}
+      var raw = cfg.serverUrl || data.serverUrl || auth.serverUrl || DEFAULT_SERVER_URL
+      _applyProfile(_detectProfile(raw))
+    } catch (_) {}
+    setTimeout(_syncEnabled, 1500) // 等 feature-flags 从 storage 载入持久开关后再判
+  })()
+
+  function _debugConfig() {
+    return {
+      profile: _profile,
+      HUMAN_IDLE_MS: HUMAN_IDLE_MS, SWITCH_GAP_MS: SWITCH_GAP_MS,
+      SWITCH_JITTER_MIN_MS: SWITCH_JITTER_MIN_MS, SWITCH_JITTER_MAX_MS: SWITCH_JITTER_MAX_MS,
+      COOLDOWN_MS: COOLDOWN_MS, RATE_PER_MIN: RATE_PER_MIN, MAX_CANDIDATES: MAX_CANDIDATES,
+      SUPPRESS_MS: SUPPRESS_MS, CONFIRM_WAIT_MS: CONFIRM_WAIT_MS, TICK_MS: TICK_MS,
+    }
+  }
 
   window.RpaAssistedCollector = {
     getState: function () { return _state },
+    getDebugConfig: _debugConfig, // 验收用:看当前 profile + 全部时间参数
     _syncEnabled: _syncEnabled,
-    // DevTools 调试用,真机验收可临时调小;不改默认值
+    // DevTools 调试:仅临时覆盖当前页面运行态,不写 storage、不持久化;刷新即恢复 profile 值。
     _debugSetHumanIdleMs: function (ms) { HUMAN_IDLE_MS = ms | 0 },
     _debugSetSwitchGapMs: function (ms) { SWITCH_GAP_MS = ms | 0 },
     _debugSetCooldownMs: function (ms) { COOLDOWN_MS = ms | 0 },
+    _debugSetProfile: function (name) { _applyProfile(name); return _debugConfig() }, // 临时切 prod/test 验收
   }
 })()
 
