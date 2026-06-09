@@ -6,6 +6,19 @@
 
 ---
 
+## v0.6.0 — 2026-06-09
+- 关联:**W20 + W20.1 + W21**(账号采集权治理 + 采集权只读接口 + 辅助采集器,一起发版)
+- 范围:server + admin + plugin + deploy migration(W20 schema)
+- 变更:
+  - **W20 采集权/查看权/账号治理**:`service_accounts.lifecycle`(pending/active/disabled)+ `collector_id`(采集权单人)+ `service_account_view`(查看权多人,查看权≠采集权);事件级采集权闸门(非负责人上报 rejected,HTTP 200);heartbeat 账号级实例冲突 block + 仲裁(最早注册 primary/继续,更晚 block/暂停);`collector_v1_enabled` 默认 false 启停闸门;采集权"谁先发现谁临时归属"(不区分角色)。
+  - **W20.1 collect-permission 只读接口**:`GET /api/v1/service-accounts/collect-permission`,返回 allowed/reason/lifecycle/collector_id/collector_kind(reason ∈ ok|missing_account|pending_owner|not_collector|account_disabled|unknown);tenant_admin 不天然 allowed;internal→403。只读,不建账号/不分配/不改 lifecycle。
+  - **W21 辅助采集器**(plugin):低频自动切换"当前客服页面"可见未读会话 → 切换确认 → `collectNow` 显式触发一次采集;**只走 `adapter.switchSession()`,不直接点击 DOM,不发送/不输入**;消费 W20 collect-permission + 账号级 block;人工互锁(`isTrusted` 过滤真人 vs 插件合成事件 + 切换抑制窗口,避免自身切换误暂停);prod/test 双时间参数 profile(按 serverUrl 判档,固化进代码)。入口=面板 `auto_switch_session` 开关,默认 false。
+- 已知注意:
+  - **test/prod 需先 apply W20 migration(deploy schema),先跑 preflight 再迁移**。
+  - W21 真机仅验 test 档主链路(候选识别/切换/collectNow/accepted/人工互锁);**R4–R8(多 tab block / 非负责人 / disabled / W17·W20 回归)+ prod 档节奏待 test 预发复核**。
+  - 红线复核:全程只读,无发送入口;W17 position/message_id/occurred_at 不因 W21 改变。
+- 复盘:(发版后补)
+
 ## v0.5.0 — 2026-06-07
 - 关联:**W17 消息位置标识 + W19 租户资产模型**(一次清库重采、一起发版,design §8.2)
 - 范围:server + admin + plugin + 数据库迁移(deploy/w17_message_position.sql + deploy/w19_tenant_asset.sql)

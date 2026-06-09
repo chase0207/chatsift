@@ -3,9 +3,33 @@
 版本: v1.0.0
 周次: W21
 落位: docs/reports/
-状态: 本地实现+静态自测通过,**真机验收待 Chase**
+状态: 本地实现 + 静态自测通过 + **Chase 真机验收通过(2026-06-09)**;待 test 预发复核
 身份: DEV / 分支: w21-assisted-collector(从 main 切,含 W20+W20.1;未 merge/未部署)
 ---
+
+## 0. 验收结论(2026-06-09,Chase 真机)
+
+**✅ 主链路真机验收通过**:抖音私信当前页可见未读会话 → 自动识别候选 → 低频自动切换 → 切换确认 → `collectNow` 显式采集 → EventUploader 上报 `accepted` 入库,全链路跑通;两个稳定性/工程化补丁验证通过。
+
+| 证据项 | 结果 |
+|---|---|
+| 自动识别候选(`detectSessions` + 新版会话列表 selector) | ✅ 成功识别未读候选(`b1eabc4` 修复后) |
+| 自动切换(只走 `adapter.switchSession()`) | ✅ 成功切换当前会话 |
+| 切换确认 → `Legacy.collectNow()` 显式采集 | ✅ collected/accepted 计数增长 |
+| EventUploader 上报 | ✅ `accepted` 入库成功 |
+| **人工互锁稳定性**(`9bf7b63`:`isTrusted` 过滤 + 切换抑制窗口) | ✅ 修复后**连续多候选不再因自身切换误暂停**;真人 mouse/key 仍即时暂停 |
+| **prod/test 时间参数固化**(`c88ea3b`:双 profile + `getDebugConfig`) | ✅ 按 serverUrl 自动判档,本地=test 档(4s 切换/15s 冷却/5s 人工阈值),无需手调 |
+
+> 关联 commit:`b1eabc4`(候选识别)→ `9bf7b63`(互锁稳定性)→ `c88ea3b`(双 profile)。三者已 push `origin/w21-assisted-collector`。
+
+### 未覆盖 / 待 test 预发复核
+- **R4 单账号多 tab 实例冲突 → 账号级 block**:本地单实例未触发,待 test 多 tab 复核。
+- **R5 非采集负责人账号 → collect-permission allowed=false 不切换**:逻辑已接,待 test 用真实非负责人账号复核。
+- **R6 disabled 账号 → 不切换**:待 test 复核。
+- **R7 W17 回归**:position/message_id/occurred_at 不因 W21 改变 — 待 test 数据抽样确认。
+- **R8 W20 回归**:batch 采集权拒 + heartbeat account-block + collect-permission 仍生效 — 待 test 复核。
+- **prod 档真机**:本地仅验 test 档;prod 档(12s 切换/3min 冷却/5min 人工阈值)节奏待 prod 发布后观察。
+- **多候选规模**:本地验证连续切换稳定;>5 候选截断、长时间运行的限速/冷却节奏待 test 长跑观察。
 
 # W21 辅助采集器 验收
 
@@ -15,7 +39,8 @@
 ## 1. 改动文件
 | 文件 | 改动 |
 |---|---|
-| `plugin/runtime/assisted-collector.js`(新) | 辅助采集器:状态机 + 人工互锁 + 节流 + 候选重匹配 + W20 采集权/block 联动 |
+| `plugin/runtime/assisted-collector.js`(新) | 辅助采集器:状态机 + 人工互锁(`isTrusted` 过滤 + 切换抑制窗口)+ 节流 + 候选重匹配 + W20 采集权/block 联动 + **prod/test 双时间参数 profile(按 serverUrl 判档)+ `getDebugConfig`** |
+| `plugin/adapters/douyin/private-message.adapter.js` | 修复新版会话列表候选识别 selector(`conversationItem-`/`conversationName-`/`byted-badge-sup-show` 等;`b1eabc4`) |
 | `plugin/runtime/legacy-collector.js` | 加安全 `collectNow()`(复用 collectMessageSession,★不改 position/message_id/occurred_at/契约) |
 | `plugin/build.js` | content.js 接入 assisted-collector(顺序在 legacy 之后) |
 | `plugin/content.js` | 重建(33 模块) |
@@ -47,17 +72,19 @@
 - account-block(`Legacy.isBlocked()`)→ blocked_by_w20,不切换。
 
 ## 5. ★真机待验清单(交 Chase,Phase C3/C4)
-| # | 项 | 期望 |
-|---|---|---|
-| R1 | 抖音私信 3-5 个当前可见未读 | 可被低频切换,每个候选有采集触发/入库证据 |
-| R2 | 连续切换 3 个候选 | 每个都有 `collectNow` 日志/入库;**legacy 10s debounce 不被反复重置导致漏采** |
-| R3 | 人工 mouse/key/wheel/focus | 1s 内暂停(paused_by_human),日志可见 |
-| R4 | 单账号多 tab | W20 账号级 block → blocked_by_w20,不切换(最早实例继续) |
-| R5 | 非采集负责人账号 | collect-permission allowed=false → 不自动切换 |
-| R6 | disabled 账号 | 不自动切换 |
-| R7 | W17 回归 | 入库 position 连续、message_id/occurred_at 不因 W21 改变 |
-| R8 | W20 回归 | batch 采集权拒仍生效;heartbeat account-block 仍生效;collect-permission 可用 |
-| 调试 | 15min 阈值难等 | DevTools `RpaAssistedCollector._debugSetHumanIdleMs(5000)` 可临时降阈值验证;`RpaAssistedCollector.getState()` 看状态 |
+> 主链路(R1/R2/R3)已于 2026-06-09 真机通过,见 §0;R4–R8 + prod 档列入「待 test 预发复核」(§0 末)。
+
+| # | 项 | 期望 | 状态 |
+|---|---|---|---|
+| R1 | 抖音私信 3-5 个当前可见未读 | 可被低频切换,每个候选有采集触发/入库证据 | ✅ 2026-06-09 真机通过 |
+| R2 | 连续切换 3 个候选 | 每个都有 `collectNow` 日志/入库;**legacy 10s debounce 不被反复重置导致漏采** | ✅ 真机通过(稳定性修复后连续切换不误暂停) |
+| R3 | 人工 mouse/key/wheel/focus | 1s 内暂停(paused_by_human),日志可见 | ✅ 真机通过(真人 mouse/key 即时暂停) |
+| R4 | 单账号多 tab | W20 账号级 block → blocked_by_w20,不切换(最早实例继续) | ⏳ 待 test 复核 |
+| R5 | 非采集负责人账号 | collect-permission allowed=false → 不自动切换 | ⏳ 待 test 复核 |
+| R6 | disabled 账号 | 不自动切换 | ⏳ 待 test 复核 |
+| R7 | W17 回归 | 入库 position 连续、message_id/occurred_at 不因 W21 改变 | ⏳ 待 test 抽样 |
+| R8 | W20 回归 | batch 采集权拒仍生效;heartbeat account-block 仍生效;collect-permission 可用 | ⏳ 待 test 复核 |
+| 调试 | 节奏/阈值难等 | 时间参数已固化双 profile(本地 serverUrl→test 档,无需手调);`RpaAssistedCollector.getDebugConfig()` 看档位+参数,`getState()` 看状态;`_debugSet*` 仅临时覆盖当前页不持久化 | ✅ |
 
 ## 6. W17/W20 红线复核 ✅
 - **W17**:`collectNow()` 仅复用 `collectMessageSession()`,未改 `PositionTracker.assign()`/`Dom.synthMessageId`/position/message_id/occurred_at;assisted-collector 不碰位置链路。
@@ -74,4 +101,5 @@
 第一版仅 `douyin/private-message`。扩展到来客/飞鸽前需:① 对应 adapter 补齐 detectSessions/switchSession/confirmActiveSession + unread 识别;② W20 page_key 已覆盖(laike-message/feige);③ account_biz_id 在这些页是否恒有需确认(私信靠 URL accountId,来客/飞鸽口径不同)。建议私信试点真机稳定后再评估扩展。
 
 ## 9. 边界
-未 merge、未部署、未碰 test/prod、未动 VERSION/CHANGELOG/tag。**自测通过,停下等 Chase 真机验收。**
+分支 `w21-assisted-collector` 已 push origin;**未 merge main、未部署、未碰 test/prod、未动 VERSION/tag**。
+**静态自测 + Chase 真机主链路验收已通过(2026-06-09)**,纳入 v0.6.0(W20 + W20.1 + W21)发版材料;待发布顺序:merge main → bump VERSION 0.6.0 → push → test 预发复核(R4–R8 + prod 档)→ prod 发布 → 打 tag。
