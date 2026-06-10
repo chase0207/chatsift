@@ -1,6 +1,6 @@
 # chatsift 项目状态(PROJECT_STATUS.md)
 
-> 最后更新:2026-06-09
+> 最后更新:2026-06-10
 > 本文件是 chatsift 当前状态的**唯一状态源**。与任何 AI agent 沟通时,优先读/发本文件。
 > 协作规矩见 AGENTS.md;发版/生产/编号细则见 docs/ops/。
 
@@ -20,23 +20,27 @@
 ## 当前版本
 | 模块 | 版本 |
 |---|---|
-| VERSION / server / admin / plugin | 0.5.0(已一致;**v0.6.0 待 merge main 后由 release commit 统一 bump**) |
+| VERSION / server / admin / plugin | 0.6.2(已一致;W22 发版中) |
 | tools/dom-collector | 1.0.0(独立版本线) |
-| 生产 VERSION | 0.5.0(已部署同步,**生产仍 v0.5.0**) |
+| 生产 VERSION | 待部署确认(上次记录为 v0.5.0;本次 v0.6.2 发版需同步生产 VERSION) |
 
-发版:**v0.5.0 = W17 + W19 已发布上线**(一次清库重采、一起发,design §8.2)。test+prod 迁移 schema + 清库 + 部署 + 插件 v0.5.0,**E5 真机重采 + 三类角色隔离最终验收已通过(2026-06-07),W19 全程闭环**。
+发版:**v0.6.2 = W22 工单中心优化**。本次范围为租户管理后台工单中心体验补丁:字段重构、类型 tab、搜索叠加、状态 inline 保存、查看记录抽屉与客户全貌。**不改 schema / 分析引擎 / 工单类型枚举 / 发送回复能力**。
 
-**🚧 v0.6.0 发布准备中(= W20 + W20.1 + W21)**:三者均**本地实现 + 静态自测 + Chase 真机验收通过**,分支 `w21-assisted-collector`(从 main 切,含 W20+W20.1)已 push origin,**未 merge / 未部署 / 未 bump VERSION**。发布顺序:merge main → bump 0.6.0(server/admin/plugin 同步)→ release commit → push main → **test 预发冒烟** → prod 发布 → 打 tag v0.6.0。⚠️ test/prod 需先 apply W20 migration(先跑 preflight)。
+**v0.6.0 = W20 + W20.1 + W21** 已形成 release commit/tag;W20 迁移与 test/prod 实际部署状态后续以生产验证记录为准。
 
 ## 当前进度 / 下一步
-- 🚧 **v0.6.0 发布准备中(W20 + W20.1 + W21)** — 本地验收通过,待 merge → 发版(见上「当前版本」)。
+- 🚧 **v0.6.2 发版中(W22 工单中心优化)** — 代码已完成并按 PRD 补齐关联工单摘要;当前执行版本同步、CHANGELOG/PROJECT_STATUS 回写、tag/push 前校验。
+  - ✅ **W22 PRD**:`docs/prd/V1.0/W22_workorder_center.md` 已落地,明确范围只改租户管理后台工单中心。
+  - ✅ **W22 实现**:工单中心去类型/标题/查看处理;IM昵称/客户姓名/关键词/状态 inline;全部/预约/咨询/询价/投诉 tab + 计数;查看记录抽屉两列;不发送不回复。
+  - ⏳ **下一步**:完成 v0.6.2 release commit/tag/push;按发版规程执行 test/prod 部署与验证,并同步生产 VERSION。
+- ✅ **v0.6.0(W20 + W20.1 + W21)** — 已形成 release commit/tag。
   - ✅ **W20 采集权/查看权/账号治理**:service_accounts.lifecycle(pending/active/disabled)+ collector_id(采集权单人)+ service_account_view(查看权多人)+ 事件级采集权闸门 + heartbeat 账号级实例冲突 block + 仲裁;`collector_v1_enabled` 默认 false 启停闸门。
   - ✅ **W20.1 collect-permission 只读接口**:`GET /api/v1/service-accounts/collect-permission`(allowed/reason/lifecycle/collector_id;查看权≠采集权;internal→403)。
   - ✅ **W21 辅助采集器**:低频自动切换可见未读会话 → `collectNow` 显式采集;只走 `adapter.switchSession()`;消费 W20 采集权 + 账号级 block;人工互锁(`isTrusted` 过滤 + 切换抑制窗口);prod/test 双时间参数 profile(按 serverUrl 判档)。报告 docs/reports/W21_acceptance.md。**红线:仍只读、永不发送/输入。**
 - ✅ **W19 租户资产模型 全闭环**(阶段A–E,v0.5.0 已发上线 prod+test;两层身份/scope隔离/service_account 采集归属/conversation_id/admin租户管理/mychat首页)。报告 docs/reports/W19_stage{A,B,CD,E}_acceptance.md。
 - ✅ **W17 阶段一**(消息位置标识 本地层)随 v0.5.0 一起发。
 - ⛔ **W17 阶段二(云端对账)= 取消/交 codex**,不在 chatsift 本线推进。
-- **下一步**:merge w21-assisted-collector → main → bump 0.6.0 → push main → **test 预发冒烟(复核 W21 R4–R8 + prod 档 + W20 migration)** → prod 发布 → 打 tag v0.6.0。
+- **下一步**:完成 v0.6.2 发版提交/tag/push → test/prod 部署验证 → 回写生产同步状态。
 
 ### 待排期(backlog,非进行中)
 - **M16 users.role 收口**:代码已统一走 role_id/user_type,fresh schema 已无 `users.role`;既有环境物理 DROP 需在对应环境部署含 M16 的新代码后,由用户在场执行。
@@ -49,6 +53,8 @@
 ## 发版记录
 | 版本 | tag | 时间 | 关联 W | 范围 | 备注 |
 |---|---|---|---|---|---|
+| v0.6.2 | v0.6.2 | 06-10 | **W22** | server+admin+docs | 工单中心字段重构、类型 tab、状态 inline 保存、查看记录抽屉;不改 schema/引擎/枚举/发送回复 |
+| v0.6.0 | v0.6.0 | 06-09 | **W20+W20.1+W21** | server+admin+plugin+迁移 | 采集权/查看权治理 + collect-permission 只读接口 + 辅助采集器 |
 | v0.5.0 | v0.5.0 | 06-07 | **W17+W19** | server+admin+plugin+迁移 | 消息位置标识 + 租户资产模型(两层身份/scope隔离/service_account/采集归属/conversation_id);一次清库重采 |
 | v0.3.1 | v0.3.1 | 06-03 | **W16** | server+admin+plugin | 登录域名限制(内部/外部按域名分入口) |
 | v0.3.0 | v0.3.0 | 06-03 | **W16** | server+admin+plugin | 平台/租户双入口拆分(admin+mychat)首发 |
@@ -69,9 +75,9 @@
 | 部署目录 | /opt/chatsift(rsync 部署,非 git) |
 | server | Docker,127.0.0.1:3100 |
 | 数据库 | Docker MySQL |
-| 当前生产版本 | v0.5.0(W17+W19 已部署) |
-| v0.5.0 验证 | test+prod 迁移 schema + 清库 + 部署 + 插件 v0.5.0;E5 真机重采 + 三类角色隔离最终验收通过 |
-| 待办 | M16 既有环境物理 DROP `users.role`:代码已收口;test/prod/dev 需先确认已部署含 M16 的新代码,再由用户在场执行 deploy/m16_drop_users_role.sql |
+| 当前生产版本 | 待部署确认(上次记录为 v0.5.0;本次准备发布 v0.6.2) |
+| v0.6.2 验证 | 待 test/prod 部署后回写 |
+| 待办 | 发版时同步生产 VERSION;M16 既有环境物理 DROP `users.role`:代码已收口;test/prod/dev 需先确认已部署含 M16 的新代码,再由用户在场执行 deploy/m16_drop_users_role.sql |
 
 ---
 
@@ -84,11 +90,13 @@
 - W16 平台/租户双入口拆分 ✓ 闭环(零迁移方案 + 生产验证通过)
 - **W17 阶段一 消息位置标识**随 v0.5.0 已发布上线;M1 关闭(见 docs/reports/W17_acceptance.md)
 - **W19 租户资产模型**阶段A-E全闭环,随 v0.5.0 已发布上线
+- **W20 + W20.1 + W21** 已形成 v0.6.0 release commit/tag
+- **W22 工单中心优化** 已进入 v0.6.2 发版
 - M3 git 整理(合并 push、生产 VERSION 修正、未跟踪文件归位)
 - 文档治理:AGENTS.md + docs/ops/(release/prod-safety/versioning)+ 本文件 + CHANGELOG
 
 ### 进行中
-- **v0.6.0 发布收口**(W20 + W20.1 + W21 本地验收通过,准备发版;详见「当前进度 / 下一步」)。
+- **v0.6.2 发布收口**(W22 工单中心优化,详见「当前进度 / 下一步」)。
 
 ### 待办(技术债,见 tech-debt-master-plan)
 - **W17 阶段二:云端对账**——已取消/不在 chatsift 本线推进。
@@ -118,6 +126,7 @@
 ## 变更日志
 | 版本 | 日期 | 变更摘要 |
 |---|---|---|
+| v1.4.0 | 2026-06-10 | W22 工单中心优化进入 v0.6.2 发版;同步 v0.6.0 已形成 release commit/tag,修正此前 v0.6.0 准备中旧口径 |
 | v1.3.0 | 2026-06-09 | W20+W20.1+W21 本地+真机验收通过,进入 v0.6.0 发布准备(未 merge/未 bump/生产仍 v0.5.0);下一步 test 预发→prod |
 | v1.2.0 | 2026-06-07 | 对齐 v0.5.0/W17+W19 已发布状态;清理旧生产 v0.3.1、W19 调研中、W17 阶段二待做等冲突口径 |
 | v1.1.0 | 2026-06-05 | W17 阶段一闭环已合并 main(3486c12,未发版/未碰生产);M1 关闭;W19 调研中;阶段二排 W19 后 |
