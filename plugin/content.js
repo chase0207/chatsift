@@ -1899,6 +1899,18 @@
     return { collected: collected, skipped: skipped }
   }
 
+  // v0.6.4:从本地 seen 移除指定 message_id(采集权类 rejected 后释放,开权后可重新上报)。
+  //   ids = message_id / platform_message_id 数组(二者同值);有变化才持久化。返回是否有变化。
+  function forgetSeen(ids) {
+    var list = Array.isArray(ids) ? ids : []
+    var changed = false
+    list.forEach(function (id) {
+      if (id && _seen.has(id)) { _seen.delete(id); changed = true }
+    })
+    if (changed) _persistSeen()
+    return changed
+  }
+
   function resetSeenForTesting() {
     _seen = new Set()
     _loaded = true
@@ -1910,6 +1922,7 @@
   window.RpaEventCollector = {
     collect:             collect,
     restoreSeen:         restoreSeen,
+    forgetSeen:          forgetSeen,
     resetSeenForTesting: resetSeenForTesting,
   }
 })()
@@ -2122,6 +2135,7 @@
         try { json = await resp.json() } catch (_) {}
         await Queue.persist()
         Logger.info && Logger.info('EventUploader', 'uploaded', json.data || json)
+        _releaseRejectedSeen(json.data && json.data.reject_reasons) // v0.6.4:采集权类 rejected 释放本地 seen,开权后可重试
         _logRejectReasons(json.data && json.data.reject_reasons) // W20:采集权拒/原因写入消息日志
         return { ok: true, response: json }
       }
@@ -2135,6 +2149,22 @@
     } finally {
       _uploading = false
     }
+  }
+
+  // v0.6.4:采集权类 rejected(开通采集权后可重试)→ 从本地 seen 释放对应 message_id,使后续可重新上报。
+  //   不释放 invalid_event / missing_account_biz_id(非"开权可重试"场景,避免无限重试刷屏);
+  //   accepted / duplicated 是终态,本就不在 reject_reasons 里,不受影响。
+  var RETRIABLE_REJECT = { account_disabled: 1, pending_grab: 1, not_collector: 1, no_collect_permission: 1 }
+  function _releaseRejectedSeen(reasons) {
+    if (!reasons || !reasons.length) return
+    if (!window.RpaEventCollector || !window.RpaEventCollector.forgetSeen) return
+    var ids = []
+    reasons.forEach(function (r) {
+      if (r && r.platform_message_id && RETRIABLE_REJECT[r.reason]) ids.push(r.platform_message_id)
+    })
+    if (!ids.length) return
+    var changed = window.RpaEventCollector.forgetSeen(ids)
+    if (changed) Logger.info && Logger.info('EventUploader', 'released seen for retriable rejects', { count: ids.length })
   }
 
   // W20:把 server 返回的 reject_reasons 汇总成中文写入插件消息日志(节流:同一汇总不重复刷)。
