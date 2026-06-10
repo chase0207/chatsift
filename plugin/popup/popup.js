@@ -468,6 +468,19 @@ async function authFetch(path, opts) {
   return json
 }
 
+// v0.6.4:background 存的是 item.ts(ISO),旧代码读 item.time → [undefined]。统一兜底格式化。
+function formatLogTime(item) {
+  if (item && item.time) return item.time
+  if (item && item.ts) {
+    var d = new Date(item.ts)
+    if (!isNaN(d.getTime())) {
+      var p = function (n) { return String(n).padStart(2, '0') }
+      return p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds())
+    }
+  }
+  return '--:--:--'
+}
+
 async function refreshLogs() {
   var res = await runtimeSend({ action: 'GET_LOGS' })
   var logs = ((res && res.data) || []).filter(shouldShowRuntimeLog)
@@ -476,7 +489,7 @@ async function refreshLogs() {
     return
   }
   $('logList').textContent = logs.map(function (item) {
-    return '[' + item.time + '] ' + item.message
+    return '[' + formatLogTime(item) + '] ' + item.message
   }).join('\n')
   $('logList').scrollTop = $('logList').scrollHeight
 }

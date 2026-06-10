@@ -70,6 +70,18 @@
     return { collected: collected, skipped: skipped }
   }
 
+  // v0.6.4:从本地 seen 移除指定 message_id(采集权类 rejected 后释放,开权后可重新上报)。
+  //   ids = message_id / platform_message_id 数组(二者同值);有变化才持久化。返回是否有变化。
+  function forgetSeen(ids) {
+    var list = Array.isArray(ids) ? ids : []
+    var changed = false
+    list.forEach(function (id) {
+      if (id && _seen.has(id)) { _seen.delete(id); changed = true }
+    })
+    if (changed) _persistSeen()
+    return changed
+  }
+
   function resetSeenForTesting() {
     _seen = new Set()
     _loaded = true
@@ -81,6 +93,7 @@
   window.RpaEventCollector = {
     collect:             collect,
     restoreSeen:         restoreSeen,
+    forgetSeen:          forgetSeen,
     resetSeenForTesting: resetSeenForTesting,
   }
 })()

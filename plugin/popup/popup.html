@@ -125,11 +125,12 @@
         <div>客服配置</div>
       </button>
 
-      <button class="nav-item" data-page="page-ai">
+      <!-- v0.6.4 暂时隐藏:AI 配置 / 知识库(功能代码保留,DOM 不删) -->
+      <button class="nav-item" data-page="page-ai" style="display:none">
         <svg class="nav-icon"><use href="#i-sparkles"/></svg>
         <div>AI 配置</div>
       </button>
-      <button class="nav-item" data-page="page-kb">
+      <button class="nav-item" data-page="page-kb" style="display:none">
         <svg class="nav-icon"><use href="#i-upload"/></svg>
         <div>知识库</div>
       </button>
@@ -151,7 +152,8 @@
             <svg class="panel-caret"><use href="#i-chevron-down"/></svg>
           </div>
           <div class="panel-body">
-            <div class="field-block">
+            <!-- v0.6.4 暂时隐藏:自启动(功能代码保留,DOM 不删) -->
+            <div class="field-block" style="display:none">
               <div class="field-title">自启动</div>
               <div class="toggle-bar">
                 <span>打开页面后自动启动客服</span>
@@ -163,9 +165,9 @@
             </div>
 
             <div class="field-block">
-              <div class="field-title">自动切换会话</div>
+              <div class="field-title">自动切换红点会话</div>
               <div class="toggle-bar toggle-bar-tall">
-                <span>开启后插件会自动切换当前客服页面会话，可能影响人工操作</span>
+                <span>开启后，人工无操作 1 分钟，插件开始低频切换红点会话</span>
                 <label class="switch">
                   <input type="checkbox" id="autoSwitchSession">
                   <span class="slider"></span>
@@ -173,7 +175,27 @@
               </div>
             </div>
 
-            <div class="row-2">
+            <!-- v0.6.4 面板说明文案(简短;不承诺全量无漏,不涉及发送/自动回复) -->
+            <div class="field-block">
+              <div class="field-title">采集规则</div>
+              <div style="font-size:12px;line-height:1.7;color:#888">
+                · 启动采集后，插件只读取当前客服页消息，不发送、不回复。<br>
+                · 消息上传成功或判定重复后，不再重复上报。<br>
+                · 因采集权被拒绝的消息，会在开通采集权后允许再次上报。
+              </div>
+            </div>
+            <div class="field-block">
+              <div class="field-title">自动切换红点会话说明</div>
+              <div style="font-size:12px;line-height:1.7;color:#888">
+                · 开启后，人工无操作 1 分钟，插件开始低频切换红点会话。<br>
+                · 每轮最多处理 5 个红点会话；切换后等待页面稳定并立即采集。<br>
+                · 检测到人工点击或键盘输入，会暂停本轮自动切换。<br>
+                · 多个窗口同时采同一客服账号时，仅保留一个窗口继续采集。
+              </div>
+            </div>
+
+            <!-- v0.6.4 暂时隐藏:客服轮询间隔 / 发送延迟(功能代码保留,DOM 不删) -->
+            <div class="row-2" style="display:none">
               <div class="field-block">
                 <div class="field-title">客服轮询间隔（秒）</div>
                 <input class="big-input" id="kefuBreak" type="text" value="10">
@@ -187,7 +209,8 @@
           </div>
         </div>
 
-        <div class="panel" id="panel-keywords">
+        <!-- v0.6.4 暂时隐藏:关键词话术/兜底回复/转人工/黑名单(功能代码保留,DOM 不删) -->
+        <div class="panel" id="panel-keywords" style="display:none">
           <div class="panel-head" data-toggle="panel-keywords">
             <div class="panel-title">关键词话术</div>
             <svg class="panel-caret"><use href="#i-chevron-down"/></svg>
@@ -215,7 +238,8 @@
           </div>
         </div>
 
-        <div class="sticky-bar">
+        <!-- v0.6.4 暂时隐藏:重置/保存配置(自动切换会话开关为即时写 storage,不依赖此按钮;功能代码保留,DOM 不删) -->
+        <div class="sticky-bar" style="display:none">
           <div class="sticky-inner">
             <button class="footer-btn reset" id="btnResetKefu">重置</button>
             <button class="footer-btn save" id="btnSaveKefu">保存配置</button>
