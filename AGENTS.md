@@ -4,7 +4,7 @@
 > 本文件是所有 AI agent 的协作入口,**只放每次都要遵守的核心规矩**(一屏内)。
 > 细节按需查附录:发版看 `docs/ops/release.md`、生产操作看 `docs/ops/prod-safety.md`、编号看 `docs/ops/versioning.md`。
 > 当前状态 / 进度 / 版本,以 `PROJECT_STATUS.md` 为准(唯一状态源)。
-> 版本:v1.3.0 / 2026-06-07
+> 版本:v1.4.0 / 2026-06-11
 
 ---
 
@@ -84,12 +84,14 @@
 | docs/prd/ | 产品需求 + Claude 的 design/tasks |
 | docs/reports/ | 验收报告(各 W 的 acceptance) |
 | docs/research/ | 调研/盘点/现状核实(技术债盘点、专题调研、版本核实等) |
+| docs/tasks/ | 单任务协作闭环(active/done),规范见 docs/ops/task-doc-workflow.md |
 | docs/meta/ | 文档治理(document-governance/document-index)、技术债总纲、PROJECT_REALITY、SPEC_GAP |
 | docs/archive/ | 已废弃保留(被现行文档取代,文件头标注取代关系) |
 
 **规约:**
 - 文档归类/命名规则见 `docs/meta/document-governance.md`;各文档位置见 `docs/meta/document-index.md`。
 - 唯一状态源是 PROJECT_STATUS.md,不维护第二份进度文档。
+- 任务单只承载单任务执行闭环,不得降低本文件、PROJECT_STATUS.md、docs/ops/prod-safety.md 的要求。
 - 调研/盘点/核实类文档 → 进 `docs/research/`,文件名 `YYYY-MM-DD_主题.md`,开头带版本号。传给 Claude 时给路径 + 上传文档(Claude 读不到本地仓库)。
 - 不提交 .env / node_modules / admin/dist / .agents / .claude / data 等运行产物。
 
@@ -140,6 +142,7 @@
 ## 变更日志
 | 版本 | 日期 | 变更摘要 |
 |---|---|---|
+| v1.4.0 | 2026-06-11 | 文档体系补 docs/tasks 任务单协作闭环 + task-doc-workflow 指针 |
 | v1.3.0 | 2026-06-07 | 文档体系补 docs/meta + docs/archive 行 + 指向 document-governance/index;DEPLOY 移入 docs/ops/deploy.md |
 | v1.2.0 | 2026-06-05 | 加 §4"重改动先出技术方案审了再写代码"(三层流程);后续规则顺延编号 |
 | v1.1.0 | 2026-06-04 | 加"编号约定"节:持久编号 W/M/v 三种 + 临时引用 Q# + 变更分类带"类"字 |

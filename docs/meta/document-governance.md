@@ -1,6 +1,6 @@
 ---
 文档: chatsift 文档治理规范(document-governance)
-版本: v1.0.0
+版本: v1.1.0
 状态: 生效中(活文档)
 日期: 2026-06-07
 ---
@@ -9,6 +9,7 @@
 
 | 版本 | 日期 | 变更摘要 |
 |---|---|---|
+| v1.1.0 | 2026-06-11 | 纳入 docs/tasks 任务单目录、命名、归档和 task-doc-workflow 指针 |
 | v1.0.0 | 2026-06-07 | 初版:目录口径 + 五条硬规则 + 命名 + 两阶段 + 去重三态。落地见 docs/reports/2026-06-07_文档治理盘点与整理方案.md |
 
 > 本文是 chatsift 文档归类/命名/治理的**唯一规范**。新增或整理文档前先读本文。
@@ -25,6 +26,7 @@
 | `docs/research/` | 调研、盘点、现状核实 = **快照** | `YYYY-MM-DD_<W##或主题>_描述.md`(带日期) |
 | `docs/reports/` | 验收、诊断、复盘结论 = **证据** | 带日期 或 `W##_acceptance/diagnosis` |
 | `docs/ops/` | 流程与生产操作规程 | `release/prod-safety/versioning/server-access/engineering-governance/deploy` |
+| `docs/tasks/` | 单任务协作闭环(active/done),不承载长期规则或证据报告 | `active/YYYY-MM-DD_vX.Y.Z_任务短语.md` |
 | `docs/meta/` | 文档治理、索引、技术债总纲、项目级长期说明 | 固定语义名;**不放**具体验收报告 / 一次性调研 |
 | `docs/archive/` | 历史废弃文档(进 git) | 保留原名,文件头标注取代关系 |
 | `docs/scratch/` | 临时草稿 | **不进 git** |
@@ -48,6 +50,7 @@
 
 - 项目级活文档(根五件套 + meta):固定语义名,**无日期无编号**。
 - 设计/活文档(prd 的 design/tasks):固定名 + 内部版本号 + changelog 表,**无日期无前缀**(`W19_design.md`)。
+- 任务单(tasks):`docs/tasks/active/YYYY-MM-DD_vX.Y.Z_任务短语.md`;完成后原名 `git mv` 到 `docs/tasks/done/`。
 - 调研/报告快照(research/reports):`YYYY-MM-DD_<W##或主题>_描述.md`(带日期)。
 - 活文档开头必须有 changelog 表;废弃文档文件头标注"已废弃,被 XX 取代"。
 
@@ -57,3 +60,4 @@
 - 废弃文档不删,移 `docs/archive/`,文件头标取代关系。
 - `git mv` 保留历史;确认重复用 `git rm`(可从历史恢复)。
 - 整理产出落 `docs/reports/`(带日期),报 Chase 审,审过再动。
+- 任务单规范见 `docs/ops/task-doc-workflow.md`;任务单不得替代 PROJECT_STATUS、CHANGELOG、reports/research 证据文档。
