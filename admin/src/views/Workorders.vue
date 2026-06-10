@@ -2,11 +2,6 @@
   <div>
     <el-card shadow="never" class="toolbar-card">
       <el-form :model="filters" inline class="filter-form">
-        <el-form-item label="类型">
-          <el-select v-model="filters.workorder_type" clearable placeholder="全部类型" style="width:150px">
-            <el-option v-for="item in typeOptions" :key="item.value" :label="item.label" :value="item.value" />
-          </el-select>
-        </el-form-item>
         <el-form-item label="状态">
           <el-select v-model="filters.status" clearable placeholder="全部状态" style="width:150px">
             <el-option v-for="item in statusOptions" :key="item.value" :label="item.label" :value="item.value" />
@@ -30,42 +25,52 @@
     </el-card>
 
     <el-card shadow="never" style="margin-top:16px">
+      <el-tabs v-model="activeType" @tab-change="handleTabChange">
+        <el-tab-pane v-for="t in tabs" :key="t.value" :name="t.value" :label="`${t.label}(${counts[t.value] ?? 0})`" />
+      </el-tabs>
+
       <el-table :data="tableData" v-loading="loading" stripe :row-class-name="rowClassName">
-        <el-table-column label="标题" min-width="200">
-          <template #default="{ row }">
-            <span style="font-weight:600">{{ row.title || '-' }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="客户" min-width="130">
+        <el-table-column label="IM昵称" min-width="130">
           <template #default="{ row }">{{ row.customer_nickname || '-' }}</template>
         </el-table-column>
-        <el-table-column label="类型" width="120">
+        <el-table-column label="客户姓名" min-width="110">
+          <template #default="{ row }">{{ row.customer_name || '-' }}</template>
+        </el-table-column>
+        <el-table-column label="关键词" min-width="220">
           <template #default="{ row }">
-            <el-tag size="small" type="info">{{ typeMap[row.workorder_type] || row.workorder_type || '-' }}</el-tag>
+            <div v-if="payloadChips(row.payload).length" class="kw-wrap">
+              <el-tag v-for="(kw, i) in payloadChips(row.payload)" :key="i" size="small" type="info" class="kw-tag">{{ kw }}</el-tag>
+            </div>
+            <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column label="优先级" width="100">
+        <el-table-column label="优先级" width="90">
           <template #default="{ row }">
             <el-tag :type="priorityTag(row.priority)" size="small">P{{ row.priority || '-' }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="完整度" width="150">
+        <el-table-column label="完整度" width="140">
           <template #default="{ row }">
             <el-progress :percentage="Number(row.completeness_score || 0)" :stroke-width="8" />
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="110">
+        <el-table-column label="状态" width="130">
           <template #default="{ row }">
-            <el-tag :type="statusMap[row.status]?.type || 'info'" size="small">
-              {{ statusMap[row.status]?.label || row.status || '-' }}
-            </el-tag>
+            <el-select
+              v-model="row.status"
+              size="small"
+              :disabled="savingId === row.id"
+              @change="(val) => handleStatusChange(row, val)"
+            >
+              <el-option v-for="item in statusOptions" :key="item.value" :label="item.label" :value="item.value" />
+            </el-select>
           </template>
         </el-table-column>
         <el-table-column prop="sla_due_at" label="SLA 截止时间" width="170" />
         <el-table-column prop="created_at" label="创建时间" width="170" />
-        <el-table-column label="操作" width="120" fixed="right">
+        <el-table-column label="操作" width="100" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="openDialog(row)">查看/处理</el-button>
+            <el-button type="primary" link size="small" @click="openDrawer(row)">查看记录</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -83,97 +88,39 @@
       </div>
     </el-card>
 
-    <el-dialog v-model="dialogVisible" title="工单处理" width="720px" destroy-on-close>
-      <div v-loading="detailLoading">
-        <el-descriptions :column="2" border>
-          <el-descriptions-item label="标题">{{ current.title || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="客户">{{ current.customer_nickname || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="类型">{{ typeMap[current.workorder_type] || current.workorder_type || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="优先级">P{{ current.priority || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="完整度">{{ current.completeness_score || 0 }}%</el-descriptions-item>
-          <el-descriptions-item label="关联会话">
-            <el-button
-              v-if="current.conversation_id"
-              type="primary"
-              link
-              size="small"
-              @click="goConversation(current.conversation_id)"
-            >#{{ current.conversation_id }}</el-button>
-            <span v-else>-</span>
-          </el-descriptions-item>
-          <el-descriptions-item label="SLA 截止">{{ formatDate(current.sla_due_at) }}</el-descriptions-item>
-          <el-descriptions-item label="缺失字段" :span="2">
-            <el-space wrap>
-              <el-tag v-for="item in current.missing_fields || []" :key="item" size="small" type="warning">{{ item }}</el-tag>
-              <span v-if="!current.missing_fields || !current.missing_fields.length">-</span>
-            </el-space>
-          </el-descriptions-item>
-          <el-descriptions-item label="处理建议" :span="2">{{ current.suggestion || '-' }}</el-descriptions-item>
-        </el-descriptions>
-
-        <div class="json-section">
-          <div class="section-title">结构化字段</div>
-          <pre>{{ formatJson(current.payload || {}) }}</pre>
-        </div>
-
-        <el-form :model="processForm" label-width="90px" style="margin-top:16px">
-          <el-form-item label="状态">
-            <el-select v-model="processForm.status" style="width:220px">
-              <el-option v-for="item in statusOptions" :key="item.value" :label="item.label" :value="item.value" />
-            </el-select>
-          </el-form-item>
-        </el-form>
-      </div>
-      <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="handleStatusUpdate">保存</el-button>
-      </template>
-    </el-dialog>
+    <WorkorderDrawer v-model="drawerVisible" :conversation-id="drawerConvId" />
   </div>
 </template>
 
 <script setup>
 import { reactive, ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 import { Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { getWorkorder, listWorkorders, updateWorkorder } from '../api/workorders'
+import { listWorkorders, updateWorkorder } from '../api/workorders'
+import WorkorderDrawer from '../components/WorkorderDrawer.vue'
 
-const router = useRouter()
 const loading = ref(false)
-const detailLoading = ref(false)
-const saving = ref(false)
 const tableData = ref([])
 const total = ref(0)
 const page = ref(1)
 const pageSize = ref(20)
-const dialogVisible = ref(false)
-const current = ref({})
+const counts = ref({ all: 0, appointment: 0, inquiry: 0, pricing: 0, complaint: 0 })
+const activeType = ref('all')
+const savingId = ref(null)
 
-const filters = reactive({
-  workorder_type: '',
-  status: '',
-  priority: '',
-  overdue: '',
-})
+const drawerVisible = ref(false)
+const drawerConvId = ref(null)
 
-const processForm = reactive({
-  status: '',
-})
+const filters = reactive({ status: '', priority: '', overdue: '' })
 
-const typeOptions = [
-  { label: '咨询', value: 'inquiry' },
+// tab:全部 + 预约/咨询/询价(=pricing 前端文案)/投诉
+const tabs = [
+  { label: '全部', value: 'all' },
   { label: '预约', value: 'appointment' },
+  { label: '咨询', value: 'inquiry' },
+  { label: '询价', value: 'pricing' },
   { label: '投诉', value: 'complaint' },
-  { label: '报价', value: 'pricing' },
 ]
-
-const typeMap = {
-  inquiry: '咨询',
-  appointment: '预约',
-  complaint: '投诉',
-  pricing: '报价',
-}
 
 const statusOptions = [
   { label: '待处理', value: 'pending' },
@@ -183,14 +130,6 @@ const statusOptions = [
   { label: '已取消', value: 'cancelled' },
 ]
 
-const statusMap = {
-  pending: { label: '待处理', type: 'warning' },
-  assigned: { label: '已派单', type: '' },
-  processing: { label: '处理中', type: 'primary' },
-  done: { label: '已完成', type: 'success' },
-  cancelled: { label: '已取消', type: 'info' },
-}
-
 const priorityOptions = [
   { label: 'P1', value: 1 },
   { label: 'P2', value: 2 },
@@ -199,14 +138,32 @@ const priorityOptions = [
   { label: 'P5', value: 5 },
 ]
 
-function cleanParams() {
-  const params = {
-    page: page.value,
-    page_size: pageSize.value,
+// 关键词:工单 payload 的非空结构化字段拼「标签:值」,不新增字段
+const keyLabelMap = {
+  city: '城市', car_type: '车型', intent_summary: '意向', time: '时间',
+  pickup_location: '上车地点', location: '地点', contact: '联系方式', phone: '电话',
+  wechat: '微信', name: '姓名', risk_level: '风险等级', complaint_summary: '投诉摘要',
+  budget: '预算', product: '产品', product_name: '产品', remark: '备注',
+}
+function payloadChips(payload) {
+  let obj = payload
+  if (typeof obj === 'string') { try { obj = JSON.parse(obj) } catch { obj = {} } }
+  if (!obj || typeof obj !== 'object') return []
+  const chips = []
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === null || v === undefined || v === '') continue
+    const label = keyLabelMap[k] || k
+    const val = typeof v === 'object' ? JSON.stringify(v) : String(v)
+    if (!val.trim()) continue
+    chips.push(`${label}:${val}`)
   }
-  Object.keys(filters).forEach((key) => {
-    if (filters[key] !== '') params[key] = filters[key]
-  })
+  return chips
+}
+
+function cleanParams() {
+  const params = { page: page.value, page_size: pageSize.value }
+  if (activeType.value !== 'all') params.workorder_type = activeType.value
+  Object.keys(filters).forEach((key) => { if (filters[key] !== '') params[key] = filters[key] })
   return params
 }
 
@@ -216,6 +173,7 @@ async function fetchList() {
     const res = await listWorkorders(cleanParams())
     tableData.value = res.data.list || []
     total.value = res.data.total || 0
+    if (res.data.counts) counts.value = res.data.counts
   } catch (err) {
     ElMessage.error(err?.response?.data?.message || '加载工单失败')
   } finally {
@@ -223,51 +181,36 @@ async function fetchList() {
   }
 }
 
-function handleSearch() {
-  page.value = 1
-  fetchList()
-}
-
+function handleSearch() { page.value = 1; fetchList() }
 function handleReset() {
-  Object.assign(filters, { workorder_type: '', status: '', priority: '', overdue: '' })
+  Object.assign(filters, { status: '', priority: '', overdue: '' })
   page.value = 1
   fetchList()
 }
+function handleTabChange() { page.value = 1; fetchList() }
 
-async function openDialog(row) {
-  dialogVisible.value = true
-  detailLoading.value = true
-  current.value = { ...row }
-  processForm.status = row.status || 'pending'
+// 状态下拉:change 即存,防重复提交,成功提示;失败回滚
+async function handleStatusChange(row, val) {
+  if (savingId.value) return
+  savingId.value = row.id
+  const prev = row._prevStatus ?? row.status
   try {
-    const res = await getWorkorder(row.id)
-    current.value = res.data || {}
-    processForm.status = current.value.status || 'pending'
-  } catch (err) {
-    ElMessage.error(err?.response?.data?.message || '加载工单详情失败')
-  } finally {
-    detailLoading.value = false
-  }
-}
-
-async function handleStatusUpdate() {
-  if (!current.value.id) return
-  saving.value = true
-  try {
-    await updateWorkorder(current.value.id, { status: processForm.status })
-    ElMessage.success('保存成功')
-    dialogVisible.value = false
+    await updateWorkorder(row.id, { status: val })
+    row._prevStatus = val
+    ElMessage.success('状态修改成功')
+    // 状态变化会影响各 tab 计数,刷新当前列表(保持页码)
     fetchList()
   } catch (err) {
-    ElMessage.error(err?.response?.data?.message || '保存失败')
+    row.status = prev
+    ElMessage.error(err?.response?.data?.message || '状态修改失败')
   } finally {
-    saving.value = false
+    savingId.value = null
   }
 }
 
-function goConversation(id) {
-  dialogVisible.value = false
-  router.push(`/conversations/${id}`)
+function openDrawer(row) {
+  drawerConvId.value = row.conversation_id
+  drawerVisible.value = true
 }
 
 function priorityTag(priority) {
@@ -275,28 +218,10 @@ function priorityTag(priority) {
   if (Number(priority) >= 3 && Number(priority) <= 4) return 'warning'
   return 'info'
 }
-
 function isOverdue(row) {
   return row.status !== 'done' && row.sla_due_at && new Date(row.sla_due_at).getTime() < Date.now()
 }
-
-function rowClassName({ row }) {
-  return isOverdue(row) ? 'overdue-row' : ''
-}
-
-function formatJson(value) {
-  return JSON.stringify(value || {}, null, 2)
-}
-
-function formatDate(value) {
-  if (!value) return '-'
-  const text = String(value)
-  if (!text.includes('T')) return text.slice(0, 19)
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return text.slice(0, 19)
-  const pad = (num) => String(num).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
-}
+function rowClassName({ row }) { return isOverdue(row) ? 'overdue-row' : '' }
 
 onMounted(fetchList)
 </script>
@@ -306,20 +231,7 @@ onMounted(fetchList)
 .filter-form { display: flex; flex-wrap: wrap; gap: 0 4px; }
 .filter-form :deep(.el-form-item) { margin-bottom: 0; }
 .pagination { display: flex; justify-content: flex-end; margin-top: 16px; }
-.json-section { margin-top: 16px; }
-.section-title { margin-bottom: 8px; font-weight: 600; color: var(--rpa-ink, #0f172a); }
-pre {
-  margin: 0;
-  padding: 12px;
-  border-radius: 8px;
-  background: #f8fafc;
-  border: 1px solid var(--rpa-border, #e5e7eb);
-  white-space: pre-wrap;
-  word-break: break-word;
-  font-size: 12px;
-  line-height: 1.6;
-}
-:deep(.overdue-row) {
-  --el-table-tr-bg-color: #fef2f2;
-}
+.kw-wrap { max-height: 52px; overflow: hidden; display: flex; flex-wrap: wrap; gap: 4px; }
+.kw-tag { max-width: 100%; }
+:deep(.overdue-row) { --el-table-tr-bg-color: #fef2f2; }
 </style>
