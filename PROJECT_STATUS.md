@@ -36,7 +36,7 @@
   - W21 辅助采集器(只走 `adapter.switchSession()`/人工互锁/prod·test 双 profile;**只读红线**,自动切换默认关)。报告 docs/reports/W21_acceptance.md。
 - ✅ **v0.6.2 已 tag(W22 工单中心优化),未单独部署**,随 v0.6.3 上 prod。
 - ✅ **v0.6.3 已发布 prod**(时区修复 + W21 `HUMAN_IDLE_MS` 1min,且包含 W22)。基础部署完成;旧数据 +8h 修正完成。
-- 🚧 **进行中:v0.6.3 发版后「采集失效」复盘/修复**(修复统一走 `hotfix/v0.6.4-collector-retry-ui`;复盘见 docs/reports/v0.6.0-v0.6.3_发版时间线与采集失效根因分析.md):
+- 🚧 **进行中:v0.6.3 发版后「采集失效」复盘/修复**。**本轮文档收口 commit 仅改文档、不含任何代码修复;v0.6.3 后所有遗留问题统一进 `hotfix/v0.6.4-collector-retry-ui` 修。** 复盘见 docs/reports/v0.6.0-v0.6.3_发版时间线与采集失效根因分析.md:
   - **租户1**:W17 position 冷启动撞号(插件重装清 chrome.storage → 冷启动重编 position 撞历史 → server 判 duplicated 不入库)。**根治另行评估,不混入 v0.6.4 小 hotfix。**
   - **租户2**:collected:0(库全空,position 撞号不成立),待现场 console 确认(疑似抖音页 DOM 变体未被 selector 覆盖)。
   - **租户3**:rejected 后本地 seen 未回滚 → 后续不重试,待 v0.6.4 hotfix 修。
