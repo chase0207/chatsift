@@ -6,6 +6,15 @@
 
 ---
 
+## v0.6.3 — 2026-06-10
+- 关联:**v0.6.0 热修**(W21 节奏 + 时区;接在 v0.6.2/W22 之后)
+- 范围:plugin + deploy(compose TZ)
+- 变更:
+  - **时区修复**:server 容器加 `TZ=Asia/Shanghai`。根因=容器跑 UTC,`toMysqlDate` 按 Node 本地时区拆 `getHours()` 入 DATETIME(插件发 occurred.iso=UTC 绝对时刻)→ 存成 UTC 墙钟,前端按 CST 解析 → 会话列表"最近时间"等差 8h。改后新数据按东八区入库,显示正确。⚠️ 已存旧 DATETIME 仍是 UTC 墙钟,需清/重采或 +8h 修正。
+  - **W21 节奏**:prod profile `HUMAN_IDLE_MS` 5min → **1min**(开启自动切换后,人工无操作 1 分钟即开始扫描)。
+- 说明:原计划 v0.6.1,因 W22 并行发版 v0.6.2,顺延为 v0.6.3(含 W22)。
+- 复盘:(发版后补)
+
 ## v0.6.2 — 2026-06-10
 - 关联:**W22 工单中心优化**
 - 范围:server + admin + docs

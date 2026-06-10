@@ -40,6 +40,7 @@ services:
         condition: service_healthy
     environment:
       NODE_ENV: production
+      TZ: Asia/Shanghai   # v0.6.3:容器时区=CST,使 toMysqlDate 按东八区入库 DATETIME(修会话时间 8h 偏差)
       PORT: 3100
       DB_HOST: mysql-test
       DB_PORT: 3306

@@ -22,7 +22,7 @@
   //     否则默认 prod(保守)。SWITCH_JITTER 用 [min,max] 表达 prod 的 3000~6000 抖动区间。
   var PROFILES = {
     prod: {
-      HUMAN_IDLE_MS: 5 * 60 * 1000,   // 5min 无人工才扫描
+      HUMAN_IDLE_MS: 1 * 60 * 1000,   // 1min 无人工才扫描(v0.6.3:5min→1min,Chase)
       SWITCH_GAP_MS: 12000,            // 两次切换最小间隔
       SWITCH_JITTER_MIN_MS: 3000,      // 抖动下限
       SWITCH_JITTER_MAX_MS: 6000,      // 抖动上限(实际抖动随机落在 [3000,6000])
