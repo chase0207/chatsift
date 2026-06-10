@@ -15,6 +15,26 @@ var CLOUD_PLATFORM_MAP = []
 
 async function detectServerUrl() {
   if (AUTO_SERVER_URL) return AUTO_SERVER_URL
+  // v0.6.4:优先从持久化的 serverUrl 恢复环境。否则 popup 重开后 AUTO_ENV 一律回 prod,
+  //   badge 误显示"生产环境",且重新登录会用内存里的 prod 把 cfg.serverUrl 误写成 prod(test→prod 数据路由错误)。
+  var stored = await new Promise(function (resolve) {
+    try {
+      chrome.storage.local.get(['cfg', 'serverUrl', 'auth'], function (d) {
+        var c = d.cfg || {}, a = d.auth || {}
+        resolve(String(c.serverUrl || d.serverUrl || a.serverUrl || '').replace(/\/$/, ''))
+      })
+    } catch (_) { resolve('') }
+  })
+  if (stored) {
+    var low = stored.toLowerCase()
+    if (low.indexOf('test') >= 0) AUTO_ENV = 'test'
+    else if (low.indexOf('127.0.0.1') >= 0 || low.indexOf('localhost') >= 0) AUTO_ENV = 'local'
+    else AUTO_ENV = 'prod'
+    AUTO_SERVER_URL = stored
+    DEFAULT_SERVER_URL = stored
+    return AUTO_SERVER_URL
+  }
+  // 未存储环境 → 默认 prod
   AUTO_SERVER_URL = PRODUCTION_URL
   AUTO_ENV = 'prod'
   DEFAULT_SERVER_URL = PRODUCTION_URL
