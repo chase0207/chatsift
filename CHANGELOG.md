@@ -14,10 +14,12 @@
   - 修复 popup 消息日志时间显示 [undefined]。
   - 简化插件面板:隐藏 AI 配置、知识库入口;客服配置页仅保留"自动切换红点会话"。
   - 增加"采集规则"和"自动切换红点会话"说明文案。
+- 追加(test 验收暴露,纳入本版本):popup 从持久化 serverUrl 恢复环境——修"登录 test、重开 popup/重登误回 prod"(详见复盘报告 §popup serverUrl)。
+- 部署:**test→prod 已部署,tag v0.6.4(`100afd1`)已 push,Chase prod 真机验收通过**;plugin only,无 schema 变更,仅 server 重启(mysql 未碰)。
 - 复盘:
   - rejected 不等于终态;采集权类 rejected 应允许授权后重试。
-  - popup 暴露给用户的入口必须和当前只读采集产品边界一致。
-  - W17 position 冷启动撞号、租户2 collected:0 不纳入本版本,另行处理。
+  - popup 暴露给用户的入口必须和当前只读采集产品边界一致;serverUrl 环境须从持久化恢复,避免本地态默认 prod 误导/误传。
+  - W17 position 冷启动撞号、租户2 collected:0、**seen 串租户漏历史**等"客户端本地态不隔离"问题不纳入本版本,交 codex 排查+方案另起版本(见 docs/reports/…§5/§5B)。
 
 ## v0.6.3 — 2026-06-10
 - 关联:**v0.6.0 热修**(W21 节奏 + 时区;接在 v0.6.2/W22 之后)

@@ -20,15 +20,15 @@
 ## 当前版本
 | 模块 | 版本 |
 |---|---|
-| VERSION / server / admin / plugin | **0.6.4**(已一致;**待 test 预发**) |
+| VERSION / server / admin / plugin | **0.6.4**(已一致) |
 | tools/dom-collector | 1.0.0(独立版本线) |
-| 生产 VERSION | **0.6.3**(prod 仍 v0.6.3;v0.6.4 待 test 验收后再定 prod) |
+| 生产 VERSION | **0.6.4**(已部署 prod;Chase 真机验收通过) |
 
-发版:**v0.6.4 = v0.6.3 hotfix(plugin only)**,本地验收通过,**test 预发中,prod 未部署、未 tag**。
+发版:**v0.6.4 = v0.6.3 hotfix(plugin only)**,**已部署 test→prod,已打 tag v0.6.4,Chase prod 真机验收通过**。
 - **v0.6.0**(`bb8366d`/tag v0.6.0)= W20 + W20.1 + W21,**已部署 prod,含 W20 migration(已 apply)**。
 - **v0.6.2**(`81de0b8`/tag v0.6.2)= W22 工单中心优化,**已发布至 GitHub/test/prod**;生产随 v0.6.3 上线。
 - **v0.6.3**(`fa526cb`/tag v0.6.3)= `TZ=Asia/Shanghai` 时区修复 + W21 prod `HUMAN_IDLE_MS` 1min;**已部署 prod**,旧 DATETIME 已做 +8h 修正。
-- **v0.6.4**(merge `hotfix/v0.6.4-collector-retry-ui`)= 采集权 rejected 后 seen 回滚 + popup 日志时间修复 + 面板 UI 简化 + 文案;**plugin only,test 预发中,prod 待定,未 tag**。
+- **v0.6.4**(`100afd1`/tag v0.6.4)= 采集权 rejected 后 seen 回滚 + popup 日志时间修复 + popup serverUrl 环境恢复 + 面板 UI 简化 + 文案;**plugin only,已部署 prod,Chase 真机验收通过**。
 
 ## 当前进度 / 下一步
 - ✅ **v0.6.0 已发布 prod**(W20 + W20.1 + W21,含 W20 migration 已 apply)。
@@ -37,7 +37,7 @@
   - W21 辅助采集器(只走 `adapter.switchSession()`/人工互锁/prod·test 双 profile;**只读红线**,自动切换默认关)。报告 docs/reports/W21_acceptance.md。
 - ✅ **v0.6.2/W22 工单中心优化已发布至 GitHub/test/prod**;生产随 v0.6.3 上线。
 - ✅ **v0.6.3 已发布 prod**(时区修复 + W21 `HUMAN_IDLE_MS` 1min,且包含 W22)。基础部署完成;旧数据 +8h 修正完成。
-- 🚧 **进行中:v0.6.4 hotfix test 预发**。本地验收通过(Chase 确认),已 merge main + bump 0.6.4,**test 预发中,prod 未部署、未 tag**。修复内容:① 采集权 rejected 后本地 seen 回滚(开权后可重试);② popup 日志 [undefined] 修复;③ 面板 UI 简化(隐藏 AI配置/知识库,客服配置仅留"自动切换红点会话");④ 采集规则/自动切换红点会话文案。
+- ✅ **v0.6.4 已发布 prod(plugin only,Chase 真机验收通过)**。test→prod 已部署,tag v0.6.4(`100afd1`)已 push。修复内容:① 采集权 rejected 后本地 seen 回滚(开权后可重试);② popup 日志 [undefined] 修复;③ popup serverUrl 环境恢复(重开/重登不误回 prod);④ 面板 UI 简化(隐藏 AI配置/知识库,客服配置仅留"自动切换红点会话");⑤ 采集规则/自动切换红点会话文案。
 - ⛔ **本版本不纳入**(另行处理):
   - **租户1**:W17 position 冷启动撞号根治(需 server 只读 position-state + plugin seed,W17 链路根治,另行评估)。
   - **租户2**:collected:0 现场排查(疑似抖音页 DOM 变体未被 selector 覆盖)。
@@ -45,7 +45,7 @@
   - 复盘见 docs/reports/v0.6.0-v0.6.3_发版时间线与采集失效根因分析.md。
 - ✅ **W19 租户资产模型 全闭环**(v0.5.0 已上线)。
 - ✅ **W17 阶段一**(消息位置标识)随 v0.5.0 已发;⛔ **W17 阶段二(云端对账)= 取消/交 codex**,不在本线推进。
-- **下一步**:test 冒烟 + Chase test 真机验收 → 通过后再定 v0.6.4 是否打 tag/发 prod。
+- **下一步**:v0.6.4 已收口;采集"客户端本地态不隔离"(类1 position 撞号 + seen 串租户漏历史)交 codex 排查+方案,另起版本(评估中)。
 
 ### 待排期(backlog,非进行中)
 - **租户1 position 冷启动撞号根治**(W17 链路;插件重装/多端触发,需 server 只读 position-state + plugin seed)。
@@ -61,7 +61,7 @@
 ## 发版记录
 | 版本 | tag | 时间 | 关联 W | 范围 | 备注 |
 |---|---|---|---|---|---|
-| v0.6.4 | 待 tag | 06-11 | hotfix | plugin | rejected 重试 + popup UI 简化;**test 预发中,prod 未部署** |
+| v0.6.4 | v0.6.4 | 06-11 | hotfix | plugin | rejected 重试 + popup 日志/serverUrl 环境恢复 + 面板 UI 简化 + 文案;**已部署 prod,Chase 真机验收通过** |
 | v0.6.3 | v0.6.3 | 06-10 | **v0.6.0/v0.6.2 后热修** | plugin+deploy | 时区修复(`TZ=Asia/Shanghai`)+ W21 `HUMAN_IDLE_MS` 1min;**已部署 prod,包含 W22**;旧数据 +8h 修正 |
 | v0.6.2 | v0.6.2 | 06-10 | **W22** | server+admin+docs | 工单中心字段重构、类型 tab、状态 inline、查看记录抽屉;不改 schema/引擎/枚举/发送回复。**已发布至 GitHub/test/prod;生产随 v0.6.3 上线** |
 | v0.6.0 | v0.6.0 | 06-10 | **W20+W20.1+W21** | server+admin+plugin+迁移 | 采集权/查看权治理 + collect-permission 只读接口 + 辅助采集器。**已部署 prod,W20 migration 已 apply** |
@@ -85,9 +85,9 @@
 | 部署目录 | /opt/chatsift(rsync 部署,非 git) |
 | server | Docker,127.0.0.1:3100 |
 | 数据库 | Docker MySQL |
-| 当前生产版本 | **v0.6.3**(含 v0.6.0+W20 migration + v0.6.2/W22 + v0.6.3 时区/W21节奏);**v0.6.4 prod 待 test 验收后决定** |
-| W20 migration | **已执行(prod)** |
-| v0.6.3 验证 | 基础部署完成(VERSION/容器TZ=CST/端点冒烟通过);**发版后暴露「采集失效」,仍在修复中**(见进度三类 + 复盘报告) |
+| 当前生产版本 | **v0.6.4**(含 v0.6.0+W20 migration + v0.6.2/W22 + v0.6.3 时区/W21节奏 + v0.6.4 hotfix);tag v0.6.4 已 push |
+| W20 migration | **已执行(prod)**;v0.6.4 无 schema 变更 |
+| v0.6.4 验证 | **已部署 prod + Chase 真机验收通过**(插件 0.6.4 / popup 环境恢复 / 面板简化 / rejected 重试 / 日志无 [undefined]);本次仅 server 重启,mysql 未碰 |
 | 待办 | M16 既有环境物理 DROP `users.role`:代码已收口;test/prod/dev 需先确认已部署含 M16 的新代码,再由用户在场执行 deploy/m16_drop_users_role.sql |
 
 ---
@@ -104,11 +104,12 @@
 - **W20 + W20.1 + W21**(v0.6.0)已部署 prod
 - **W22 工单中心优化**(v0.6.2)已发布至 GitHub/test/prod;生产随 v0.6.3 上线
 - **v0.6.3 热修**(时区 + W21 节奏)已部署 prod
+- **v0.6.4 hotfix**(rejected 重试 + popup 日志/serverUrl 环境恢复 + 面板 UI 简化 + 文案)已部署 prod,Chase 真机验收通过
 - M3 git 整理(合并 push、生产 VERSION 修正、未跟踪文件归位)
 - 文档治理:AGENTS.md + docs/ops/(release/prod-safety/versioning)+ 本文件 + CHANGELOG
 
 ### 进行中
-- **v0.6.3 发版后「采集失效」复盘/修复**(三类根因 + 面板 UI 简化,统一走 `hotfix/v0.6.4-collector-retry-ui`;详见「当前进度 / 下一步」与 docs/reports/v0.6.0-v0.6.3_发版时间线与采集失效根因分析.md)。
+- **采集"客户端本地态不隔离"根治**(类1 position 冷启动撞号 + seen 串租户漏历史)——交 codex 排查+方案,另起版本评估;复盘见 docs/reports/v0.6.0-v0.6.3_发版时间线与采集失效根因分析.md §5/§5B。
 
 ### 待办(技术债,见 tech-debt-master-plan)
 - **W17 阶段二:云端对账**——已取消/不在 chatsift 本线推进。
@@ -138,6 +139,7 @@
 ## 变更日志
 | 版本 | 日期 | 变更摘要 |
 |---|---|---|
+| v1.7.0 | 2026-06-11 | v0.6.4 收口生产验收:prod 当前版本→v0.6.4、已部署 prod、tag v0.6.4 已 push、Chase 真机验收通过;下一步=采集本地态不隔离根治交 codex |
 | v1.6.0 | 2026-06-11 | v0.6.4 hotfix merge+bump,进入 test 预发(prod 仍 v0.6.3、未 tag);发版记录加 v0.6.4 行;明确不纳入租户1 position 根治/租户2 collected:0/CC3 工程治理 |
 | v1.5.0 | 2026-06-11 | 同步 v0.6.3 真实发版状态:v0.6.0/v0.6.3 已部署 prod、v0.6.2 已 tag 未单独部署、生产 VERSION=0.6.3、W20 migration 已执行;新增 v0.6.3 发版后「采集失效」三类待办(租户1 position 撞号/租户2 collected:0/租户3 rejected-seen)+ 面板 UI 简化,统一走 hotfix/v0.6.4 |
 | v1.4.0 | 2026-06-10 | W22 工单中心优化进入 v0.6.2 发版;同步 v0.6.0 已形成 release commit/tag,修正此前 v0.6.0 准备中旧口径 |
