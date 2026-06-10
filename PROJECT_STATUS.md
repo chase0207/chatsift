@@ -1,6 +1,6 @@
 # chatsift 项目状态(PROJECT_STATUS.md)
 
-> 最后更新:2026-06-10
+> 最后更新:2026-06-11
 > 本文件是 chatsift 当前状态的**唯一状态源**。与任何 AI agent 沟通时,优先读/发本文件。
 > 协作规矩见 AGENTS.md;发版/生产/编号细则见 docs/ops/。
 
@@ -20,27 +20,30 @@
 ## 当前版本
 | 模块 | 版本 |
 |---|---|
-| VERSION / server / admin / plugin | 0.6.2(已一致;W22 发版中) |
+| VERSION / server / admin / plugin | **0.6.3**(已一致) |
 | tools/dom-collector | 1.0.0(独立版本线) |
-| 生产 VERSION | 待部署确认(上次记录为 v0.5.0;本次 v0.6.2 发版需同步生产 VERSION) |
+| 生产 VERSION | **0.6.3,已部署 prod** |
 
-发版:**v0.6.2 = W22 工单中心优化**。本次范围为租户管理后台工单中心体验补丁:字段重构、类型 tab、搜索叠加、状态 inline 保存、查看记录抽屉与客户全貌。**不改 schema / 分析引擎 / 工单类型枚举 / 发送回复能力**。
-
-**v0.6.0 = W20 + W20.1 + W21** 已形成 release commit/tag;W20 迁移与 test/prod 实际部署状态后续以生产验证记录为准。
+发版:**v0.6.3 = v0.6.0/v0.6.2 之后的热修(时区修复 + W21 人工无操作阈值 1min),且包含 W22**,已发 test→prod。
+- **v0.6.0**(`bb8366d`/tag v0.6.0)= W20 + W20.1 + W21,**已部署 prod,含 W20 migration(已 apply)**。
+- **v0.6.2**(`81de0b8`/tag v0.6.2)= W22 工单中心优化,**已 tag 但未单独部署**,随 v0.6.3 上 prod。
+- **v0.6.3**(`fa526cb`/tag v0.6.3)= `TZ=Asia/Shanghai` 时区修复 + W21 prod `HUMAN_IDLE_MS` 5min→1min;**已部署 prod**,旧 DATETIME 已做 +8h 修正。
 
 ## 当前进度 / 下一步
-- 🚧 **v0.6.2 发版中(W22 工单中心优化)** — 代码已完成并按 PRD 补齐关联工单摘要;当前执行版本同步、CHANGELOG/PROJECT_STATUS 回写、tag/push 前校验。
-  - ✅ **W22 PRD**:`docs/prd/V1.0/W22_workorder_center.md` 已落地,明确范围只改租户管理后台工单中心。
-  - ✅ **W22 实现**:工单中心去类型/标题/查看处理;IM昵称/客户姓名/关键词/状态 inline;全部/预约/咨询/询价/投诉 tab + 计数;查看记录抽屉两列;不发送不回复。
-  - ⏳ **下一步**:完成 v0.6.2 release commit/tag/push;按发版规程执行 test/prod 部署与验证,并同步生产 VERSION。
-- ✅ **v0.6.0(W20 + W20.1 + W21)** — 已形成 release commit/tag。
-  - ✅ **W20 采集权/查看权/账号治理**:service_accounts.lifecycle(pending/active/disabled)+ collector_id(采集权单人)+ service_account_view(查看权多人)+ 事件级采集权闸门 + heartbeat 账号级实例冲突 block + 仲裁;`collector_v1_enabled` 默认 false 启停闸门。
-  - ✅ **W20.1 collect-permission 只读接口**:`GET /api/v1/service-accounts/collect-permission`(allowed/reason/lifecycle/collector_id;查看权≠采集权;internal→403)。
-  - ✅ **W21 辅助采集器**:低频自动切换可见未读会话 → `collectNow` 显式采集;只走 `adapter.switchSession()`;消费 W20 采集权 + 账号级 block;人工互锁(`isTrusted` 过滤 + 切换抑制窗口);prod/test 双时间参数 profile(按 serverUrl 判档)。报告 docs/reports/W21_acceptance.md。**红线:仍只读、永不发送/输入。**
-- ✅ **W19 租户资产模型 全闭环**(阶段A–E,v0.5.0 已发上线 prod+test;两层身份/scope隔离/service_account 采集归属/conversation_id/admin租户管理/mychat首页)。报告 docs/reports/W19_stage{A,B,CD,E}_acceptance.md。
-- ✅ **W17 阶段一**(消息位置标识 本地层)随 v0.5.0 一起发。
-- ⛔ **W17 阶段二(云端对账)= 取消/交 codex**,不在 chatsift 本线推进。
-- **下一步**:完成 v0.6.2 发版提交/tag/push → test/prod 部署验证 → 回写生产同步状态。
+- ✅ **v0.6.0 已发布 prod**(W20 + W20.1 + W21,含 W20 migration 已 apply)。
+  - W20 采集权/查看权/账号治理(lifecycle/collector_id/service_account_view/事件级闸门/heartbeat 实例冲突仲裁;`collector_v1_enabled` 默认 false)。
+  - W20.1 collect-permission 只读接口。
+  - W21 辅助采集器(只走 `adapter.switchSession()`/人工互锁/prod·test 双 profile;**只读红线**,自动切换默认关)。报告 docs/reports/W21_acceptance.md。
+- ✅ **v0.6.2 已 tag(W22 工单中心优化),未单独部署**,随 v0.6.3 上 prod。
+- ✅ **v0.6.3 已发布 prod**(时区修复 + W21 `HUMAN_IDLE_MS` 1min,且包含 W22)。基础部署完成;旧数据 +8h 修正完成。
+- 🚧 **进行中:v0.6.3 发版后「采集失效」复盘/修复**(修复统一走 `hotfix/v0.6.4-collector-retry-ui`;复盘见 docs/reports/v0.6.0-v0.6.3_发版时间线与采集失效根因分析.md):
+  - **租户1**:W17 position 冷启动撞号(插件重装清 chrome.storage → 冷启动重编 position 撞历史 → server 判 duplicated 不入库)。**根治另行评估,不混入 v0.6.4 小 hotfix。**
+  - **租户2**:collected:0(库全空,position 撞号不成立),待现场 console 确认(疑似抖音页 DOM 变体未被 selector 覆盖)。
+  - **租户3**:rejected 后本地 seen 未回滚 → 后续不重试,待 v0.6.4 hotfix 修。
+  - **插件面板 UI 简化**待 v0.6.4 hotfix(隐藏 AI配置/知识库/客服配置多余项 + 自动切换文案)。
+- ✅ **W19 租户资产模型 全闭环**(v0.5.0 已上线)。
+- ✅ **W17 阶段一**(消息位置标识)随 v0.5.0 已发;⛔ **W17 阶段二(云端对账)= 取消/交 codex**,不在本线推进。
+- **下一步**:文档收口后,从 main 新开 `hotfix/v0.6.4-collector-retry-ui` 修上述小 bug/UI(租户1 position 根治不混入,除非 Chase 单独批准)。
 
 ### 待排期(backlog,非进行中)
 - **M16 users.role 收口**:代码已统一走 role_id/user_type,fresh schema 已无 `users.role`;既有环境物理 DROP 需在对应环境部署含 M16 的新代码后,由用户在场执行。
@@ -53,8 +56,9 @@
 ## 发版记录
 | 版本 | tag | 时间 | 关联 W | 范围 | 备注 |
 |---|---|---|---|---|---|
-| v0.6.2 | v0.6.2 | 06-10 | **W22** | server+admin+docs | 工单中心字段重构、类型 tab、状态 inline 保存、查看记录抽屉;不改 schema/引擎/枚举/发送回复 |
-| v0.6.0 | v0.6.0 | 06-09 | **W20+W20.1+W21** | server+admin+plugin+迁移 | 采集权/查看权治理 + collect-permission 只读接口 + 辅助采集器 |
+| v0.6.3 | v0.6.3 | 06-10 | **v0.6.0/v0.6.2 后热修** | plugin+deploy | 时区修复(`TZ=Asia/Shanghai`)+ W21 `HUMAN_IDLE_MS` 1min;**已部署 prod,包含 W22**;旧数据 +8h 修正 |
+| v0.6.2 | v0.6.2 | 06-10 | **W22** | server+admin+docs | 工单中心字段重构、类型 tab、状态 inline、查看记录抽屉;不改 schema/引擎/枚举/发送回复。**已 tag,未单独部署,随 v0.6.3 上 prod** |
+| v0.6.0 | v0.6.0 | 06-10 | **W20+W20.1+W21** | server+admin+plugin+迁移 | 采集权/查看权治理 + collect-permission 只读接口 + 辅助采集器。**已部署 prod,W20 migration 已 apply** |
 | v0.5.0 | v0.5.0 | 06-07 | **W17+W19** | server+admin+plugin+迁移 | 消息位置标识 + 租户资产模型(两层身份/scope隔离/service_account/采集归属/conversation_id);一次清库重采 |
 | v0.3.1 | v0.3.1 | 06-03 | **W16** | server+admin+plugin | 登录域名限制(内部/外部按域名分入口) |
 | v0.3.0 | v0.3.0 | 06-03 | **W16** | server+admin+plugin | 平台/租户双入口拆分(admin+mychat)首发 |
@@ -75,9 +79,10 @@
 | 部署目录 | /opt/chatsift(rsync 部署,非 git) |
 | server | Docker,127.0.0.1:3100 |
 | 数据库 | Docker MySQL |
-| 当前生产版本 | 待部署确认(上次记录为 v0.5.0;本次准备发布 v0.6.2) |
-| v0.6.2 验证 | 待 test/prod 部署后回写 |
-| 待办 | 发版时同步生产 VERSION;M16 既有环境物理 DROP `users.role`:代码已收口;test/prod/dev 需先确认已部署含 M16 的新代码,再由用户在场执行 deploy/m16_drop_users_role.sql |
+| 当前生产版本 | **v0.6.3**(含 v0.6.0+W20 migration + v0.6.2/W22 + v0.6.3 时区/W21节奏) |
+| W20 migration | **已执行(prod)** |
+| v0.6.3 验证 | 基础部署完成(VERSION/容器TZ=CST/端点冒烟通过);**发版后暴露「采集失效」,仍在修复中**(见进度三类 + 复盘报告) |
+| 待办 | M16 既有环境物理 DROP `users.role`:代码已收口;test/prod/dev 需先确认已部署含 M16 的新代码,再由用户在场执行 deploy/m16_drop_users_role.sql |
 
 ---
 
@@ -90,13 +95,14 @@
 - W16 平台/租户双入口拆分 ✓ 闭环(零迁移方案 + 生产验证通过)
 - **W17 阶段一 消息位置标识**随 v0.5.0 已发布上线;M1 关闭(见 docs/reports/W17_acceptance.md)
 - **W19 租户资产模型**阶段A-E全闭环,随 v0.5.0 已发布上线
-- **W20 + W20.1 + W21** 已形成 v0.6.0 release commit/tag
-- **W22 工单中心优化** 已进入 v0.6.2 发版
+- **W20 + W20.1 + W21**(v0.6.0)已部署 prod
+- **W22 工单中心优化**(v0.6.2)已 tag,随 v0.6.3 上 prod
+- **v0.6.3 热修**(时区 + W21 节奏)已部署 prod
 - M3 git 整理(合并 push、生产 VERSION 修正、未跟踪文件归位)
 - 文档治理:AGENTS.md + docs/ops/(release/prod-safety/versioning)+ 本文件 + CHANGELOG
 
 ### 进行中
-- **v0.6.2 发布收口**(W22 工单中心优化,详见「当前进度 / 下一步」)。
+- **v0.6.3 发版后「采集失效」复盘/修复**(三类根因 + 面板 UI 简化,统一走 `hotfix/v0.6.4-collector-retry-ui`;详见「当前进度 / 下一步」与 docs/reports/v0.6.0-v0.6.3_发版时间线与采集失效根因分析.md)。
 
 ### 待办(技术债,见 tech-debt-master-plan)
 - **W17 阶段二:云端对账**——已取消/不在 chatsift 本线推进。
@@ -126,6 +132,7 @@
 ## 变更日志
 | 版本 | 日期 | 变更摘要 |
 |---|---|---|
+| v1.5.0 | 2026-06-11 | 同步 v0.6.3 真实发版状态:v0.6.0/v0.6.3 已部署 prod、v0.6.2 已 tag 未单独部署、生产 VERSION=0.6.3、W20 migration 已执行;新增 v0.6.3 发版后「采集失效」三类待办(租户1 position 撞号/租户2 collected:0/租户3 rejected-seen)+ 面板 UI 简化,统一走 hotfix/v0.6.4 |
 | v1.4.0 | 2026-06-10 | W22 工单中心优化进入 v0.6.2 发版;同步 v0.6.0 已形成 release commit/tag,修正此前 v0.6.0 准备中旧口径 |
 | v1.3.0 | 2026-06-09 | W20+W20.1+W21 本地+真机验收通过,进入 v0.6.0 发布准备(未 merge/未 bump/生产仍 v0.5.0);下一步 test 预发→prod |
 | v1.2.0 | 2026-06-07 | 对齐 v0.5.0/W17+W19 已发布状态;清理旧生产 v0.3.1、W19 调研中、W17 阶段二待做等冲突口径 |
