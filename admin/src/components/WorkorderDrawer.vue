@@ -65,6 +65,15 @@
             </div>
             <div v-if="!fieldRows.length" class="muted">暂无字段</div>
           </div>
+
+          <div class="block">
+            <div class="block-title">关联工单</div>
+            <div v-for="w in workorders" :key="w.id" class="wo-row">
+              <el-tag size="small" type="info">{{ woTypeMap[w.workorder_type] || w.workorder_type }}</el-tag>
+              <span class="muted">{{ woStatusMap[w.status] || w.status }}</span>
+            </div>
+            <div v-if="!workorders.length" class="muted">无工单</div>
+          </div>
         </div>
       </div>
     </div>
@@ -93,11 +102,14 @@ const intentMap = {
 const stageMap = { new: '新会话', collecting: '收集中', completing: '补全中', done: '已完成' }
 const leadLevelMap = { high: '高意向', mid: '中意向', low: '低意向' }
 const leadStatusMap = { new: '新线索', following: '跟进中', converted: '已成交', lost: '已流失' }
+const woTypeMap = { appointment: '预约', inquiry: '咨询', pricing: '询价', complaint: '投诉' }
+const woStatusMap = { pending: '待处理', assigned: '已派单', processing: '处理中', done: '已完成', cancelled: '已取消' }
 function leadLevelType(l) { return l === 'high' ? 'danger' : (l === 'mid' ? 'warning' : 'info') }
 
 const loading = ref(false)
 const conv = ref({})
 const lead = ref(null)
+const workorders = ref([])
 const messages = ref([])
 const msgRef = ref(null)
 
@@ -115,6 +127,7 @@ const renderItems = computed(() => (messages.value || []).map((m) => {
 async function load() {
   conv.value = {}
   lead.value = null
+  workorders.value = []
   messages.value = []
   if (!props.conversationId) return
   loading.value = true
@@ -126,7 +139,11 @@ async function load() {
     conv.value = cRes.data || {}
     messages.value = mRes.data?.list || []
     if (conv.value.lead_id) {
-      try { const lr = await getLead(conv.value.lead_id); lead.value = lr.data?.lead || lr.data || null } catch (_) { /* ignore */ }
+      try {
+        const lr = await getLead(conv.value.lead_id)
+        lead.value = lr.data?.lead || lr.data || null
+        workorders.value = lr.data?.workorders || []
+      } catch (_) { /* ignore */ }
     }
     await nextTick()
     if (msgRef.value) msgRef.value.scrollTop = msgRef.value.scrollHeight
@@ -162,4 +179,5 @@ async function load() {
 .fv-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 13px; }
 .fv-label { width: 80px; color: #6b7280; flex-shrink: 0; }
 .fv-value { flex: 1; color: var(--rpa-ink, #0f172a); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wo-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 13px; }
 </style>
