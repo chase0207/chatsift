@@ -26,7 +26,7 @@
 
 发版:**v0.6.4 = v0.6.3 hotfix(plugin only)**,本地验收通过,**test 预发中,prod 未部署、未 tag**。
 - **v0.6.0**(`bb8366d`/tag v0.6.0)= W20 + W20.1 + W21,**已部署 prod,含 W20 migration(已 apply)**。
-- **v0.6.2**(`81de0b8`/tag v0.6.2)= W22 工单中心优化,**已 tag 但未单独部署**,随 v0.6.3 上 prod。
+- **v0.6.2**(`81de0b8`/tag v0.6.2)= W22 工单中心优化,**已发布至 GitHub/test/prod**;生产随 v0.6.3 上线。
 - **v0.6.3**(`fa526cb`/tag v0.6.3)= `TZ=Asia/Shanghai` 时区修复 + W21 prod `HUMAN_IDLE_MS` 1min;**已部署 prod**,旧 DATETIME 已做 +8h 修正。
 - **v0.6.4**(merge `hotfix/v0.6.4-collector-retry-ui`)= 采集权 rejected 后 seen 回滚 + popup 日志时间修复 + 面板 UI 简化 + 文案;**plugin only,test 预发中,prod 待定,未 tag**。
 
@@ -35,7 +35,7 @@
   - W20 采集权/查看权/账号治理(lifecycle/collector_id/service_account_view/事件级闸门/heartbeat 实例冲突仲裁;`collector_v1_enabled` 默认 false)。
   - W20.1 collect-permission 只读接口。
   - W21 辅助采集器(只走 `adapter.switchSession()`/人工互锁/prod·test 双 profile;**只读红线**,自动切换默认关)。报告 docs/reports/W21_acceptance.md。
-- ✅ **v0.6.2 已 tag(W22 工单中心优化),未单独部署**,随 v0.6.3 上 prod。
+- ✅ **v0.6.2/W22 工单中心优化已发布至 GitHub/test/prod**;生产随 v0.6.3 上线。
 - ✅ **v0.6.3 已发布 prod**(时区修复 + W21 `HUMAN_IDLE_MS` 1min,且包含 W22)。基础部署完成;旧数据 +8h 修正完成。
 - 🚧 **进行中:v0.6.4 hotfix test 预发**。本地验收通过(Chase 确认),已 merge main + bump 0.6.4,**test 预发中,prod 未部署、未 tag**。修复内容:① 采集权 rejected 后本地 seen 回滚(开权后可重试);② popup 日志 [undefined] 修复;③ 面板 UI 简化(隐藏 AI配置/知识库,客服配置仅留"自动切换红点会话");④ 采集规则/自动切换红点会话文案。
 - ⛔ **本版本不纳入**(另行处理):
@@ -63,7 +63,7 @@
 |---|---|---|---|---|---|
 | v0.6.4 | 待 tag | 06-11 | hotfix | plugin | rejected 重试 + popup UI 简化;**test 预发中,prod 未部署** |
 | v0.6.3 | v0.6.3 | 06-10 | **v0.6.0/v0.6.2 后热修** | plugin+deploy | 时区修复(`TZ=Asia/Shanghai`)+ W21 `HUMAN_IDLE_MS` 1min;**已部署 prod,包含 W22**;旧数据 +8h 修正 |
-| v0.6.2 | v0.6.2 | 06-10 | **W22** | server+admin+docs | 工单中心字段重构、类型 tab、状态 inline、查看记录抽屉;不改 schema/引擎/枚举/发送回复。**已 tag,未单独部署,随 v0.6.3 上 prod** |
+| v0.6.2 | v0.6.2 | 06-10 | **W22** | server+admin+docs | 工单中心字段重构、类型 tab、状态 inline、查看记录抽屉;不改 schema/引擎/枚举/发送回复。**已发布至 GitHub/test/prod;生产随 v0.6.3 上线** |
 | v0.6.0 | v0.6.0 | 06-10 | **W20+W20.1+W21** | server+admin+plugin+迁移 | 采集权/查看权治理 + collect-permission 只读接口 + 辅助采集器。**已部署 prod,W20 migration 已 apply** |
 | v0.5.0 | v0.5.0 | 06-07 | **W17+W19** | server+admin+plugin+迁移 | 消息位置标识 + 租户资产模型(两层身份/scope隔离/service_account/采集归属/conversation_id);一次清库重采 |
 | v0.3.1 | v0.3.1 | 06-03 | **W16** | server+admin+plugin | 登录域名限制(内部/外部按域名分入口) |
@@ -102,7 +102,7 @@
 - **W17 阶段一 消息位置标识**随 v0.5.0 已发布上线;M1 关闭(见 docs/reports/W17_acceptance.md)
 - **W19 租户资产模型**阶段A-E全闭环,随 v0.5.0 已发布上线
 - **W20 + W20.1 + W21**(v0.6.0)已部署 prod
-- **W22 工单中心优化**(v0.6.2)已 tag,随 v0.6.3 上 prod
+- **W22 工单中心优化**(v0.6.2)已发布至 GitHub/test/prod;生产随 v0.6.3 上线
 - **v0.6.3 热修**(时区 + W21 节奏)已部署 prod
 - M3 git 整理(合并 push、生产 VERSION 修正、未跟踪文件归位)
 - 文档治理:AGENTS.md + docs/ops/(release/prod-safety/versioning)+ 本文件 + CHANGELOG
