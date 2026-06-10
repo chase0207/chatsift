@@ -20,14 +20,15 @@
 ## 当前版本
 | 模块 | 版本 |
 |---|---|
-| VERSION / server / admin / plugin | **0.6.3**(已一致) |
+| VERSION / server / admin / plugin | **0.6.4**(已一致;**待 test 预发**) |
 | tools/dom-collector | 1.0.0(独立版本线) |
-| 生产 VERSION | **0.6.3,已部署 prod** |
+| 生产 VERSION | **0.6.3**(prod 仍 v0.6.3;v0.6.4 待 test 验收后再定 prod) |
 
-发版:**v0.6.3 = v0.6.0/v0.6.2 之后的热修(时区修复 + W21 人工无操作阈值 1min),且包含 W22**,已发 test→prod。
+发版:**v0.6.4 = v0.6.3 hotfix(plugin only)**,本地验收通过,**test 预发中,prod 未部署、未 tag**。
 - **v0.6.0**(`bb8366d`/tag v0.6.0)= W20 + W20.1 + W21,**已部署 prod,含 W20 migration(已 apply)**。
 - **v0.6.2**(`81de0b8`/tag v0.6.2)= W22 工单中心优化,**已 tag 但未单独部署**,随 v0.6.3 上 prod。
-- **v0.6.3**(`fa526cb`/tag v0.6.3)= `TZ=Asia/Shanghai` 时区修复 + W21 prod `HUMAN_IDLE_MS` 5min→1min;**已部署 prod**,旧 DATETIME 已做 +8h 修正。
+- **v0.6.3**(`fa526cb`/tag v0.6.3)= `TZ=Asia/Shanghai` 时区修复 + W21 prod `HUMAN_IDLE_MS` 1min;**已部署 prod**,旧 DATETIME 已做 +8h 修正。
+- **v0.6.4**(merge `hotfix/v0.6.4-collector-retry-ui`)= 采集权 rejected 后 seen 回滚 + popup 日志时间修复 + 面板 UI 简化 + 文案;**plugin only,test 预发中,prod 待定,未 tag**。
 
 ## 当前进度 / 下一步
 - ✅ **v0.6.0 已发布 prod**(W20 + W20.1 + W21,含 W20 migration 已 apply)。
@@ -36,16 +37,20 @@
   - W21 辅助采集器(只走 `adapter.switchSession()`/人工互锁/prod·test 双 profile;**只读红线**,自动切换默认关)。报告 docs/reports/W21_acceptance.md。
 - ✅ **v0.6.2 已 tag(W22 工单中心优化),未单独部署**,随 v0.6.3 上 prod。
 - ✅ **v0.6.3 已发布 prod**(时区修复 + W21 `HUMAN_IDLE_MS` 1min,且包含 W22)。基础部署完成;旧数据 +8h 修正完成。
-- 🚧 **进行中:v0.6.3 发版后「采集失效」复盘/修复**。**本轮文档收口 commit 仅改文档、不含任何代码修复;v0.6.3 后所有遗留问题统一进 `hotfix/v0.6.4-collector-retry-ui` 修。** 复盘见 docs/reports/v0.6.0-v0.6.3_发版时间线与采集失效根因分析.md:
-  - **租户1**:W17 position 冷启动撞号(插件重装清 chrome.storage → 冷启动重编 position 撞历史 → server 判 duplicated 不入库)。**根治另行评估,不混入 v0.6.4 小 hotfix。**
-  - **租户2**:collected:0(库全空,position 撞号不成立),待现场 console 确认(疑似抖音页 DOM 变体未被 selector 覆盖)。
-  - **租户3**:rejected 后本地 seen 未回滚 → 后续不重试,待 v0.6.4 hotfix 修。
-  - **插件面板 UI 简化**待 v0.6.4 hotfix(隐藏 AI配置/知识库/客服配置多余项 + 自动切换文案)。
+- 🚧 **进行中:v0.6.4 hotfix test 预发**。本地验收通过(Chase 确认),已 merge main + bump 0.6.4,**test 预发中,prod 未部署、未 tag**。修复内容:① 采集权 rejected 后本地 seen 回滚(开权后可重试);② popup 日志 [undefined] 修复;③ 面板 UI 简化(隐藏 AI配置/知识库,客服配置仅留"自动切换红点会话");④ 采集规则/自动切换红点会话文案。
+- ⛔ **本版本不纳入**(另行处理):
+  - **租户1**:W17 position 冷启动撞号根治(需 server 只读 position-state + plugin seed,W17 链路根治,另行评估)。
+  - **租户2**:collected:0 现场排查(疑似抖音页 DOM 变体未被 selector 覆盖)。
+  - **发版脚本化治理**:由 CC3 另线处理,不混入本次 release。
+  - 复盘见 docs/reports/v0.6.0-v0.6.3_发版时间线与采集失效根因分析.md。
 - ✅ **W19 租户资产模型 全闭环**(v0.5.0 已上线)。
 - ✅ **W17 阶段一**(消息位置标识)随 v0.5.0 已发;⛔ **W17 阶段二(云端对账)= 取消/交 codex**,不在本线推进。
-- **下一步**:文档收口后,从 main 新开 `hotfix/v0.6.4-collector-retry-ui` 修上述小 bug/UI(租户1 position 根治不混入,除非 Chase 单独批准)。
+- **下一步**:test 冒烟 + Chase test 真机验收 → 通过后再定 v0.6.4 是否打 tag/发 prod。
 
 ### 待排期(backlog,非进行中)
+- **租户1 position 冷启动撞号根治**(W17 链路;插件重装/多端触发,需 server 只读 position-state + plugin seed)。
+- **租户2 collected:0 现场排查**(疑似抖音页 DOM 变体未被 adapter selector 覆盖)。
+- **发版脚本化治理**:由 CC3 另线处理,不混入本线 release。
 - **M16 users.role 收口**:代码已统一走 role_id/user_type,fresh schema 已无 `users.role`;既有环境物理 DROP 需在对应环境部署含 M16 的新代码后,由用户在场执行。
 - **data_scope 命名澄清**:`utils/data-scope.js` 目前仅用于 plugin/logs 的 user 级授权,不是租户隔离模型;如清理,先做文档/命名澄清,不要顺手改逻辑。
 - **技术债清理周**:M22/M23/U3 + M4/M5/M7-M12/M14/M17-M20 死代码。
@@ -56,6 +61,7 @@
 ## 发版记录
 | 版本 | tag | 时间 | 关联 W | 范围 | 备注 |
 |---|---|---|---|---|---|
+| v0.6.4 | 待 tag | 06-11 | hotfix | plugin | rejected 重试 + popup UI 简化;**test 预发中,prod 未部署** |
 | v0.6.3 | v0.6.3 | 06-10 | **v0.6.0/v0.6.2 后热修** | plugin+deploy | 时区修复(`TZ=Asia/Shanghai`)+ W21 `HUMAN_IDLE_MS` 1min;**已部署 prod,包含 W22**;旧数据 +8h 修正 |
 | v0.6.2 | v0.6.2 | 06-10 | **W22** | server+admin+docs | 工单中心字段重构、类型 tab、状态 inline、查看记录抽屉;不改 schema/引擎/枚举/发送回复。**已 tag,未单独部署,随 v0.6.3 上 prod** |
 | v0.6.0 | v0.6.0 | 06-10 | **W20+W20.1+W21** | server+admin+plugin+迁移 | 采集权/查看权治理 + collect-permission 只读接口 + 辅助采集器。**已部署 prod,W20 migration 已 apply** |
@@ -79,7 +85,7 @@
 | 部署目录 | /opt/chatsift(rsync 部署,非 git) |
 | server | Docker,127.0.0.1:3100 |
 | 数据库 | Docker MySQL |
-| 当前生产版本 | **v0.6.3**(含 v0.6.0+W20 migration + v0.6.2/W22 + v0.6.3 时区/W21节奏) |
+| 当前生产版本 | **v0.6.3**(含 v0.6.0+W20 migration + v0.6.2/W22 + v0.6.3 时区/W21节奏);**v0.6.4 prod 待 test 验收后决定** |
 | W20 migration | **已执行(prod)** |
 | v0.6.3 验证 | 基础部署完成(VERSION/容器TZ=CST/端点冒烟通过);**发版后暴露「采集失效」,仍在修复中**(见进度三类 + 复盘报告) |
 | 待办 | M16 既有环境物理 DROP `users.role`:代码已收口;test/prod/dev 需先确认已部署含 M16 的新代码,再由用户在场执行 deploy/m16_drop_users_role.sql |
@@ -132,6 +138,7 @@
 ## 变更日志
 | 版本 | 日期 | 变更摘要 |
 |---|---|---|
+| v1.6.0 | 2026-06-11 | v0.6.4 hotfix merge+bump,进入 test 预发(prod 仍 v0.6.3、未 tag);发版记录加 v0.6.4 行;明确不纳入租户1 position 根治/租户2 collected:0/CC3 工程治理 |
 | v1.5.0 | 2026-06-11 | 同步 v0.6.3 真实发版状态:v0.6.0/v0.6.3 已部署 prod、v0.6.2 已 tag 未单独部署、生产 VERSION=0.6.3、W20 migration 已执行;新增 v0.6.3 发版后「采集失效」三类待办(租户1 position 撞号/租户2 collected:0/租户3 rejected-seen)+ 面板 UI 简化,统一走 hotfix/v0.6.4 |
 | v1.4.0 | 2026-06-10 | W22 工单中心优化进入 v0.6.2 发版;同步 v0.6.0 已形成 release commit/tag,修正此前 v0.6.0 准备中旧口径 |
 | v1.3.0 | 2026-06-09 | W20+W20.1+W21 本地+真机验收通过,进入 v0.6.0 发布准备(未 merge/未 bump/生产仍 v0.5.0);下一步 test 预发→prod |
