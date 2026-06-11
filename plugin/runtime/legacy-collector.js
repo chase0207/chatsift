@@ -25,6 +25,52 @@
   var _hbInflight = false
   var HEARTBEAT_INTERVAL_MS = 15000
 
+  // v0.6.5:采集上下文 = env(normalized serverUrl 的 hash) + tenant_id + account_biz_id。
+  //   用途:① seen/position 命名空间隔离;② contextKey 变化时 flush 未上传缓冲(防残留发往新环境/新租户)。
+  //   tenant_id 取 userInfo.tenant_id,缺则 decode JWT payload;仍缺/serverUrl/account 缺 → fail-closed 跳过本轮。
+  function _ctxStorageGet(keys) {
+    return new Promise(function (resolve) {
+      try {
+        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return resolve({})
+        chrome.storage.local.get(keys, function (d) { resolve((chrome.runtime && chrome.runtime.lastError) ? {} : (d || {})) })
+      } catch (_) { resolve({}) }
+    })
+  }
+  function _normalizeServerUrl(url) {
+    var n = String(url || '').replace(/\/$/, '')
+    if (n === 'http://127.0.0.1:3000' || n === 'http://localhost:3000') return 'https://admin.kongyuekeji.com'
+    return n
+  }
+  function _decodeJwtTenant(token) {
+    try {
+      var parts = String(token || '').split('.')
+      if (parts.length < 2) return null
+      var b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+      var pad = b64.length % 4 ? b64 + '===='.slice(b64.length % 4) : b64
+      var json = decodeURIComponent(atob(pad).split('').map(function (c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+      }).join(''))
+      var p = JSON.parse(json)
+      return (p && p.tenant_id != null) ? p.tenant_id : null
+    } catch (_) { return null }
+  }
+  async function _resolveContext(accountBizId) {
+    var data = await _ctxStorageGet(['cfg', 'serverUrl', 'auth', 'userInfo', 'token', 'authToken', 'accessToken'])
+    var cfg = data.cfg || {}, auth = data.auth || {}, ui = data.userInfo || {}
+    var serverUrl = _normalizeServerUrl(cfg.serverUrl || data.serverUrl || auth.serverUrl)
+    var token = data.token || data.authToken || data.accessToken || auth.token || auth.accessToken || ''
+    var tenant = (ui && ui.tenant_id != null) ? ui.tenant_id : _decodeJwtTenant(token)
+    if (!serverUrl || tenant == null || tenant === '' || !accountBizId || !token) return { ok: false }
+    var envHash = Dom.simpleHash(serverUrl.toLowerCase())
+    return {
+      ok: true,
+      envHash: envHash, tenant_id: String(tenant), account_biz_id: String(accountBizId),
+      serverUrl: serverUrl, token: token,
+      contextKey: envHash + '_' + tenant + '_' + accountBizId,
+    }
+  }
+  var _lastContextKey = ''
+
   function _readNickname(adapter) {
     var ctx = adapter && adapter.buildRuntimeContext ? adapter.buildRuntimeContext() : {}
     return ctx.sessionTitle ||
@@ -116,21 +162,38 @@
       Logger.debug && Logger.debug('LegacyCollector', 'skip collect: nickname missing')
       return { ok: false, reason: 'nickname-missing' }
     }
+    // v0.6.5:解析采集上下文(env/tenant/account);缺失 → fail-closed 跳过本轮(不采、不写本地态、不上传)
+    var ctx = await _resolveContext(baseInfo.accountBizId)
+    if (!ctx.ok) {
+      Logger.debug && Logger.debug('LegacyCollector', 'skip collect: context incomplete (env/tenant/account)')
+      return { ok: false, reason: 'context-incomplete' }
+    }
+    // 上下文(env/tenant/account)真实变化 → flush 未上传缓冲,防残留事件发往新环境/新租户
+    if (_lastContextKey && _lastContextKey !== ctx.contextKey) {
+      try { if (window.RpaEventQueue && window.RpaEventQueue.flush) await window.RpaEventQueue.flush() } catch (_) {}
+      Logger.info && Logger.info('LegacyCollector', 'context changed, queue flushed', { to: ctx.contextKey })
+    }
+    _lastContextKey = ctx.contextKey
+
     var info = Object.assign(baseInfo, sessionInfo || {})
     var rawMessages = await adapter.getMessages(info)
     var events = (rawMessages || [])
       .map(function (m) { return adapter.toConversationEvent(m, info) })
       .filter(function (event) { return event && event.content_text })
-    // W17:锚点窗口对齐赋"会话内 position"(纯位置,持久化于 chrome.storage,跨采集幂等),
-    // message_id = syn_hash(conversationId|position),不含内容/方向(D5)。替代旧 _seqMap 内容去重。
-    await PositionTracker.assign(baseInfo.conversationId, events)
+    // W17 + v0.6.5:命名空间化锚点窗口对齐赋 position;冷启动从 server re-align,失败/无法对齐 → 跳过本轮。
+    // message_id = syn_hash(conversationId|position),合成规则不变(不触 Stop Gate)。
+    var assignRes = await PositionTracker.assign(baseInfo.conversationId, events, ctx)
+    if (assignRes && assignRes.skip) {
+      Logger.info && Logger.info('LegacyCollector', 'skip collect: position re-align unavailable', { reason: assignRes.reason })
+      return { ok: false, reason: 'position-skip:' + assignRes.reason }
+    }
     events.forEach(function (event) {
       event.message_id = Dom.synthMessageId({
         conversationId: event.conversation_id,
         position: event.position,
       })
     })
-    var result = await Collector.collect(events)
+    var result = await Collector.collect(events, ctx)
     Logger.info && Logger.info('LegacyCollector', 'collectMessageSession', {
       adapter: adapter.adapterKey,
       messages: rawMessages.length,

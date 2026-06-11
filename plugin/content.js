@@ -1791,6 +1791,16 @@
     return true
   }
 
+  // v0.6.5:上下文(env/tenant/account)切换时清空未上传缓冲,防残留事件被发往新环境/新租户。
+  //   只丢"未上传"的缓冲,不丢已入库数据;丢弃的会在下次扫描经 re-align 重新采到(不重复)。
+  async function flush() {
+    _queue = []
+    await persist()
+    _notify()
+    Logger.info && Logger.info('EventQueue', 'flushed')
+    return true
+  }
+
   function size() { return _queue.length }
 
   function snapshot() {
@@ -1817,6 +1827,7 @@
     requeueFront: requeueFront,
     persist:      persist,
     restore:      restore,
+    flush:        flush,
     size:         size,
     snapshot:     snapshot,
     onChange:     onChange,
@@ -1834,10 +1845,11 @@
   var Logger = window.RpaLogger || console
   if (!Queue) throw new Error('[W4] RpaEventQueue must load before EventCollector')
 
-  var STORAGE_KEY = 'chatsift_event_seen_ids'
+  // v0.6.5:seen 按 env+tenant+account 命名空间隔离(旧全局 key 'chatsift_event_seen_ids' 弃用、不再读)。
+  var SEEN_PREFIX = 'chatsift_seen_'
   var MAX_SEEN = 1000
   var _seen = new Set()
-  var _loaded = false
+  var _seenKey = null                  // 当前已加载的命名空间 key
 
   function _hasStorage() {
     return typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local
@@ -1862,25 +1874,35 @@
     })
   }
 
-  async function restoreSeen() {
-    var data = await _storageGet(STORAGE_KEY)
-    var ids = Array.isArray(data[STORAGE_KEY]) ? data[STORAGE_KEY] : []
-    _seen = new Set(ids)
-    _loaded = true
-    return _seen.size
+  // v0.6.5:命名空间 key = SEEN_PREFIX + envHash + tenant + account_biz_id。切上下文即切 key、加载对应 Set。
+  function _nsKey(ctx) {
+    return SEEN_PREFIX + ctx.envHash + '_' + ctx.tenant_id + '_' + ctx.account_biz_id
+  }
+  async function _ensureNamespace(ctx) {
+    var key = _nsKey(ctx)
+    if (key === _seenKey) return
+    var data = await _storageGet(key)
+    _seen = new Set(Array.isArray(data[key]) ? data[key] : [])
+    _seenKey = key
   }
 
   function _persistSeen() {
+    if (!_seenKey) return
     var ids = Array.from(_seen)
     if (ids.length > MAX_SEEN) ids = ids.slice(ids.length - MAX_SEEN)
     _seen = new Set(ids)
     var data = {}
-    data[STORAGE_KEY] = ids
+    data[_seenKey] = ids
     _storageSet(data)
   }
 
-  async function collect(events) {
-    if (!_loaded) await restoreSeen()
+  async function collect(events, ctx) {
+    if (!ctx || !ctx.ok) {
+      // v0.6.5 fail-closed:无有效上下文(env/tenant/account)→ 不去重、不入队、不写本地态
+      var n = Array.isArray(events) ? events.length : 0
+      return { collected: 0, skipped: n }
+    }
+    await _ensureNamespace(ctx)
     var list = Array.isArray(events) ? events : []
     var collected = 0
     var skipped = 0
@@ -1900,7 +1922,7 @@
   }
 
   // v0.6.4:从本地 seen 移除指定 message_id(采集权类 rejected 后释放,开权后可重新上报)。
-  //   ids = message_id / platform_message_id 数组(二者同值);有变化才持久化。返回是否有变化。
+  //   作用于当前命名空间(forgetSeen 在一次 collect 之后调用,_seenKey 已就位);有变化才持久化。
   function forgetSeen(ids) {
     var list = Array.isArray(ids) ? ids : []
     var changed = false
@@ -1911,12 +1933,12 @@
     return changed
   }
 
+  // 兼容导出:旧 restoreSeen 不再全局加载(命名空间随 collect 切),保留为 no-op。
+  async function restoreSeen() { return _seen.size }
+
   function resetSeenForTesting() {
     _seen = new Set()
-    _loaded = true
-    var data = {}
-    data[STORAGE_KEY] = []
-    _storageSet(data)
+    if (_seenKey) { var data = {}; data[_seenKey] = []; _storageSet(data) }
   }
 
   window.RpaEventCollector = {
@@ -4735,18 +4757,74 @@
     })
   }
 
-  // 给一批 events(同会话,按 DOM 顺序)赋 position;就地写 event.position 并返回 events
-  async function assign(conversationId, events) {
+  // v0.6.5:命名空间 key = NS_PREFIX + envHash + tenant + conversationId(旧 'w17_pos_'+conversationId 弃用、不再读)。
+  var NS_PREFIX = 'w17pos_'
+  function _nsKey(conversationId, ctx) {
+    return NS_PREFIX + ctx.envHash + '_' + ctx.tenant_id + '_' + conversationId
+  }
+
+  // v0.6.5:冷启动 re-align —— 从 server 取该会话 max(position)+最近K条,重建 seq 让可见历史对齐回旧 position。
+  //   返回 { found, max_position, seq:[{k,p}](升序) } 或 { found:false } 或 { skip, reason }(网络/HTTP 失败)。
+  async function _coldStartSeed(conversationId, ctx, platform, platformPage) {
+    try {
+      var url = ctx.serverUrl + '/api/v1/conversations/position-state'
+        + '?platform=' + encodeURIComponent(platform || 'douyin')
+        + '&platform_page=' + encodeURIComponent(platformPage || 'private-message')
+        + '&conversation_id=' + encodeURIComponent(conversationId) + '&limit=30'
+      var resp = await fetch(url, { headers: { 'Authorization': 'Bearer ' + ctx.token } })
+      if (!resp.ok) return { skip: true, reason: 'position-state-http-' + resp.status }
+      var json = {}; try { json = await resp.json() } catch (_) {}
+      var d = (json && json.data) || {}
+      if (!d.found) return { found: false }
+      // server 倒序取 → 客户端按 position 升序重排(保证 findOffset 序列方向) → keyOf 重建 seq
+      var recent = (d.recent || []).slice().sort(function (a, b) { return (a.position || 0) - (b.position || 0) })
+      var seq = recent.map(function (r) { return { k: keyOf(r.direction, r.content_text), p: r.position } })
+      return { found: true, max_position: d.max_position, seq: seq }
+    } catch (_) {
+      return { skip: true, reason: 'position-state-error' }
+    }
+  }
+
+  // 给一批 events(同会话,按 DOM 顺序)赋 position;就地写 event.position 并返回 events。
+  //   成功 → 返回 events(数组);需跳过本轮 → 返回 { skip:true, reason }(冷启动 re-align 失败/网络失败/无上下文)。
+  async function assign(conversationId, events, ctx) {
     if (!events || !events.length) return events
-    var key = STORAGE_PREFIX + conversationId
+    if (!ctx || !ctx.ok) return { skip: true, reason: 'context-incomplete' } // v0.6.5 fail-closed
+    var key = _nsKey(conversationId, ctx)
     var state = await _get(key)
     var cur = events.map(function (e) { return keyOf(e.direction, e.content_text) })
-    var out = computeAssignments(cur, state)
+    var out, origin
+
+    if (state && state.seq && state.seq.length) {
+      // 本地命名空间已有 seq:沿用现状(含 cold-scroll degrade,W17 既有语义)
+      out = computeAssignments(cur, state)
+      origin = 'local'
+    } else {
+      // 冷启动:从 server re-align(本地 position 态为空 = 重装/换浏览器/切上下文)
+      var platform = (events[0] && events[0].platform) || 'douyin'
+      var platformPage = (events[0] && events[0].platform_page) || 'private-message'
+      var seed = await _coldStartSeed(conversationId, ctx, platform, platformPage)
+      if (seed.skip) return { skip: true, reason: seed.reason } // 网络/HTTP 失败 → 跳过本轮,不从0
+      if (!seed.found) {
+        out = computeAssignments(cur, { nextPos: 0, seq: [] })  // 全新会话:空库从0,不撞
+        origin = 'coldstart-new'
+      } else {
+        var base = (seed.max_position == null ? -1 : seed.max_position) + 1
+        out = computeAssignments(cur, { nextPos: base, seq: seed.seq })
+        if (out.mode === 'degrade') {
+          // found=true 但无法与 server recent 对齐 → 不 degrade、不从0 → 跳过本轮(PM 拍板,防历史重复入库)
+          return { skip: true, reason: 'realign-no-anchor' }
+        }
+        origin = 'realign'
+      }
+    }
+
     for (var i = 0; i < events.length; i++) {
       events[i].position = out.positions[i]
-      // W17-C:记录 position 来源(锚点 pass mode),便于排查 + 阶段二判 position 可信度
+      // W17-C:记录 position 来源(锚点 pass mode);v0.6.5 追加 origin(local/coldstart-new/realign)
       var rs = events[i].raw_snapshot || (events[i].raw_snapshot = {})
       rs.position_source = out.mode               // cold / aligned / degrade
+      rs.position_origin = origin                 // v0.6.5
       if (out.off !== undefined) rs.anchor_off = out.off
     }
     await _set(key, out.state)
@@ -4759,6 +4837,7 @@
     computeAssignments: computeAssignments,
     assign: assign,
     STORAGE_PREFIX: STORAGE_PREFIX,
+    NS_PREFIX: NS_PREFIX,
   }
 
   if (typeof window !== 'undefined') window.RpaPositionTracker = api
@@ -4795,6 +4874,52 @@
   var _hbTimer = null
   var _hbInflight = false
   var HEARTBEAT_INTERVAL_MS = 15000
+
+  // v0.6.5:采集上下文 = env(normalized serverUrl 的 hash) + tenant_id + account_biz_id。
+  //   用途:① seen/position 命名空间隔离;② contextKey 变化时 flush 未上传缓冲(防残留发往新环境/新租户)。
+  //   tenant_id 取 userInfo.tenant_id,缺则 decode JWT payload;仍缺/serverUrl/account 缺 → fail-closed 跳过本轮。
+  function _ctxStorageGet(keys) {
+    return new Promise(function (resolve) {
+      try {
+        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return resolve({})
+        chrome.storage.local.get(keys, function (d) { resolve((chrome.runtime && chrome.runtime.lastError) ? {} : (d || {})) })
+      } catch (_) { resolve({}) }
+    })
+  }
+  function _normalizeServerUrl(url) {
+    var n = String(url || '').replace(/\/$/, '')
+    if (n === 'http://127.0.0.1:3000' || n === 'http://localhost:3000') return 'https://admin.kongyuekeji.com'
+    return n
+  }
+  function _decodeJwtTenant(token) {
+    try {
+      var parts = String(token || '').split('.')
+      if (parts.length < 2) return null
+      var b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+      var pad = b64.length % 4 ? b64 + '===='.slice(b64.length % 4) : b64
+      var json = decodeURIComponent(atob(pad).split('').map(function (c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+      }).join(''))
+      var p = JSON.parse(json)
+      return (p && p.tenant_id != null) ? p.tenant_id : null
+    } catch (_) { return null }
+  }
+  async function _resolveContext(accountBizId) {
+    var data = await _ctxStorageGet(['cfg', 'serverUrl', 'auth', 'userInfo', 'token', 'authToken', 'accessToken'])
+    var cfg = data.cfg || {}, auth = data.auth || {}, ui = data.userInfo || {}
+    var serverUrl = _normalizeServerUrl(cfg.serverUrl || data.serverUrl || auth.serverUrl)
+    var token = data.token || data.authToken || data.accessToken || auth.token || auth.accessToken || ''
+    var tenant = (ui && ui.tenant_id != null) ? ui.tenant_id : _decodeJwtTenant(token)
+    if (!serverUrl || tenant == null || tenant === '' || !accountBizId || !token) return { ok: false }
+    var envHash = Dom.simpleHash(serverUrl.toLowerCase())
+    return {
+      ok: true,
+      envHash: envHash, tenant_id: String(tenant), account_biz_id: String(accountBizId),
+      serverUrl: serverUrl, token: token,
+      contextKey: envHash + '_' + tenant + '_' + accountBizId,
+    }
+  }
+  var _lastContextKey = ''
 
   function _readNickname(adapter) {
     var ctx = adapter && adapter.buildRuntimeContext ? adapter.buildRuntimeContext() : {}
@@ -4887,21 +5012,38 @@
       Logger.debug && Logger.debug('LegacyCollector', 'skip collect: nickname missing')
       return { ok: false, reason: 'nickname-missing' }
     }
+    // v0.6.5:解析采集上下文(env/tenant/account);缺失 → fail-closed 跳过本轮(不采、不写本地态、不上传)
+    var ctx = await _resolveContext(baseInfo.accountBizId)
+    if (!ctx.ok) {
+      Logger.debug && Logger.debug('LegacyCollector', 'skip collect: context incomplete (env/tenant/account)')
+      return { ok: false, reason: 'context-incomplete' }
+    }
+    // 上下文(env/tenant/account)真实变化 → flush 未上传缓冲,防残留事件发往新环境/新租户
+    if (_lastContextKey && _lastContextKey !== ctx.contextKey) {
+      try { if (window.RpaEventQueue && window.RpaEventQueue.flush) await window.RpaEventQueue.flush() } catch (_) {}
+      Logger.info && Logger.info('LegacyCollector', 'context changed, queue flushed', { to: ctx.contextKey })
+    }
+    _lastContextKey = ctx.contextKey
+
     var info = Object.assign(baseInfo, sessionInfo || {})
     var rawMessages = await adapter.getMessages(info)
     var events = (rawMessages || [])
       .map(function (m) { return adapter.toConversationEvent(m, info) })
       .filter(function (event) { return event && event.content_text })
-    // W17:锚点窗口对齐赋"会话内 position"(纯位置,持久化于 chrome.storage,跨采集幂等),
-    // message_id = syn_hash(conversationId|position),不含内容/方向(D5)。替代旧 _seqMap 内容去重。
-    await PositionTracker.assign(baseInfo.conversationId, events)
+    // W17 + v0.6.5:命名空间化锚点窗口对齐赋 position;冷启动从 server re-align,失败/无法对齐 → 跳过本轮。
+    // message_id = syn_hash(conversationId|position),合成规则不变(不触 Stop Gate)。
+    var assignRes = await PositionTracker.assign(baseInfo.conversationId, events, ctx)
+    if (assignRes && assignRes.skip) {
+      Logger.info && Logger.info('LegacyCollector', 'skip collect: position re-align unavailable', { reason: assignRes.reason })
+      return { ok: false, reason: 'position-skip:' + assignRes.reason }
+    }
     events.forEach(function (event) {
       event.message_id = Dom.synthMessageId({
         conversationId: event.conversation_id,
         position: event.position,
       })
     })
-    var result = await Collector.collect(events)
+    var result = await Collector.collect(events, ctx)
     Logger.info && Logger.info('LegacyCollector', 'collectMessageSession', {
       adapter: adapter.adapterKey,
       messages: rawMessages.length,
