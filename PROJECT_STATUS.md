@@ -22,10 +22,10 @@
 |---|---|
 | VERSION / server / admin / plugin | **0.6.5**(已一致) |
 | tools/dom-collector | 1.0.0(独立版本线) |
-| 生产 VERSION | **0.6.5**(已部署 prod;**Chase 生产验收中**) |
+| 生产 VERSION | **0.6.5**(已部署 prod;**Chase prod 真机验收通过 2026-06-11**) |
 
-发版:**v0.6.5 = 客户端采集本地态隔离 + 冷启动 re-align**(根治本地态不隔离;plugin + server 只读接口)。**hotfix 先直发 prod(豁免 test 预发),收口期补发 test → test/prod 同跑 v0.6.5;Chase 验收中**(插件下载更新制、server additive,回退=不更新插件)。
-- **v0.6.5**(tag v0.6.5)= seen/PositionTracker 按 env+tenant+account 命名空间隔离 + 冷启动 re-align(只读 `/conversations/position-state`)+ 上下文切换 flush queue;**已部署 prod + test(同 v0.6.5 代码),Chase 验收中**;无 schema/migration。
+发版:**v0.6.5 = 客户端采集本地态隔离 + 冷启动 re-align**(根治本地态不隔离;plugin + server 只读接口)。**hotfix 先直发 prod(豁免 test 预发),收口期补发 test → test/prod 同跑 v0.6.5;Chase prod 验收通过**(插件下载更新制、server additive,回退=不更新插件)。
+- **v0.6.5**(tag v0.6.5)= seen/PositionTracker 按 env+tenant+account 命名空间隔离 + 冷启动 re-align(只读 `/conversations/position-state`)+ 上下文切换 flush queue;**已部署 prod + test(同 v0.6.5 代码),Chase prod 验收通过**;无 schema/migration。
 - **v0.6.0**(`bb8366d`/tag v0.6.0)= W20 + W20.1 + W21,**已部署 prod,含 W20 migration(已 apply)**。
 - **v0.6.2**(`81de0b8`/tag v0.6.2)= W22 工单中心优化,**已发布至 GitHub/test/prod**;生产随 v0.6.3 上线。
 - **v0.6.3**(`fa526cb`/tag v0.6.3)= `TZ=Asia/Shanghai` 时区修复 + W21 prod `HUMAN_IDLE_MS` 1min;**已部署 prod**,旧 DATETIME 已做 +8h 修正。
@@ -46,7 +46,8 @@
   - 复盘见 docs/reports/v0.6.0-v0.6.3_发版时间线与采集失效根因分析.md。
 - ✅ **W19 租户资产模型 全闭环**(v0.5.0 已上线)。
 - ✅ **W17 阶段一**(消息位置标识)随 v0.5.0 已发;⛔ **W17 阶段二(云端对账)= 取消/交 codex**,不在本线推进。
-- **下一步**:v0.6.4 已收口;采集"客户端本地态不隔离"(类1 position 撞号 + seen 串租户漏历史)交 codex 排查+方案,另起版本(评估中)。
+- ✅ **v0.6.5 已收口**(客户端本地态不隔离已根治:seen/PositionTracker 按 env+tenant+account 命名空间隔离 + 冷启动 re-align;已上 prod+test,Chase prod 真机验收通过)。
+- **下一步**:无强制项。遗留待复审:`position-state` 用 `tenant_id` 隔离、未叠 service_account 查看权的口径(已上 prod/test,如需 codex 复审另排);tenant2 `collected:0`(DOM 变体)与来客 `NULL-SA` 不可见仍未处理。
 
 ### 待排期(backlog,非进行中)
 - **租户1 position 冷启动撞号根治**(W17 链路;插件重装/多端触发,需 server 只读 position-state + plugin seed)。
@@ -62,7 +63,7 @@
 ## 发版记录
 | 版本 | tag | 时间 | 关联 W | 范围 | 备注 |
 |---|---|---|---|---|---|
-| v0.6.5 | v0.6.5 | 06-11 | 本地态隔离 | plugin+server | 采集本地态按 env+tenant+account 命名空间隔离 + 冷启动 re-align(只读 position-state)+ 上下文 flush;**先直发 prod(hotfix 豁免 test 预发),随后补发 test;Chase 验收中**;无 schema/migration |
+| v0.6.5 | v0.6.5 | 06-11 | 本地态隔离 | plugin+server | 采集本地态按 env+tenant+account 命名空间隔离 + 冷启动 re-align(只读 position-state)+ 上下文 flush;**先直发 prod(hotfix 豁免 test 预发),随后补发 test;Chase prod 验收通过**;无 schema/migration |
 | v0.6.4 | v0.6.4 | 06-11 | hotfix | plugin | rejected 重试 + popup 日志/serverUrl 环境恢复 + 面板 UI 简化 + 文案;**已部署 prod,Chase 真机验收通过** |
 | v0.6.3 | v0.6.3 | 06-10 | **v0.6.0/v0.6.2 后热修** | plugin+deploy | 时区修复(`TZ=Asia/Shanghai`)+ W21 `HUMAN_IDLE_MS` 1min;**已部署 prod,包含 W22**;旧数据 +8h 修正 |
 | v0.6.2 | v0.6.2 | 06-10 | **W22** | server+admin+docs | 工单中心字段重构、类型 tab、状态 inline、查看记录抽屉;不改 schema/引擎/枚举/发送回复。**已发布至 GitHub/test/prod;生产随 v0.6.3 上线** |
@@ -87,10 +88,10 @@
 | 部署目录 | /opt/chatsift(rsync 部署,非 git) |
 | server | Docker,127.0.0.1:3100 |
 | 数据库 | Docker MySQL |
-| 当前生产版本 | **v0.6.5**(v0.6.4 基础上 + 客户端本地态隔离/冷启动 re-align;tag v0.6.5 已 push;**部署完成,Chase 验收中**) |
+| 当前生产版本 | **v0.6.5**(v0.6.4 基础上 + 客户端本地态隔离/冷启动 re-align;tag v0.6.5 已 push;**部署完成,Chase prod 验收通过**) |
 | W20 migration | **已执行(prod)**;v0.6.4/v0.6.5 无 schema 变更 |
 | v0.6.4 验证 | **已部署 prod + Chase 真机验收通过**(插件 0.6.4 / popup 环境恢复 / 面板简化 / rejected 重试 / 日志无 [undefined]);本次仅 server 重启,mysql 未碰 |
-| v0.6.5 验证 | **已部署 prod + test(同 v0.6.5 代码);Chase 验收中**(新增只读 `position-state` 端点;seen/position 按 env+tenant+account 隔离 + 冷启动 re-align);prod/test 均仅 server 重建重启,mysql 未碰;test 的 `deploy/.env.test` 已从 live 容器反推重建(0600) |
+| v0.6.5 验证 | **已部署 prod + test(同 v0.6.5 代码);Chase prod 验收通过**(新增只读 `position-state` 端点;seen/position 按 env+tenant+account 隔离 + 冷启动 re-align);prod/test 均仅 server 重建重启,mysql 未碰;test 的 `deploy/.env.test` 已从 live 容器反推重建(0600) |
 | 待办 | M16 既有环境物理 DROP `users.role`:代码已收口;test/prod/dev 需先确认已部署含 M16 的新代码,再由用户在场执行 deploy/m16_drop_users_role.sql |
 
 ---
@@ -108,11 +109,12 @@
 - **W22 工单中心优化**(v0.6.2)已发布至 GitHub/test/prod;生产随 v0.6.3 上线
 - **v0.6.3 热修**(时区 + W21 节奏)已部署 prod
 - **v0.6.4 hotfix**(rejected 重试 + popup 日志/serverUrl 环境恢复 + 面板 UI 简化 + 文案)已部署 prod,Chase 真机验收通过
+- **v0.6.5 hotfix**(客户端采集本地态 seen/PositionTracker 按 env+tenant+account 命名空间隔离 + 冷启动 re-align + 上下文 flush;新增只读 `position-state` 端点)已部署 prod+test,Chase prod 真机验收通过
 - M3 git 整理(合并 push、生产 VERSION 修正、未跟踪文件归位)
 - 文档治理:AGENTS.md + docs/ops/(release/prod-safety/versioning)+ 本文件 + CHANGELOG
 
 ### 进行中
-- **采集"客户端本地态不隔离"根治**(类1 position 冷启动撞号 + seen 串租户漏历史)——交 codex 排查+方案,另起版本评估;复盘见 docs/reports/v0.6.0-v0.6.3_发版时间线与采集失效根因分析.md §5/§5B。
+- ~~**采集"客户端本地态不隔离"根治**(类1 position 冷启动撞号 + seen 串租户漏历史)~~ — ✅ **已由 v0.6.5 根治**(env+tenant+account 命名空间 + 冷启动 re-align,prod+test 验收通过);复盘见 docs/reports/v0.6.0-v0.6.3_发版时间线与采集失效根因分析.md §5/§5B。
 
 ### 待办(技术债,见 tech-debt-master-plan)
 - **W17 阶段二:云端对账**——已取消/不在 chatsift 本线推进。
@@ -142,6 +144,7 @@
 ## 变更日志
 | 版本 | 日期 | 变更摘要 |
 |---|---|---|
+| v1.10.0 | 2026-06-11 | Chase 确认 prod 验收通过 → v0.6.5 收口闭环:任务单 §4 六项行为验收勾选、Status→done、`git mv` 到 docs/tasks/done/、CHANGELOG/PROJECT_STATUS/versioning「验收中」→「prod 验收通过」、清理 hotfix/v0.6.5 本地+远端分支;「客户端本地态不隔离」根治标记完成 |
 | v1.9.0 | 2026-06-11 | v0.6.5 补发 test(test/prod 同跑 v0.6.5 代码;test `deploy/.env.test` 从 live 容器反推重建)+ doc 事实订正:生产环境状态表当前版本→v0.6.5、统一「验收中」口径、versioning 补 v0.6.5 行;归档/§4 行为项勾选/验收转正待 Chase 确认 prod 验收通过 |
 | v1.8.0 | 2026-06-11 | v0.6.5 发版:客户端采集本地态隔离 + 冷启动 re-align(merge hotfix→main、bump 0.6.5、直发 prod 跳过 test、tag v0.6.5);prod 当前版本→v0.6.5,Chase 生产验收中 |
 | v1.7.0 | 2026-06-11 | v0.6.4 收口生产验收:prod 当前版本→v0.6.4、已部署 prod、tag v0.6.4 已 push、Chase 真机验收通过;下一步=采集本地态不隔离根治交 codex |

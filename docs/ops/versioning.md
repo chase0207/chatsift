@@ -51,7 +51,7 @@
 | **v0.6.2** | **W22** | 工单中心优化;**tag 有,未单独部署** | **未单独部署,随 v0.6.3** |
 | **v0.6.3** | **v0.6.0/v0.6.2 后热修** | 时区(`TZ=Asia/Shanghai`)+ W21 `HUMAN_IDLE_MS` 1min;**实际 prod 版本,包含 W22** | **已上 prod** |
 | **v0.6.4** | hotfix | 采集权 rejected 重试 + popup 日志/serverUrl 环境恢复 + 面板 UI 简化 + 文案 | **已上 prod**(Chase 真机验收通过) |
-| **v0.6.5** | hotfix | 客户端采集本地态隔离(env+tenant+account 命名空间)+ 冷启动 re-align(只读 `position-state`)+ 上下文 flush;plugin+server,无 schema | **已上 prod + test**(同 v0.6.5 代码,Chase 验收中) |
+| **v0.6.5** | hotfix | 客户端采集本地态隔离(env+tenant+account 命名空间)+ 冷启动 re-align(只读 `position-state`)+ 上下文 flush;plugin+server,无 schema | **已上 prod + test**(同 v0.6.5 代码,Chase prod 验收通过) |
 
 ## 5. 维护规约
 - 每次发版,QA 更新本表(加新 tag ↔ W 行 + **是否单独部署**)。
@@ -64,7 +64,7 @@
 ## 变更日志
 | 版本 | 日期 | 变更摘要 |
 |---|---|---|
-| v1.4.0 | 2026-06-11 | tag↔W 表加 v0.6.5(hotfix:客户端本地态隔离 + 冷启动 re-align,无 schema);部署栏「已上 prod + test」(同 v0.6.5 代码,Chase 验收中) |
+| v1.4.0 | 2026-06-11 | tag↔W 表加 v0.6.5(hotfix:客户端本地态隔离 + 冷启动 re-align,无 schema);部署栏「已上 prod + test」(同 v0.6.5 代码,Chase prod 验收通过) |
 | v1.3.0 | 2026-06-11 | v0.6.4 部署栏更新为「已上 prod」(Chase 真机验收通过) |
 | v1.2.0 | 2026-06-11 | tag↔W 表加 v0.6.4(hotfix:rejected 重试 + popup UI 简化;test 预发中/prod 待定) |
 | v1.1.0 | 2026-06-11 | tag↔W 表补到 v0.6.3(v0.4.0并入v0.5.0/v0.5.0/v0.6.0/v0.6.2未单独部署/v0.6.3实际prod含W22)+ 加「是否单独部署」列;明确 patch 可含前序未部署 tag,但 PROJECT_STATUS 必须写清是否部署 |

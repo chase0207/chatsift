@@ -16,10 +16,13 @@
   - 上下文(env/tenant/account)切换时 **flush 未上传 queue**,防残留事件发往新环境/新租户。
   - 新接口纯只读(SELECT),按 `tenant_id` 隔离,**不建账号/不写库/不改 lifecycle/无 schema 变更**。
 - 已知注意:
-  - **作为 hotfix 先直发 prod(release.md §5 豁免 test 预发),收口期补发 test → test/prod 同跑 v0.6.5 代码;Chase 验收中**;插件为下载更新制(不更新不受影响),server 端 additive(只新增只读端点,不影响旧插件)。
+  - **作为 hotfix 先直发 prod(release.md §5 豁免 test 预发),收口期补发 test → test/prod 同跑 v0.6.5 代码;Chase prod 真机验收通过(2026-06-11)**;插件为下载更新制(不更新不受影响),server 端 additive(只新增只读端点,不影响旧插件)。
   - `message_id` 合成规则 / server 去重键 / messages schema 均未改;W17"有几条存几条 + 幂等"靠 re-align 保持。
   - 待复审口径:`position-state` 用 `tenant_id` 隔离、未叠 service_account 查看权(避免采集者饥饿/撞号)。
-- 复盘:(验收后补)
+- 复盘:
+  - 客户端持久采集态命名空间只到浏览器 profile(不含 env/tenant)是采集串号/漏历史的总根因;隔离必须落到 env+tenant+account。
+  - 冷启动必须 re-align:单纯 `max+1` 续编会把可见历史重新编号→重复入库;只有把可见历史对齐回旧 position、仅真·新消息续编才幂等。
+  - hotfix 先 prod 后补 test 属应急(本地态根因明确、回退成本低);常规仍应 test 预发。`.env.test` 这类机密文件须纳入部署清单/备份,避免丢失后只能从 live 容器反推。
 
 ## v0.6.4 — 2026-06-11
 - 关联:v0.6.3 hotfix
