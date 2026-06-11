@@ -20,11 +20,12 @@
 ## 当前版本
 | 模块 | 版本 |
 |---|---|
-| VERSION / server / admin / plugin | **0.6.4**(已一致) |
+| VERSION / server / admin / plugin | **0.6.5**(已一致) |
 | tools/dom-collector | 1.0.0(独立版本线) |
-| 生产 VERSION | **0.6.4**(已部署 prod;Chase 真机验收通过) |
+| 生产 VERSION | **0.6.5**(已部署 prod;**Chase 生产验收中**) |
 
-发版:**v0.6.4 = v0.6.3 hotfix(plugin only)**,**已部署 test→prod,已打 tag v0.6.4,Chase prod 真机验收通过**。
+发版:**v0.6.5 = 客户端采集本地态隔离 + 冷启动 re-align**(根治本地态不隔离;plugin + server 只读接口)。**未经 test 预发,直发 prod 由 Chase 生产验收**(插件下载更新制、server additive,回退=不更新插件)。
+- **v0.6.5**(tag v0.6.5)= seen/PositionTracker 按 env+tenant+account 命名空间隔离 + 冷启动 re-align(只读 `/conversations/position-state`)+ 上下文切换 flush queue;**已部署 prod,Chase 生产验收中**;无 schema/migration。
 - **v0.6.0**(`bb8366d`/tag v0.6.0)= W20 + W20.1 + W21,**已部署 prod,含 W20 migration(已 apply)**。
 - **v0.6.2**(`81de0b8`/tag v0.6.2)= W22 工单中心优化,**已发布至 GitHub/test/prod**;生产随 v0.6.3 上线。
 - **v0.6.3**(`fa526cb`/tag v0.6.3)= `TZ=Asia/Shanghai` 时区修复 + W21 prod `HUMAN_IDLE_MS` 1min;**已部署 prod**,旧 DATETIME 已做 +8h 修正。
@@ -61,6 +62,7 @@
 ## 发版记录
 | 版本 | tag | 时间 | 关联 W | 范围 | 备注 |
 |---|---|---|---|---|---|
+| v0.6.5 | v0.6.5 | 06-11 | 本地态隔离 | plugin+server | 采集本地态按 env+tenant+account 命名空间隔离 + 冷启动 re-align(只读 position-state)+ 上下文 flush;**直发 prod(跳过 test),Chase 生产验收中**;无 schema/migration |
 | v0.6.4 | v0.6.4 | 06-11 | hotfix | plugin | rejected 重试 + popup 日志/serverUrl 环境恢复 + 面板 UI 简化 + 文案;**已部署 prod,Chase 真机验收通过** |
 | v0.6.3 | v0.6.3 | 06-10 | **v0.6.0/v0.6.2 后热修** | plugin+deploy | 时区修复(`TZ=Asia/Shanghai`)+ W21 `HUMAN_IDLE_MS` 1min;**已部署 prod,包含 W22**;旧数据 +8h 修正 |
 | v0.6.2 | v0.6.2 | 06-10 | **W22** | server+admin+docs | 工单中心字段重构、类型 tab、状态 inline、查看记录抽屉;不改 schema/引擎/枚举/发送回复。**已发布至 GitHub/test/prod;生产随 v0.6.3 上线** |
@@ -139,6 +141,7 @@
 ## 变更日志
 | 版本 | 日期 | 变更摘要 |
 |---|---|---|
+| v1.8.0 | 2026-06-11 | v0.6.5 发版:客户端采集本地态隔离 + 冷启动 re-align(merge hotfix→main、bump 0.6.5、直发 prod 跳过 test、tag v0.6.5);prod 当前版本→v0.6.5,Chase 生产验收中 |
 | v1.7.0 | 2026-06-11 | v0.6.4 收口生产验收:prod 当前版本→v0.6.4、已部署 prod、tag v0.6.4 已 push、Chase 真机验收通过;下一步=采集本地态不隔离根治交 codex |
 | v1.6.0 | 2026-06-11 | v0.6.4 hotfix merge+bump,进入 test 预发(prod 仍 v0.6.3、未 tag);发版记录加 v0.6.4 行;明确不纳入租户1 position 根治/租户2 collected:0/CC3 工程治理 |
 | v1.5.0 | 2026-06-11 | 同步 v0.6.3 真实发版状态:v0.6.0/v0.6.3 已部署 prod、v0.6.2 已 tag 未单独部署、生产 VERSION=0.6.3、W20 migration 已执行;新增 v0.6.3 发版后「采集失效」三类待办(租户1 position 撞号/租户2 collected:0/租户3 rejected-seen)+ 面板 UI 简化,统一走 hotfix/v0.6.4 |

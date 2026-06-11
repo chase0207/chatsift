@@ -6,6 +6,21 @@
 
 ---
 
+## v0.6.5 — 2026-06-11
+- 关联:客户端采集本地态隔离与冷启动续编(根治 v0.6.4 验收暴露的"本地态不隔离":seen 串租户漏历史 + position 冷启动撞号)
+- 范围:plugin + server(只读接口) + docs(任务单)
+- 变更:
+  - 客户端采集本地态(`seen` / `PositionTracker`)按 **env(normalized serverUrl 的 hash) + tenant_id + account_biz_id** 命名空间隔离;旧全局 key(`chatsift_event_seen_ids` / `w17_pos_*`)弃用不读(不迁移、不物理清理)。
+  - **冷启动 re-align**:本地 position 态为空时,调新只读接口 `GET /api/v1/conversations/position-state` 取该会话已入库 `max(position)` + 最近 K 条,重建 seq 让可见历史**对齐回旧 position(幂等)**,只有真·新消息续编 `max+1`;接口失败/无法对齐 → **跳过本轮、不从 0**(防重复入库)。
+  - `tenant_id` 取 `userInfo.tenant_id || decode(JWT)`;`env/tenant/account` 任一缺失 → **fail-closed 跳过本轮**(不写本地态/不上传),不用公共兜底 key。
+  - 上下文(env/tenant/account)切换时 **flush 未上传 queue**,防残留事件发往新环境/新租户。
+  - 新接口纯只读(SELECT),按 `tenant_id` 隔离,**不建账号/不写库/不改 lifecycle/无 schema 变更**。
+- 已知注意:
+  - **未经 test 预发,直发 prod 由 Chase 生产验收**;插件为下载更新制(不更新不受影响),server 端 additive(只新增只读端点,不影响旧插件)。
+  - `message_id` 合成规则 / server 去重键 / messages schema 均未改;W17"有几条存几条 + 幂等"靠 re-align 保持。
+  - 待复审口径:`position-state` 用 `tenant_id` 隔离、未叠 service_account 查看权(避免采集者饥饿/撞号)。
+- 复盘:(验收后补)
+
 ## v0.6.4 — 2026-06-11
 - 关联:v0.6.3 hotfix
 - 范围:plugin
