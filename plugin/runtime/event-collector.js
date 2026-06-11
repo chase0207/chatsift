@@ -5,10 +5,11 @@
   var Logger = window.RpaLogger || console
   if (!Queue) throw new Error('[W4] RpaEventQueue must load before EventCollector')
 
-  var STORAGE_KEY = 'chatsift_event_seen_ids'
+  // v0.6.5:seen 按 env+tenant+account 命名空间隔离(旧全局 key 'chatsift_event_seen_ids' 弃用、不再读)。
+  var SEEN_PREFIX = 'chatsift_seen_'
   var MAX_SEEN = 1000
   var _seen = new Set()
-  var _loaded = false
+  var _seenKey = null                  // 当前已加载的命名空间 key
 
   function _hasStorage() {
     return typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local
@@ -33,25 +34,35 @@
     })
   }
 
-  async function restoreSeen() {
-    var data = await _storageGet(STORAGE_KEY)
-    var ids = Array.isArray(data[STORAGE_KEY]) ? data[STORAGE_KEY] : []
-    _seen = new Set(ids)
-    _loaded = true
-    return _seen.size
+  // v0.6.5:命名空间 key = SEEN_PREFIX + envHash + tenant + account_biz_id。切上下文即切 key、加载对应 Set。
+  function _nsKey(ctx) {
+    return SEEN_PREFIX + ctx.envHash + '_' + ctx.tenant_id + '_' + ctx.account_biz_id
+  }
+  async function _ensureNamespace(ctx) {
+    var key = _nsKey(ctx)
+    if (key === _seenKey) return
+    var data = await _storageGet(key)
+    _seen = new Set(Array.isArray(data[key]) ? data[key] : [])
+    _seenKey = key
   }
 
   function _persistSeen() {
+    if (!_seenKey) return
     var ids = Array.from(_seen)
     if (ids.length > MAX_SEEN) ids = ids.slice(ids.length - MAX_SEEN)
     _seen = new Set(ids)
     var data = {}
-    data[STORAGE_KEY] = ids
+    data[_seenKey] = ids
     _storageSet(data)
   }
 
-  async function collect(events) {
-    if (!_loaded) await restoreSeen()
+  async function collect(events, ctx) {
+    if (!ctx || !ctx.ok) {
+      // v0.6.5 fail-closed:无有效上下文(env/tenant/account)→ 不去重、不入队、不写本地态
+      var n = Array.isArray(events) ? events.length : 0
+      return { collected: 0, skipped: n }
+    }
+    await _ensureNamespace(ctx)
     var list = Array.isArray(events) ? events : []
     var collected = 0
     var skipped = 0
@@ -71,7 +82,7 @@
   }
 
   // v0.6.4:从本地 seen 移除指定 message_id(采集权类 rejected 后释放,开权后可重新上报)。
-  //   ids = message_id / platform_message_id 数组(二者同值);有变化才持久化。返回是否有变化。
+  //   作用于当前命名空间(forgetSeen 在一次 collect 之后调用,_seenKey 已就位);有变化才持久化。
   function forgetSeen(ids) {
     var list = Array.isArray(ids) ? ids : []
     var changed = false
@@ -82,12 +93,12 @@
     return changed
   }
 
+  // 兼容导出:旧 restoreSeen 不再全局加载(命名空间随 collect 切),保留为 no-op。
+  async function restoreSeen() { return _seen.size }
+
   function resetSeenForTesting() {
     _seen = new Set()
-    _loaded = true
-    var data = {}
-    data[STORAGE_KEY] = []
-    _storageSet(data)
+    if (_seenKey) { var data = {}; data[_seenKey] = []; _storageSet(data) }
   }
 
   window.RpaEventCollector = {

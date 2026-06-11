@@ -119,18 +119,74 @@
     })
   }
 
-  // 给一批 events(同会话,按 DOM 顺序)赋 position;就地写 event.position 并返回 events
-  async function assign(conversationId, events) {
+  // v0.6.5:命名空间 key = NS_PREFIX + envHash + tenant + conversationId(旧 'w17_pos_'+conversationId 弃用、不再读)。
+  var NS_PREFIX = 'w17pos_'
+  function _nsKey(conversationId, ctx) {
+    return NS_PREFIX + ctx.envHash + '_' + ctx.tenant_id + '_' + conversationId
+  }
+
+  // v0.6.5:冷启动 re-align —— 从 server 取该会话 max(position)+最近K条,重建 seq 让可见历史对齐回旧 position。
+  //   返回 { found, max_position, seq:[{k,p}](升序) } 或 { found:false } 或 { skip, reason }(网络/HTTP 失败)。
+  async function _coldStartSeed(conversationId, ctx, platform, platformPage) {
+    try {
+      var url = ctx.serverUrl + '/api/v1/conversations/position-state'
+        + '?platform=' + encodeURIComponent(platform || 'douyin')
+        + '&platform_page=' + encodeURIComponent(platformPage || 'private-message')
+        + '&conversation_id=' + encodeURIComponent(conversationId) + '&limit=30'
+      var resp = await fetch(url, { headers: { 'Authorization': 'Bearer ' + ctx.token } })
+      if (!resp.ok) return { skip: true, reason: 'position-state-http-' + resp.status }
+      var json = {}; try { json = await resp.json() } catch (_) {}
+      var d = (json && json.data) || {}
+      if (!d.found) return { found: false }
+      // server 倒序取 → 客户端按 position 升序重排(保证 findOffset 序列方向) → keyOf 重建 seq
+      var recent = (d.recent || []).slice().sort(function (a, b) { return (a.position || 0) - (b.position || 0) })
+      var seq = recent.map(function (r) { return { k: keyOf(r.direction, r.content_text), p: r.position } })
+      return { found: true, max_position: d.max_position, seq: seq }
+    } catch (_) {
+      return { skip: true, reason: 'position-state-error' }
+    }
+  }
+
+  // 给一批 events(同会话,按 DOM 顺序)赋 position;就地写 event.position 并返回 events。
+  //   成功 → 返回 events(数组);需跳过本轮 → 返回 { skip:true, reason }(冷启动 re-align 失败/网络失败/无上下文)。
+  async function assign(conversationId, events, ctx) {
     if (!events || !events.length) return events
-    var key = STORAGE_PREFIX + conversationId
+    if (!ctx || !ctx.ok) return { skip: true, reason: 'context-incomplete' } // v0.6.5 fail-closed
+    var key = _nsKey(conversationId, ctx)
     var state = await _get(key)
     var cur = events.map(function (e) { return keyOf(e.direction, e.content_text) })
-    var out = computeAssignments(cur, state)
+    var out, origin
+
+    if (state && state.seq && state.seq.length) {
+      // 本地命名空间已有 seq:沿用现状(含 cold-scroll degrade,W17 既有语义)
+      out = computeAssignments(cur, state)
+      origin = 'local'
+    } else {
+      // 冷启动:从 server re-align(本地 position 态为空 = 重装/换浏览器/切上下文)
+      var platform = (events[0] && events[0].platform) || 'douyin'
+      var platformPage = (events[0] && events[0].platform_page) || 'private-message'
+      var seed = await _coldStartSeed(conversationId, ctx, platform, platformPage)
+      if (seed.skip) return { skip: true, reason: seed.reason } // 网络/HTTP 失败 → 跳过本轮,不从0
+      if (!seed.found) {
+        out = computeAssignments(cur, { nextPos: 0, seq: [] })  // 全新会话:空库从0,不撞
+        origin = 'coldstart-new'
+      } else {
+        var base = (seed.max_position == null ? -1 : seed.max_position) + 1
+        out = computeAssignments(cur, { nextPos: base, seq: seed.seq })
+        if (out.mode === 'degrade') {
+          // found=true 但无法与 server recent 对齐 → 不 degrade、不从0 → 跳过本轮(PM 拍板,防历史重复入库)
+          return { skip: true, reason: 'realign-no-anchor' }
+        }
+        origin = 'realign'
+      }
+    }
+
     for (var i = 0; i < events.length; i++) {
       events[i].position = out.positions[i]
-      // W17-C:记录 position 来源(锚点 pass mode),便于排查 + 阶段二判 position 可信度
+      // W17-C:记录 position 来源(锚点 pass mode);v0.6.5 追加 origin(local/coldstart-new/realign)
       var rs = events[i].raw_snapshot || (events[i].raw_snapshot = {})
       rs.position_source = out.mode               // cold / aligned / degrade
+      rs.position_origin = origin                 // v0.6.5
       if (out.off !== undefined) rs.anchor_off = out.off
     }
     await _set(key, out.state)
@@ -143,6 +199,7 @@
     computeAssignments: computeAssignments,
     assign: assign,
     STORAGE_PREFIX: STORAGE_PREFIX,
+    NS_PREFIX: NS_PREFIX,
   }
 
   if (typeof window !== 'undefined') window.RpaPositionTracker = api

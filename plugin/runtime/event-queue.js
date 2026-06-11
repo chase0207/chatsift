@@ -65,6 +65,16 @@
     return true
   }
 
+  // v0.6.5:上下文(env/tenant/account)切换时清空未上传缓冲,防残留事件被发往新环境/新租户。
+  //   只丢"未上传"的缓冲,不丢已入库数据;丢弃的会在下次扫描经 re-align 重新采到(不重复)。
+  async function flush() {
+    _queue = []
+    await persist()
+    _notify()
+    Logger.info && Logger.info('EventQueue', 'flushed')
+    return true
+  }
+
   function size() { return _queue.length }
 
   function snapshot() {
@@ -91,6 +101,7 @@
     requeueFront: requeueFront,
     persist:      persist,
     restore:      restore,
+    flush:        flush,
     size:         size,
     snapshot:     snapshot,
     onChange:     onChange,

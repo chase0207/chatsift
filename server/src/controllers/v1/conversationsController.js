@@ -193,4 +193,44 @@ async function facets(req, res) {
   }
 }
 
-module.exports = { list, detail, messages, facets }
+// v0.6.5:冷启动 re-align 只读接口。供插件冷启动(本地 position 态丢失)时取该会话已入库的
+//   max(position) + 最近 K 条(direction/content_text/position),让客户端 PositionTracker 重建 seq、
+//   把可见历史对齐回旧 position(幂等),只有真·新消息才续编 max+1。
+//   ★只读:纯 SELECT,不建账号/不写库/不改 lifecycle。
+//   ★按 tenant_id(JWT)隔离,不叠 service_account 查看权 —— 采集者需取本租户该会话 position,
+//     与后台查看权无关;叠 saCol 会让"采集者非该账号查看权人"误判 found=false → 冷启动撞号。
+async function positionState(req, res) {
+  const platform = req.query.platform
+  const platformPage = req.query.platform_page
+  const conversationId = req.query.conversation_id
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 30))
+  if (!platform || !platformPage || !conversationId) return fail(res, 400, 1001, '参数缺失')
+  const tenant = req.user && req.user.tenant_id
+  if (req.user.user_type === 'internal' || tenant == null) {
+    return ok(res, { found: false, max_position: null, recent: [] }) // 平台方不采集
+  }
+  try {
+    const [convs] = await pool.query(
+      'SELECT id FROM conversations WHERE tenant_id = ? AND platform = ? AND platform_page = ? AND platform_conversation_id = ? LIMIT 1',
+      [tenant, platform, platformPage, conversationId]
+    )
+    if (!convs.length) return ok(res, { found: false, max_position: null, recent: [] })
+    const cid = convs[0].id
+    const [[agg]] = await pool.query(
+      'SELECT MAX(position) AS max_position FROM messages WHERE tenant_id = ? AND conversation_id = ?',
+      [tenant, cid]
+    )
+    const [recent] = await pool.query(
+      `SELECT direction, content_text, position FROM messages
+       WHERE tenant_id = ? AND conversation_id = ? AND position IS NOT NULL
+       ORDER BY position DESC LIMIT ?`,
+      [tenant, cid, limit]
+    )
+    ok(res, { found: true, max_position: agg.max_position, recent })
+  } catch (err) {
+    console.error('[v1.conversations.positionState]', err)
+    fail(res, 500, 5000, '服务器内部错误')
+  }
+}
+
+module.exports = { list, detail, messages, facets, positionState }
