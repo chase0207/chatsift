@@ -16,7 +16,7 @@
   - 上下文(env/tenant/account)切换时 **flush 未上传 queue**,防残留事件发往新环境/新租户。
   - 新接口纯只读(SELECT),按 `tenant_id` 隔离,**不建账号/不写库/不改 lifecycle/无 schema 变更**。
 - 已知注意:
-  - **未经 test 预发,直发 prod 由 Chase 生产验收**;插件为下载更新制(不更新不受影响),server 端 additive(只新增只读端点,不影响旧插件)。
+  - **作为 hotfix 先直发 prod(release.md §5 豁免 test 预发),收口期补发 test → test/prod 同跑 v0.6.5 代码;Chase 验收中**;插件为下载更新制(不更新不受影响),server 端 additive(只新增只读端点,不影响旧插件)。
   - `message_id` 合成规则 / server 去重键 / messages schema 均未改;W17"有几条存几条 + 幂等"靠 re-align 保持。
   - 待复审口径:`position-state` 用 `tenant_id` 隔离、未叠 service_account 查看权(避免采集者饥饿/撞号)。
 - 复盘:(验收后补)
