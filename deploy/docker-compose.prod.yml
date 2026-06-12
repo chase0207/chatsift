@@ -58,9 +58,13 @@ services:
       SLA_APPOINTMENT_HOURS: 4
       SLA_COMPLAINT_HOURS: 1
       SLA_PRICING_HOURS: 2
+      # v0.6.6 发布隔离: 插件下载产物独立目录(prod 专属), 与 admin/dist 解耦
+      PLUGIN_DOWNLOAD_DIR: /app/plugin-downloads
     ports:
       - "127.0.0.1:3100:3100"   # 只绑本地,公网经 Nginx HTTPS 进
     volumes:
       - ../admin/dist:/app/public:ro   # 后台静态产物(release-prod 构建后同步)
+      # 插件下载产物独立挂载(prod), release.sh --env prod 落 /opt/chatsift/plugin-downloads
+      - /opt/chatsift/plugin-downloads:/app/plugin-downloads:ro
 
 volumes: {}

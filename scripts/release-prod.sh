@@ -1,5 +1,8 @@
 #!/bin/bash
-# chatsift 唯一正式发版入口。门禁 RELEASE_ACTOR=qa。
+# chatsift 正式发版的【仓库侧】准备入口(bump VERSION/打包/CHANGELOG/commit/tag)。门禁 RELEASE_ACTOR=qa。
+# ★仅 prod 版本线使用;不读 .env.test / test compose,不得被 test 发版复用。
+# ★【环境部署】(rsync 到 /opt/chatsift[-test]、重建容器)请用 scripts/release.sh --env test|prod。
+# ★v0.6.6 起插件下载产物独立于 admin/dist(server 读 PLUGIN_DOWNLOAD_DIR);各环境落点由 release.sh 负责。
 # 用法:
 #   RELEASE_ACTOR=qa bash scripts/release-prod.sh <version> \
 #     --scope "服务端 + 后台 + 插件" \

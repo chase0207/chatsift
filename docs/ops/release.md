@@ -76,11 +76,21 @@ plugin/manifest.json
 - `scripts/check-version.sh` — 校验版本一致
 - `scripts/bump-version.sh` — 改版本号
 - `scripts/backup-mysql.sh` — 备份数据库
-- `scripts/release-prod.sh` — chat_rpa 遗留的全自动发版,**chatsift 不用它**(改用本文手动流程)
+- `scripts/package-plugin.sh` — 打包插件 zip + metadata;v0.6.6 起支持 `--out <dir>`/`--version <ver>`(test 包不再默认写 prod 目录)
+- `scripts/release.sh` — **v0.6.6 环境部署统一入口** `--env test|prod [--version] [--dry-run]`;全链路目录写死 + 跨环境写入 guard + 计划打印 + 确认
+- `scripts/check-env-isolation.sh` — 只读核验 test/prod 隔离矩阵(挂载/PLUGIN_DOWNLOAD_DIR/DB/JWT/metadata)
+- `scripts/release-prod.sh` — prod 仓库侧版本准备(bump/打包/CHANGELOG/commit/tag),**prod 线专用、不可被 test 复用**;环境部署改用 `release.sh`
+
+## 6.1 test/prod 两套发布入口(v0.6.6 发布隔离)
+- **admin 静态资源与插件下载产物是两套产物**:静态 = `admin/dist`,插件 = 独立 `plugin-downloads`(server 经 `PLUGIN_DOWNLOAD_DIR` 读)。
+- **发布命令不同**:`release.sh --env test` 写 `/opt/chatsift-test/*`;`--env prod` 写 `/opt/chatsift/*`,脚本 guard 禁止跨环境写入。
+- **禁止手工 rsync 插件产物到未声明目录**;插件 `metadata.json` 只允许更新到目标环境的 plugin-downloads,**test 预发不得改动 prod metadata/zip**。
+- 发 prod 前先 `release.sh --env prod --dry-run` 看计划;部署后用 `check-env-isolation.sh` 核验。
 
 ---
 
 ## 变更日志
 | 版本 | 日期 | 变更摘要 |
 |---|---|---|
+| v1.1.0 | 2026-06-12 | v0.6.6 发布隔离:新增 test/prod 统一发布入口 `release.sh --env` + `check-env-isolation.sh`;明确 admin 静态与 plugin-downloads 两套产物解耦、test 不得改 prod metadata/zip |
 | v1.0.0 | 2026-06-04 | 初版:手动发版流程 + 版本同步文件清单 + 硬规则 |

@@ -49,6 +49,9 @@ app.use('/api/v1/home', require('./routes/v1/home'))
 app.use('/api/v1/service-accounts', require('./routes/v1/serviceAccounts'))
 
 const publicDir = path.join(__dirname, '..', 'public')
+// v0.6.6 发布隔离: 插件下载产物移出 admin/dist, 按 PLUGIN_DOWNLOAD_DIR 独立暴露(未配置回落 public/plugin-downloads)
+const pluginDownloadDir = process.env.PLUGIN_DOWNLOAD_DIR || path.join(publicDir, 'plugin-downloads')
+app.use('/plugin-downloads', express.static(pluginDownloadDir))
 app.use(express.static(publicDir))
 app.get('*', (req, res) => {
   if (req.path.indexOf('/api') === 0) return res.status(404).json({ code: 404, message: '接口不存在' })

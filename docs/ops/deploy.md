@@ -10,11 +10,18 @@
 
 | 版本 | 日期 | 变更摘要 | 触发来源 |
 |---|---|---|---|
+| v1.2.0 | 2026-06-12 | v0.6.6 发布隔离:admin 静态与插件下载产物拆为两套(plugin-downloads 独立目录 + PLUGIN_DOWNLOAD_DIR);test/prod 全链路目录隔离;统一发布入口 `release.sh --env test\|prod` | 发布隔离机制重建 |
 | v1.1.0 | 2026-06-02 | 域名改为复用 admin.kongyuekeji.com(老项目彻底废弃),不再启用新子域 | 用户决策 |
 | v1.0.0 | 2026-06-02 | 初版:重置服务器(只跑 chatsift)+ 部署拓扑 + 待生成配置清单 | 用户决策:重置 |
 
 > 已定决策:**重置现服务器、只跑 chatsift**(chat_rpa **彻底废弃**);入口**复用 `admin.kongyuekeji.com`**(老项目废弃后该域名指向 chatsift,不启用新子域);**先备份 chat_rpa 再重置**。
 > 本文是方案;`deploy/*` 与 `scripts/*` 实际文件确认后再生成(见 §6 清单)。配置同步规范见 OPS.md。
+
+> **v0.6.6 发布隔离(已落地)**:admin 静态资源与插件下载产物是**两套产物**——
+> - prod: `/opt/chatsift/admin/dist`(静态) + `/opt/chatsift/plugin-downloads`(插件,独立)。
+> - test: `/opt/chatsift-test/{server,admin/dist,plugin-downloads}` 全链路独立,与 prod 不共享任何目录。
+> - server 经 `PLUGIN_DOWNLOAD_DIR` 读插件元数据/zip(不再固定 admin/dist);compose 按环境注入。
+> - **发布命令 test/prod 不同**,统一走 `scripts/release.sh --env test|prod`(内置跨环境写入 guard);**禁止手工 rsync 插件产物到未声明目录**;插件 `metadata.json` 只允许更新到**目标环境**的 plugin-downloads。详见 `server-access.md` §5、`release.md`。
 
 ---
 

@@ -41,13 +41,28 @@ docker ps         # 确认 chatsift-mysql / chatsift-server 在跑
 ## 4. 测试（test,先验预发）
 | 项 | 值 |
 |---|---|
-| 目录 | `/opt/chatsift-test` |
+| 目录 | `/opt/chatsift-test`（v0.6.6 起 server 源树/静态/插件全链路独立） |
+| server 源(build context) | `/opt/chatsift-test/server`（**不复用** prod `/opt/chatsift/server`） |
+| 静态 SPA | `/opt/chatsift-test/admin/dist`（nginx root + 容器 `/app/public`） |
+| 插件下载产物 | `/opt/chatsift-test/plugin-downloads`（**独立于 admin/dist**;容器 `PLUGIN_DOWNLOAD_DIR=/app/plugin-downloads`） |
 | 容器 | `chatsift-mysql-test` / `chatsift-server-test`,绑 `127.0.0.1:3101` |
-| 库 | `chatsift_test`,网络 `chatsift-net-test`,数据 `deploy/data-test/mysql`（与 prod 全隔离） |
+| 库 | `chatsift_test`,网络 `chatsift-net-test`,数据 `/opt/chatsift-test/deploy/data-test/mysql`（与 prod 全隔离） |
 | 入口 | `test-admin.kongyuekeji.com`(+ test-mychat 已申请) |
-| 启动 | `cd /opt/chatsift-test/deploy && docker compose -f docker-compose.test.yml --env-file .env.test up -d` |
+| 启动 | `cd /opt/chatsift/deploy && docker compose -f docker-compose.test.yml --env-file .env.test up -d`（compose/.env.test 在 `/opt/chatsift/deploy`,挂载/build 指向 `/opt/chatsift-test/*`） |
 
-## 5. 部署命令序列
+## 5. ★发布入口(v0.6.6 起:统一脚本,test/prod 解耦)
+```bash
+# 唯一环境部署入口。test/prod 全链路目录写死,内置 guard(test 不写 prod 目录、prod 不引用 test)。
+CHATSIFT_SSH_KEY=/path/Ubuntu.pem bash scripts/release.sh --env test --version 0.6.6   # 发 test
+bash scripts/release.sh --env prod --version 0.6.6 --dry-run                            # prod 先看计划
+# 只读核验隔离矩阵(挂载/PLUGIN_DOWNLOAD_DIR/DB/JWT/metadata):
+CHATSIFT_SSH_KEY=/path/Ubuntu.pem bash scripts/check-env-isolation.sh
+```
+- **plugin-downloads 不再放进 admin/dist**:release.sh 把它 rsync 到各环境独立目录(`/opt/chatsift[-test]/plugin-downloads`),server 经 `PLUGIN_DOWNLOAD_DIR` 读取。
+- **test 发布只写 `/opt/chatsift-test/*`**;prod 只写 `/opt/chatsift/*`。禁止手工 rsync 插件产物到未声明目录。
+- 仓库侧版本准备(bump/commit/tag/CHANGELOG)仍走 `release-prod.sh`(prod 线);release.sh 只负责环境部署。
+
+## 5.x 旧手工部署序列(legacy,v0.6.6 前;仅留作排错参考,新发布请用 §5 release.sh)
 ```bash
 # ── 本地(在 main 分支)──
 npm run build:admin                          # 出 admin/dist(★会清空 admin/dist)
@@ -85,3 +100,4 @@ nginx -t && nginx -s reload                 # nginx 已指 chatsift,通常不动
 |---|---|---|
 | v1.0.0 | 2026-06-06 | 初版:SSH 接入 + prod/test 拓扑 + 部署序列 + 发版红线,汇总自 DEPLOY/release/prod-safety |
 | v1.1.0 | 2026-06-07 | 推代码口径定为 rsync(/opt/chatsift 非 git 仓库,git pull 作废);补 plugin-downloads cp 步 + 无空格 key + SSH 管道迁移;prod VERSION→0.5.0(W17+W19 v0.5.0 发版确认) |
+| v1.2.0 | 2026-06-12 | v0.6.6 发布隔离:新增统一入口 `release.sh --env test\|prod` + `check-env-isolation.sh`;plugin-downloads 独立于 admin/dist(PLUGIN_DOWNLOAD_DIR);test 全链路 `/opt/chatsift-test/{server,admin/dist,plugin-downloads}` 独立;旧手工序列降级为 legacy |
