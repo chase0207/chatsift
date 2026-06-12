@@ -23,7 +23,8 @@ chk() { # chk "维度" "prod值" "test值" "want-different|want-3100-3101"
 
 mount_src() { $SSH "docker inspect $1 --format '{{range .Mounts}}{{if eq .Destination \"$2\"}}{{.Source}}{{end}}{{end}}'" 2>/dev/null; }
 env_of()    { $SSH "docker inspect $1 --format '{{range .Config.Env}}{{println .}}{{end}}'" 2>/dev/null | grep "^$2=" | head -1 | sed "s/^$2=//"; }
-jwt_hash()  { $SSH "docker inspect $1 --format '{{range .Config.Env}}{{println .}}{{end}}'" 2>/dev/null | grep '^JWT_SECRET=' | head -1 | sed 's/^JWT_SECRET=//' | shasum -a 256 | cut -c1-12; }
+# JWT_SECRET 全程在服务器端 hash, 明文不回传本地(只取 sha256 前12位用于比对)
+jwt_hash()  { $SSH "docker inspect $1 --format '{{range .Config.Env}}{{println .}}{{end}}' | grep '^JWT_SECRET=' | head -1 | sed 's/^JWT_SECRET=//' | sha256sum | cut -c1-12" 2>/dev/null; }
 meta_ver()  { $SSH "curl -s http://127.0.0.1:$1/plugin-downloads/metadata.json | grep -o '\"version\"[^,]*' | head -1" 2>/dev/null; }
 
 echo "== chatsift test/prod 隔离矩阵 (只读) =="
