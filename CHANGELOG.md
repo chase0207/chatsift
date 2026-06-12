@@ -6,6 +6,19 @@
 
 ---
 
+## v0.6.7 — 2026-06-12
+- 关联:抖音私信客服接待模式 csUI 消息采集适配(基于 v0.6.6 发布隔离基线)
+- 范围:plugin(adapter + content.js build)+ docs(任务单)
+- 变更:
+  - `private-message.adapter.js` 新增「平台-页面-场景」轻量路由(结构优先):life(my-4)优先 → csUI → 老版气泡兜底;**①②-life 路径零改动**。
+  - 新增 csUI scanner(`_scanCsuiMessages` 等)+ 诊断日志 `_logScan`(scene/dom_family/scanner/message_dom_count);csUI 时间复用 `_resolveOccurredAt` 继承策略(W17 红线:锚点+1s/继承+1s,禁 inbound 退采集当刻)。
+- 部署口径:
+  - **test 真机验收通过(Chase 2026-06-12)**:经 v0.6.6 隔离通道发 test(metadata→0.6.7、含 csUI);**prod 完全未受影响(仍 0.6.5)**——v0.6.6 发布隔离机制实战验证生效。
+  - **prod 发布待窗口**:上 prod 前须先完成 v0.6.6 的 prod 迁移(`release.sh --env prod`)+ `check-env-isolation.sh` 全 PASS。
+  - **生产当前未变更**。
+  - 遗留 Stop Gate(另案,不在本版本):空月等 my-4 账号自动切换后 `realign-no-anchor` 跳过上传(属 v0.6.5 冷启动 re-align)。
+- 复盘:(prod 发布后补)
+
 ## v0.6.6 — 2026-06-12
 - 关联:test/prod 发布隔离机制重建(**环境治理版本,不含业务采集/DOM 改动**)
 - 范围:server(dashboard.js/app.js 读 `PLUGIN_DOWNLOAD_DIR`)+ deploy(compose×2)+ scripts(`release.sh`/`check-env-isolation.sh`/`package-plugin --out`)+ docs(ops×3)
