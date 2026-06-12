@@ -14,6 +14,8 @@ chk() { # chk "维度" "prod值" "test值" "want-different|want-3100-3101"
   local ok=1
   case "$mode" in
     diff) [[ -n "$a" && -n "$b" && "$a" != "$b" ]] || ok=0 ;;
+    # both_set: 两边都非空即可(值本就该相同的项,如容器内挂载点/同版本);真隔离由对应"挂载源"行判
+    both_set) [[ -n "$a" && -n "$b" ]] || ok=0 ;;
     test_isolated) case "$b" in *chatsift-test*|*chatsift_test*) ok=1 ;; *) ok=0 ;; esac ;;
   esac
   if [[ $ok == 1 ]]; then echo -e "  ${GREEN}PASS${NC} $name"; pass=$((pass+1)); else echo -e "  ${RED}FAIL${NC} $name"; fail=$((fail+1)); fi
@@ -30,12 +32,12 @@ meta_ver()  { $SSH "curl -s http://127.0.0.1:$1/plugin-downloads/metadata.json |
 echo "== chatsift test/prod 隔离矩阵 (只读) =="
 chk "/app/public 挂载源"        "$(mount_src chatsift-server /app/public)"            "$(mount_src chatsift-server-test /app/public)"
 chk "plugin-downloads 挂载源"   "$(mount_src chatsift-server /app/plugin-downloads)"  "$(mount_src chatsift-server-test /app/plugin-downloads)"
-chk "PLUGIN_DOWNLOAD_DIR"       "$(env_of chatsift-server PLUGIN_DOWNLOAD_DIR)"       "$(env_of chatsift-server-test PLUGIN_DOWNLOAD_DIR)"
+chk "PLUGIN_DOWNLOAD_DIR(容器路径,设计相同;隔离看上一行挂载源)" "$(env_of chatsift-server PLUGIN_DOWNLOAD_DIR)" "$(env_of chatsift-server-test PLUGIN_DOWNLOAD_DIR)" both_set
 chk "DB_NAME"                   "$(env_of chatsift-server DB_NAME)"                   "$(env_of chatsift-server-test DB_NAME)"
 chk "DB_HOST"                   "$(env_of chatsift-server DB_HOST)"                   "$(env_of chatsift-server-test DB_HOST)"
 chk "JWT_SECRET(sha256 前12)"   "$(jwt_hash chatsift-server)"                         "$(jwt_hash chatsift-server-test)"
 chk "mysql 数据卷"              "$(mount_src chatsift-mysql /var/lib/mysql)"          "$(mount_src chatsift-mysql-test /var/lib/mysql)"
-chk "metadata 版本(可不同)"     "$(meta_ver 3100)"                                    "$(meta_ver 3101)"
+chk "metadata 版本(独立文件,版本可同可不同)" "$(meta_ver 3100)"                       "$(meta_ver 3101)" both_set
 
 echo
 if [[ $fail == 0 ]]; then echo -e "${GREEN}全部 PASS ($pass)${NC}"; else echo -e "${RED}$fail 项 FAIL / $pass 项 PASS${NC} —— 见 Stop Gate"; fi
