@@ -1,7 +1,7 @@
 # 编号与版本规范(versioning.md)
 
 > 解决"W 编号 / M 编号 / git tag / VERSION 对不上"的混乱。基于 2026-06-04 现状核实定稿。
-> 版本:v1.4.0 / 2026-06-11
+> 版本:v1.5.0 / 2026-06-12
 
 ---
 
@@ -36,7 +36,7 @@
 - 发版时在 PROJECT_STATUS 的发版记录表里写明 tag ↔ W 对应。
 - 这样从 v0.4.0(W17)起,W ↔ tag ↔ VERSION 三者可一一对应、可追溯。
 
-## 4. tag ↔ W 对应表(截至 v0.6.5)
+## 4. tag ↔ W 对应表(截至 v0.6.7)
 
 | tag | W / 来源 | 说明 | 部署 |
 |---|---|---|---|
@@ -52,6 +52,8 @@
 | **v0.6.3** | **v0.6.0/v0.6.2 后热修** | 时区(`TZ=Asia/Shanghai`)+ W21 `HUMAN_IDLE_MS` 1min;**实际 prod 版本,包含 W22** | **已上 prod** |
 | **v0.6.4** | hotfix | 采集权 rejected 重试 + popup 日志/serverUrl 环境恢复 + 面板 UI 简化 + 文案 | **已上 prod**(Chase 真机验收通过) |
 | **v0.6.5** | hotfix | 客户端采集本地态隔离(env+tenant+account 命名空间)+ 冷启动 re-align(只读 `position-state`)+ 上下文 flush;plugin+server,无 schema | **已上 prod + test**(同 v0.6.5 代码,Chase prod 验收通过) |
+| **v0.6.6**(未 tag) | 环境治理 | test/prod 发布隔离机制重建(plugin-downloads 独立目录 + `PLUGIN_DOWNLOAD_DIR` + 统一入口 `release.sh` + `check-env-isolation.sh`);无业务采集改动 | **test 验收通过,prod 迁移待最终发布窗口,未 tag** |
+| **v0.6.7**(未 tag) | DOM 适配 | 抖音私信客服接待 csUI 消息采集适配(「平台-页面-场景」路由 + csUI scanner;①②-life 零改动) | **test 真机验收通过,prod 发布待窗口,未 tag** |
 
 ## 5. 维护规约
 - 每次发版,QA 更新本表(加新 tag ↔ W 行 + **是否单独部署**)。
@@ -64,6 +66,7 @@
 ## 变更日志
 | 版本 | 日期 | 变更摘要 |
 |---|---|---|
+| v1.5.0 | 2026-06-12 | tag↔W 表加 v0.6.6(环境治理:发布隔离机制重建)+ v0.6.7(csUI 采集适配);部署栏写清 test 验收通过 / prod 待发布窗口 / **未 tag**;标题截至→v0.6.7 |
 | v1.4.0 | 2026-06-11 | tag↔W 表加 v0.6.5(hotfix:客户端本地态隔离 + 冷启动 re-align,无 schema);部署栏「已上 prod + test」(同 v0.6.5 代码,Chase prod 验收通过) |
 | v1.3.0 | 2026-06-11 | v0.6.4 部署栏更新为「已上 prod」(Chase 真机验收通过) |
 | v1.2.0 | 2026-06-11 | tag↔W 表加 v0.6.4(hotfix:rejected 重试 + popup UI 简化;test 预发中/prod 待定) |

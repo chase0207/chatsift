@@ -49,7 +49,7 @@
 - ✅ **W19 租户资产模型 全闭环**(v0.5.0 已上线)。
 - ✅ **W17 阶段一**(消息位置标识)随 v0.5.0 已发;⛔ **W17 阶段二(云端对账)= 取消/交 codex**,不在本线推进。
 - ✅ **v0.6.5 已收口**(客户端本地态不隔离已根治:seen/PositionTracker 按 env+tenant+account 命名空间隔离 + 冷启动 re-align;已上 prod+test,Chase prod 真机验收通过)。
-- **下一步**:无强制项。遗留待复审:`position-state` 用 `tenant_id` 隔离、未叠 service_account 查看权的口径(已上 prod/test,如需 codex 复审另排);tenant2 `collected:0`(DOM 变体)与来客 `NULL-SA` 不可见仍未处理。
+- **下一步**:**等待 prod 发布窗口**;prod 发布前先完成 **v0.6.6 prod 迁移**(`release.sh --env prod`)并跑 **`check-env-isolation.sh` 全 PASS**,再发 **v0.6.7 prod**。遗留待复审:`position-state` 用 `tenant_id` 隔离、未叠 service_account 查看权(已上 test,如需 codex 复审另排);tenant2 `collected:0`(DOM 变体)与来客 `NULL-SA` 不可见仍未处理。
 
 ### 待排期(backlog,非进行中)
 - **租户1 position 冷启动撞号根治**(W17 链路;插件重装/多端触发,需 server 只读 position-state + plugin seed)。
@@ -65,8 +65,8 @@
 ## 发版记录
 | 版本 | tag | 时间 | 关联 W | 范围 | 备注 |
 |---|---|---|---|---|---|
-| v0.6.7 | v0.6.7 | 06-12 | csUI 采集适配 | plugin | 抖音私信客服接待 csUI 消息采集适配(场景路由 + csUI scanner;①②-life 零改动);**经 v0.6.6 隔离通道发 test、Chase 真机验收通过,prod 完全未受影响(仍 0.6.5),prod 发布待窗口**;无 schema |
-| v0.6.6 | v0.6.6 | 06-12 | 发布隔离机制 | server+deploy+scripts+docs | test/prod 发布隔离机制重建(plugin-downloads 独立目录 + PLUGIN_DOWNLOAD_DIR + 统一入口 release.sh + check-env-isolation);**test 验收通过,prod 迁移待最终发布窗口,生产当前未变更**;无 schema |
+| v0.6.7 | 未 tag | 06-12 | csUI 采集适配 | plugin | 抖音私信客服接待 csUI 消息采集适配(场景路由 + csUI scanner;①②-life 零改动);**经 v0.6.6 隔离通道发 test、Chase 真机验收通过,prod 完全未受影响(仍 0.6.5),prod 发布待窗口**;无 schema |
+| v0.6.6 | 未 tag | 06-12 | 发布隔离机制 | server+deploy+scripts+docs | test/prod 发布隔离机制重建(plugin-downloads 独立目录 + PLUGIN_DOWNLOAD_DIR + 统一入口 release.sh + check-env-isolation);**test 验收通过,prod 迁移待最终发布窗口,生产当前未变更**;无 schema |
 | v0.6.5 | v0.6.5 | 06-11 | 本地态隔离 | plugin+server | 采集本地态按 env+tenant+account 命名空间隔离 + 冷启动 re-align(只读 position-state)+ 上下文 flush;**先直发 prod(hotfix 豁免 test 预发),随后补发 test;Chase prod 验收通过**;无 schema/migration |
 | v0.6.4 | v0.6.4 | 06-11 | hotfix | plugin | rejected 重试 + popup 日志/serverUrl 环境恢复 + 面板 UI 简化 + 文案;**已部署 prod,Chase 真机验收通过** |
 | v0.6.3 | v0.6.3 | 06-10 | **v0.6.0/v0.6.2 后热修** | plugin+deploy | 时区修复(`TZ=Asia/Shanghai`)+ W21 `HUMAN_IDLE_MS` 1min;**已部署 prod,包含 W22**;旧数据 +8h 修正 |
