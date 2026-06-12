@@ -6,6 +6,18 @@
 
 ---
 
+## v0.6.6 — 2026-06-12
+- 关联:test/prod 发布隔离机制重建(**环境治理版本,不含业务采集/DOM 改动**)
+- 范围:server(dashboard.js/app.js 读 `PLUGIN_DOWNLOAD_DIR`)+ deploy(compose×2)+ scripts(`release.sh`/`check-env-isolation.sh`/`package-plugin --out`)+ docs(ops×3)
+- 变更:
+  - 插件下载产物从 `admin/dist` 拆出为独立目录,server 经 `PLUGIN_DOWNLOAD_DIR` 读取(未配置 fallback `public/plugin-downloads`);test 全链路 `/opt/chatsift-test/{server,admin/dist,plugin-downloads}` 独立。
+  - 新增统一发布入口 `release.sh --env test|prod`(guard/dry-run/计划/确认)+ `check-env-isolation.sh`(只读隔离矩阵);`dashboard.js` 下载防路径穿越;`package-plugin.sh` 支持 `--out`/`--version`。
+- 部署口径:
+  - **test 验收通过**:test 独立发 0.6.6,prod 仍 0.6.5,隔离矩阵核心项 PASS(/app/public 分离、DB/JWT 不同、metadata 各自独立)。
+  - **prod 迁移待最终发布窗口**:v0.6.7 上 prod 前必经 `release.sh --env prod` 完成 prod 的 `PLUGIN_DOWNLOAD_DIR`/plugin-downloads 迁移并令 `check-env-isolation.sh` 全 PASS;**在此之前不得宣称"发布隔离机制全环境闭环"**。
+  - **生产当前未变更**:prod 容器/compose 未重启、metadata 仍 0.6.5(prod compose 仅在 repo 表达目标架构,未部署);prod 走 fallback,不受 test 影响。
+- 复盘:(prod 迁移完成后补全环境闭环结论)
+
 ## v0.6.5 — 2026-06-11
 - 关联:客户端采集本地态隔离与冷启动续编(根治 v0.6.4 验收暴露的"本地态不隔离":seen 串租户漏历史 + position 冷启动撞号)
 - 范围:plugin + server(只读接口) + docs(任务单)
