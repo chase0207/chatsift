@@ -20,11 +20,13 @@
 ## 当前版本
 | 模块 | 版本 |
 |---|---|
-| VERSION / server / admin / plugin | **0.6.5**(已一致) |
+| VERSION / server / admin / plugin | **0.6.7**(已一致;v0.6.7=抖音私信客服接待 csUI 采集适配,代码已 bump) |
 | tools/dom-collector | 1.0.0(独立版本线) |
-| 生产 VERSION | **0.6.5**(已部署 prod;**Chase prod 真机验收通过 2026-06-11**) |
+| 生产 VERSION | **0.6.7**(**已上 prod,Chase 真机验收通过 2026-06-12**;含 v0.6.6 发布隔离 prod 迁移,check-env-isolation 全 PASS) |
 
-发版:**v0.6.5 = 客户端采集本地态隔离 + 冷启动 re-align**(根治本地态不隔离;plugin + server 只读接口)。**hotfix 先直发 prod(豁免 test 预发),收口期补发 test → test/prod 同跑 v0.6.5;Chase prod 验收通过**(插件下载更新制、server additive,回退=不更新插件)。
+发版:**v0.6.7 = 抖音私信客服接待模式 csUI 消息采集适配**(基于 v0.6.6 发布隔离基线,经隔离通道发 test;不含环境/compose/release 脚本改动)。
+- **v0.6.7**(tag v0.6.7)= csUI 消息采集适配(「平台-页面-场景」路由 + csUI scanner;①②-life 零改动)。**已上 prod,Chase 真机验收通过(2026-06-12)**;经 v0.6.6 隔离机制 test→prod 发布(各自独立 plugin-downloads);无 schema。
+- **v0.6.6**(未 tag,随 v0.6.7 上 prod)= 发布隔离机制重建。**prod 迁移完成、check-env-isolation 全 8 PASS、test/prod 发布隔离全环境闭环**;prod/test 各用独立 `/opt/chatsift[-test]/plugin-downloads` + `PLUGIN_DOWNLOAD_DIR`。
 - **v0.6.5**(tag v0.6.5)= seen/PositionTracker 按 env+tenant+account 命名空间隔离 + 冷启动 re-align(只读 `/conversations/position-state`)+ 上下文切换 flush queue;**已部署 prod + test(同 v0.6.5 代码),Chase prod 验收通过**;无 schema/migration。
 - **v0.6.0**(`bb8366d`/tag v0.6.0)= W20 + W20.1 + W21,**已部署 prod,含 W20 migration(已 apply)**。
 - **v0.6.2**(`81de0b8`/tag v0.6.2)= W22 工单中心优化,**已发布至 GitHub/test/prod**;生产随 v0.6.3 上线。
@@ -47,7 +49,7 @@
 - ✅ **W19 租户资产模型 全闭环**(v0.5.0 已上线)。
 - ✅ **W17 阶段一**(消息位置标识)随 v0.5.0 已发;⛔ **W17 阶段二(云端对账)= 取消/交 codex**,不在本线推进。
 - ✅ **v0.6.5 已收口**(客户端本地态不隔离已根治:seen/PositionTracker 按 env+tenant+account 命名空间隔离 + 冷启动 re-align;已上 prod+test,Chase prod 真机验收通过)。
-- **下一步**:无强制项。遗留待复审:`position-state` 用 `tenant_id` 隔离、未叠 service_account 查看权的口径(已上 prod/test,如需 codex 复审另排);tenant2 `collected:0`(DOM 变体)与来客 `NULL-SA` 不可见仍未处理。
+- **下一步**:无强制项(v0.6.6/v0.6.7 已上 prod 闭环)。遗留待跟进:`position-state` 用 `tenant_id` 隔离口径(如需 codex 复审另排);tenant2 `collected:0`(DOM 变体);来客 `NULL-SA` 不可见;空月 my-4 账号 `realign-no-anchor`(v0.6.5 冷启动,另案);admin/dist 残留 plugin-downloads 可清理(无害,无代码引用)。
 
 ### 待排期(backlog,非进行中)
 - **租户1 position 冷启动撞号根治**(W17 链路;插件重装/多端触发,需 server 只读 position-state + plugin seed)。
@@ -63,6 +65,8 @@
 ## 发版记录
 | 版本 | tag | 时间 | 关联 W | 范围 | 备注 |
 |---|---|---|---|---|---|
+| v0.6.7 | v0.6.7 | 06-12 | csUI 采集适配 | plugin | 抖音私信客服接待 csUI 消息采集适配(场景路由 + csUI scanner;①②-life 零改动);**已上 prod,Chase 真机验收通过**;无 schema |
+| v0.6.6 | 未 tag | 06-12 | 发布隔离机制 | server+deploy+scripts+docs | test/prod 发布隔离机制重建(plugin-downloads 独立目录 + PLUGIN_DOWNLOAD_DIR + 统一入口 release.sh + check-env-isolation);**prod 迁移完成、隔离矩阵全 PASS、全环境闭环;随 v0.6.7 上 prod,未单独 tag**;无 schema |
 | v0.6.5 | v0.6.5 | 06-11 | 本地态隔离 | plugin+server | 采集本地态按 env+tenant+account 命名空间隔离 + 冷启动 re-align(只读 position-state)+ 上下文 flush;**先直发 prod(hotfix 豁免 test 预发),随后补发 test;Chase prod 验收通过**;无 schema/migration |
 | v0.6.4 | v0.6.4 | 06-11 | hotfix | plugin | rejected 重试 + popup 日志/serverUrl 环境恢复 + 面板 UI 简化 + 文案;**已部署 prod,Chase 真机验收通过** |
 | v0.6.3 | v0.6.3 | 06-10 | **v0.6.0/v0.6.2 后热修** | plugin+deploy | 时区修复(`TZ=Asia/Shanghai`)+ W21 `HUMAN_IDLE_MS` 1min;**已部署 prod,包含 W22**;旧数据 +8h 修正 |
@@ -88,7 +92,9 @@
 | 部署目录 | /opt/chatsift(rsync 部署,非 git) |
 | server | Docker,127.0.0.1:3100 |
 | 数据库 | Docker MySQL |
-| 当前生产版本 | **v0.6.5**(v0.6.4 基础上 + 客户端本地态隔离/冷启动 re-align;tag v0.6.5 已 push;**部署完成,Chase prod 验收通过**) |
+| 当前生产版本 | **v0.6.7**(含 v0.6.6 发布隔离 prod 迁移 + v0.6.7 csUI 采集;tag v0.6.7 已 push;**Chase prod 真机验收通过 2026-06-12**) |
+| v0.6.6 发布隔离 | **prod 迁移完成**(prod 用独立 `/opt/chatsift/plugin-downloads` + `PLUGIN_DOWNLOAD_DIR`);`check-env-isolation.sh` **全 8 PASS**;test/prod 发布隔离**全环境闭环** |
+| v0.6.7 csUI 采集 | **已上 prod**(prod metadata 0.6.7、`chatsift-plugin-v0.6.7.zip` 含 csUI、VERSION 0.6.7);Chase prod 真机验收通过;mysql 未动(仅 `--no-deps --build server`) |
 | W20 migration | **已执行(prod)**;v0.6.4/v0.6.5 无 schema 变更 |
 | v0.6.4 验证 | **已部署 prod + Chase 真机验收通过**(插件 0.6.4 / popup 环境恢复 / 面板简化 / rejected 重试 / 日志无 [undefined]);本次仅 server 重启,mysql 未碰 |
 | v0.6.5 验证 | **已部署 prod + test(同 v0.6.5 代码);Chase prod 验收通过**(新增只读 `position-state` 端点;seen/position 按 env+tenant+account 隔离 + 冷启动 re-align);prod/test 均仅 server 重建重启,mysql 未碰;test 的 `deploy/.env.test` 已从 live 容器反推重建(0600) |
@@ -144,6 +150,9 @@
 ## 变更日志
 | 版本 | 日期 | 变更摘要 |
 |---|---|---|
+| v1.13.0 | 2026-06-12 | v0.6.7 prod 发布收口:Chase prod 真机验收通过 → 生产当前版本→0.6.7、生产 VERSION→0.6.7、v0.6.6 prod 迁移完成/隔离矩阵全 8 PASS/**全环境闭环**、发版记录 tag 列 v0.6.7、生产环境状态转 prod、打 tag v0.6.7 |
+| v1.12.0 | 2026-06-12 | v0.6.7 csUI 采集适配 test 验收收口:当前版本→0.6.7(生产 VERSION 仍 0.6.5、**生产未变更**)、发版记录+生产环境状态加 v0.6.7 行;口径=**test 真机验收通过 / prod 发布待窗口(前置 v0.6.6 prod 迁移)/ 生产未部署**;顺手修 PROJECT_STATUS 一处重复 v0.6.5 bullet |
+| v1.11.0 | 2026-06-12 | v0.6.6 发布隔离机制重建收口:当前版本→0.6.6(生产 VERSION 仍 0.6.5、**生产未变更**)、发版记录+生产环境状态加 v0.6.6 行;口径=**test 验收通过 / prod 迁移待最终发布窗口 / 不写全环境闭环** |
 | v1.10.0 | 2026-06-11 | Chase 确认 prod 验收通过 → v0.6.5 收口闭环:任务单 §4 六项行为验收勾选、Status→done、`git mv` 到 docs/tasks/done/、CHANGELOG/PROJECT_STATUS/versioning「验收中」→「prod 验收通过」、清理 hotfix/v0.6.5 本地+远端分支;「客户端本地态不隔离」根治标记完成 |
 | v1.9.0 | 2026-06-11 | v0.6.5 补发 test(test/prod 同跑 v0.6.5 代码;test `deploy/.env.test` 从 live 容器反推重建)+ doc 事实订正:生产环境状态表当前版本→v0.6.5、统一「验收中」口径、versioning 补 v0.6.5 行;归档/§4 行为项勾选/验收转正待 Chase 确认 prod 验收通过 |
 | v1.8.0 | 2026-06-11 | v0.6.5 发版:客户端采集本地态隔离 + 冷启动 re-align(merge hotfix→main、bump 0.6.5、直发 prod 跳过 test、tag v0.6.5);prod 当前版本→v0.6.5,Chase 生产验收中 |

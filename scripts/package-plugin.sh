@@ -1,24 +1,42 @@
 #!/bin/bash
-# 打包 plugin/ 成 zip + 生成 metadata.json,供后台首页下载(同 chat_rpa 逻辑)。
-# 产物落 server/public/plugin-downloads/;release-prod.sh 会再 copy 到 admin/dist/plugin-downloads/
-# (生产容器把 admin/dist 挂载为 /app/public,dashboard 路由从那里读)。
-# 用法: bash scripts/package-plugin.sh "本次发版说明(可选)"
+# 打包 plugin/ 成 zip + 生成 metadata.json,供后台插件下载。
+# 默认产物落 server/public/plugin-downloads/(本地/旧用法);v0.6.6 起支持 --out 指定独立输出目录。
+# 用法:
+#   bash scripts/package-plugin.sh "本次发版说明(可选)"
+#   bash scripts/package-plugin.sh --out /tmp/build/plugin-downloads --version 0.6.6 "说明"
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 GREEN='\033[0;32m'; RED='\033[0;31m'; NC='\033[0m'
 
-RELEASE_NOTES_ARG="${*:-}"
+# 参数解析:--out <dir> / --version <ver> 可选,其余位置参数=发版说明。默认行为与旧用法兼容。
+OUT_DIR=""
+VERSION_OVERRIDE=""
+NOTES_ARGS=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --out)     OUT_DIR="${2:-}"; shift 2 ;;
+    --version) VERSION_OVERRIDE="${2:-}"; shift 2 ;;
+    *)         NOTES_ARGS+=("$1"); shift ;;
+  esac
+done
+RELEASE_NOTES_ARG="${NOTES_ARGS[*]:-}"
 cd "$PROJECT_DIR"
 
-VERSION=$(tr -d '[:space:]' < VERSION 2>/dev/null || echo "")
+VERSION="${VERSION_OVERRIDE:-$(tr -d '[:space:]' < VERSION 2>/dev/null || echo "")}"
 [[ -z "$VERSION" ]] && { echo -e "${RED}[ERROR]${NC} 未找到 VERSION"; exit 1; }
 
-ZIP_DIR="server/public/plugin-downloads"
+# 输出目录:默认 server/public/plugin-downloads;--out 可为绝对或相对路径。统一解析为绝对路径。
+if [[ -n "$OUT_DIR" ]]; then
+  mkdir -p "$OUT_DIR"
+  ZIP_DIR="$(cd "$OUT_DIR" && pwd)"
+else
+  ZIP_DIR="$PROJECT_DIR/server/public/plugin-downloads"
+  mkdir -p "$ZIP_DIR"
+fi
 ZIP_NAME="chatsift-plugin-v${VERSION}.zip"
 ZIP_PATH="${ZIP_DIR}/${ZIP_NAME}"
-mkdir -p "$ZIP_DIR"
 rm -f "$ZIP_DIR"/chatsift-plugin-*.zip
 
 # 打包 plugin/,zip 内无 plugin/ 前缀(Chrome 要 manifest.json 在根)
@@ -26,7 +44,7 @@ LIST="/tmp/chatsift-plugin-files-$$.txt"
 ( cd "$PROJECT_DIR/plugin" && find . -type f \
     ! -path "*/node_modules/*" ! -name ".DS_Store" ! -name ".gitkeep" \
     | sed 's|^\./||' | sort > "$LIST" )
-( cd "$PROJECT_DIR/plugin" && zip -q -9 -X "$PROJECT_DIR/$ZIP_PATH" -@ < "$LIST" )
+( cd "$PROJECT_DIR/plugin" && zip -q -9 -X "$ZIP_PATH" -@ < "$LIST" )
 rm -f "$LIST"
 ZIP_SIZE=$(stat -f%z "$ZIP_PATH" 2>/dev/null || stat -c%s "$ZIP_PATH" 2>/dev/null || echo 0)
 echo -e "${GREEN}[OK]${NC} 打包: ${ZIP_PATH} ($((ZIP_SIZE/1024))KB)"

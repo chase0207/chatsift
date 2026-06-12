@@ -6,6 +6,34 @@
 
 ---
 
+## v0.6.7 — 2026-06-12
+- 关联:抖音私信客服接待模式 csUI 消息采集适配(基于 v0.6.6 发布隔离基线)
+- 范围:plugin(adapter + content.js build)+ docs(任务单)
+- 变更:
+  - `private-message.adapter.js` 新增「平台-页面-场景」轻量路由(结构优先):life(my-4)优先 → csUI → 老版气泡兜底;**①②-life 路径零改动**。
+  - 新增 csUI scanner(`_scanCsuiMessages` 等)+ 诊断日志 `_logScan`(scene/dom_family/scanner/message_dom_count);csUI 时间复用 `_resolveOccurredAt` 继承策略(W17 红线:锚点+1s/继承+1s,禁 inbound 退采集当刻)。
+- 部署口径:
+  - **已上 prod,Chase prod 真机验收通过(2026-06-12)**:经 v0.6.6 发布隔离机制 test 先验→prod 后发,test/prod 各用独立 plugin-downloads;prod metadata 0.6.7、`chatsift-plugin-v0.6.7.zip` 含 csUI、VERSION 0.6.7;mysql 未动(仅 `--no-deps --build server`)。
+  - 遗留 Stop Gate(另案,不在本版本):空月等 my-4 账号自动切换后 `realign-no-anchor` 跳过上传(属 v0.6.5 冷启动 re-align)。
+- 复盘:
+  - 「客服-接待模式」不是单一 DOM:csUI 与 life/my-4 两变体并存;靠结构(非顶部文案)路由、life 优先 + csUI 兜底,既覆盖 csUI 缺口又不动 ①②。
+  - csUI 无逐条精确时间,复用 life 的继承+锚点策略守住 W17 红线(inbound 不退采集当刻)。
+  - v0.6.7 是首个经 v0.6.6 隔离机制走完整 test→prod 的业务版本,验证发布隔离闭环可用。
+
+## v0.6.6 — 2026-06-12
+- 关联:test/prod 发布隔离机制重建(**环境治理版本,不含业务采集/DOM 改动**)
+- 范围:server(dashboard.js/app.js 读 `PLUGIN_DOWNLOAD_DIR`)+ deploy(compose×2)+ scripts(`release.sh`/`check-env-isolation.sh`/`package-plugin --out`)+ docs(ops×3)
+- 变更:
+  - 插件下载产物从 `admin/dist` 拆出为独立目录,server 经 `PLUGIN_DOWNLOAD_DIR` 读取(未配置 fallback `public/plugin-downloads`);test 全链路 `/opt/chatsift-test/{server,admin/dist,plugin-downloads}` 独立。
+  - 新增统一发布入口 `release.sh --env test|prod`(guard/dry-run/计划/确认)+ `check-env-isolation.sh`(只读隔离矩阵);`dashboard.js` 下载防路径穿越;`package-plugin.sh` 支持 `--out`/`--version`。
+- 部署口径:
+  - **test 验收通过**(独立发 0.6.6,prod 当时仍 0.6.5)→ **prod 迁移完成**(随 v0.6.7 上 prod 2026-06-12):prod 用独立 `/opt/chatsift/plugin-downloads` + `PLUGIN_DOWNLOAD_DIR`。
+  - **`check-env-isolation.sh` 全 8 PASS**(test/prod 的 `/app/public`、plugin-downloads 挂载源、DB、JWT、mysql 卷均隔离)→ **test/prod 发布隔离全环境闭环**。
+  - **未单独 tag**(随 v0.6.7 上 prod);prod 迁移用 `release.sh --env prod`,mysql 未动。
+- 复盘:
+  - 静态产物目录耦合(prod/test 共用 `admin/dist/plugin-downloads`)曾让 test 预发可影响 prod 自动更新——根因是发布拓扑不隔离,不能靠 Stop Gate/人工提醒补丁式推进。
+  - 解法=机制隔离:plugin-downloads 独立目录 + server 读 `PLUGIN_DOWNLOAD_DIR` + 统一 `release.sh --env`(guard 写死路径)+ `check-env-isolation.sh` 可复核。
+
 ## v0.6.5 — 2026-06-11
 - 关联:客户端采集本地态隔离与冷启动续编(根治 v0.6.4 验收暴露的"本地态不隔离":seen 串租户漏历史 + position 冷启动撞号)
 - 范围:plugin + server(只读接口) + docs(任务单)

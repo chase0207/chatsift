@@ -32,7 +32,8 @@ services:
 
   server-test:
     build:
-      context: ../server
+      # v0.6.6 彻底隔离: test 不复用 prod 的 /opt/chatsift/server, 用独立 test 源树
+      context: /opt/chatsift-test/server
     container_name: chatsift-server-test
     restart: unless-stopped
     depends_on:
@@ -51,10 +52,14 @@ services:
       JWT_EXPIRES_IN: 7d
       ANALYZER_ENABLED: "true"
       INTENT_CONTEXT_SIZE: 20
+      # v0.6.6 发布隔离: 插件下载产物独立目录(test 专属), 与 admin/dist 解耦
+      PLUGIN_DOWNLOAD_DIR: /app/plugin-downloads
     ports:
       - "127.0.0.1:3101:3100"
     volumes:
-      - ../admin/dist:/app/public:ro
+      # 全链路 test 专属: 静态 SPA + 插件下载产物都落 /opt/chatsift-test
+      - /opt/chatsift-test/admin/dist:/app/public:ro
+      - /opt/chatsift-test/plugin-downloads:/app/plugin-downloads:ro
     networks: [chatsift-net-test]
 
 networks:
