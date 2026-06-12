@@ -4011,18 +4011,41 @@
   async function getMessages(session) {
     void session
     var collectAt = new Date()
-    // life.douyin.com 私信页(含 clue 与非 clue): 消息行 div.my-4 + 隐藏精确时间,统一走精确时间扫描
-    var lifeItems = Dom.queryAll('div[class*="my-4"]').filter(Dom.isVisible)
-    if (lifeItems.length) {
-      var lifeList = _scanLifeMessages(lifeItems, collectAt)
-      Tracer.log({
-        lk_code: LK.MSG_SCAN, stage: Stage.MESSAGE, status: Status.SUCCESS,
-        message: 'douyin-private life messages scanned',
-        detail:  { total: lifeList.length },
-      })
-      return lifeList
+    // 「平台-页面-场景」轻量路由(结构优先,不依赖顶部文案): ①②③-life=my-4 / ③客服接待=csUI / 兜底=老版气泡
+    var my4Items  = Dom.queryAll('div[class*="my-4"]').filter(Dom.isVisible)
+    var csuiItems = Dom.queryAll('div[class*="csUI-MessageItem"]').filter(Dom.isVisible)
+
+    // life.douyin.com 私信页(含 clue 与非 clue): 消息行 div.my-4 + 隐藏精确时间。①②③-life 既有行为不变
+    if (my4Items.length) {
+      var lifeList = _scanLifeMessages(my4Items, collectAt)
+      if (lifeList.length) { _logScan('life', lifeList.length, my4Items.length, csuiItems.length); return lifeList }
     }
-    // 老版气泡结构(im.douyin 等)兜底: 逐条尽力提取精确/相对时间,取不到才标 estimated,不冒充采集当刻
+    // ③ 客服-接待模式的 csUI 变体: my-4 扫不到消息但存在真实 csUI-MessageItem
+    if (csuiItems.length) {
+      var csuiList = _scanCsuiMessages(collectAt)
+      if (csuiList.length) { _logScan('csui', csuiList.length, my4Items.length, csuiItems.length); return csuiList }
+    }
+    // 老版气泡结构(im.douyin 等)兜底
+    var bubbleList = _scanLegacyBubbleMessages(collectAt)
+    _logScan('bubble', bubbleList.length, my4Items.length, csuiItems.length)
+    return bubbleList
+  }
+
+  // 诊断日志(§2.3/§2.4): 明确命中的 scene / dom_family / scanner / message_dom_count
+  function _logScan(scanner, count, my4Count, csuiCount) {
+    var domFamily = scanner === 'csui' ? 'csui' : (my4Count ? 'life-my4' : (scanner === 'bubble' ? 'legacy-bubble' : 'unknown'))
+    var scene = scanner === 'csui' ? 'agent_reception_mode' : (my4Count ? 'official_or_life' : 'unknown')
+    Tracer.log({
+      lk_code: LK.MSG_SCAN, stage: Stage.MESSAGE, status: Status.SUCCESS,
+      message: 'douyin-private ' + scanner + ' messages scanned',
+      detail:  { total: count, scanner: scanner, dom_family: domFamily, scene: scene,
+                 message_dom_count: count, my4: my4Count, csui: csuiCount,
+                 confidence: scanner === 'bubble' ? 'fallback' : 'high' },
+    })
+  }
+
+  // 老版气泡兜底扫描(im.douyin 等): 逐条尽力提取精确/相对时间,取不到才标 estimated,不冒充采集当刻
+  function _scanLegacyBubbleMessages(collectAt) {
     var bubbleNodes = _collectBubbleNodes()
     var currentAnchor = null
     var anchorOffset = 0
@@ -4053,11 +4076,6 @@
           time_estimated: occurred.estimated,
         },
       })
-    })
-    Tracer.log({
-      lk_code: LK.MSG_SCAN, stage: Stage.MESSAGE, status: Status.SUCCESS,
-      message: 'douyin-private bubble messages scanned',
-      detail:  { total: messages.length },
     })
     return messages
   }
@@ -4128,6 +4146,112 @@
       s = e
     }
     return list
+  }
+
+  // ③ 客服-接待模式 csUI 变体扫描器(div.csUI-MessageItem)。无逐条精确时间 → W17 红线: 继承上一条+1s,
+  //    开头无上一条退 csUI-MsgTimeGap 分隔锚点+1s,绝不用采集当刻冒充 inbound 时间。
+  function _scanCsuiMessages(collectAt) {
+    var nodes = _collectCsuiNodes()
+    var currentAnchor = null
+    var anchorOffset = 0
+    var lastOccurredAt = 0
+    var pendingDivider = ''
+    var currentSegmentIso = null
+    var list = []
+    nodes.forEach(function (n) {
+      if (n.kind === 'gap') {
+        var gapText = Dom.getText(n.el)
+        var anchor = _parseOccurredAt(gapText, collectAt)
+        currentAnchor = anchor.ok ? anchor : null
+        anchorOffset = 0
+        if (anchor.ok) { pendingDivider = String(gapText || '').trim(); currentSegmentIso = anchor.iso }
+        return
+      }
+      var el = n.el
+      var text = _extractCsuiText(el)
+      if (!text) return
+      // csUI 无逐条精确时间,统一走继承策略(对齐 life scanner): 读不到 → 继承上一条+1s / 开头退锚点+1s
+      var occurred = _resolveOccurredAt('', currentAnchor, anchorOffset, collectAt, lastOccurredAt)
+      if (currentAnchor) anchorOffset += 1
+      lastOccurredAt = occurred.ms
+      var direction = _isCsuiOutbound(el) ? 'outbound' : 'inbound'
+      list.push({
+        direction: direction,
+        owner: direction === 'outbound' ? 'self' : 'user',
+        message_type: 'user_text',
+        type: 'text',
+        content: text,
+        agent_name: '',
+        timestamp: occurred.iso,
+        time_meta: occurred,
+        segment_at: currentSegmentIso,
+        raw_payload: {
+          selector: 'csui-message-item',
+          rect: Dom.readRect(el),
+          time_text: '',
+          time_source: occurred.source === 'anchor' ? 'csui-divider' : occurred.source,
+          time_estimated: occurred.estimated,
+          divider_text: pendingDivider || undefined,
+          segment_at: currentSegmentIso || undefined,
+        },
+      })
+      pendingDivider = ''
+    })
+    // 与 life scanner 一致: 无 segment_at 的段,取段内首条 inbound 的 occurred 作兜底排序值(纯排序)
+    var s = 0
+    while (s < list.length) {
+      if (list[s].segment_at != null) { s++; continue }
+      var e = s
+      while (e < list.length && list[e].segment_at == null) e++
+      var fb = null
+      for (var f = s; f < e; f++) {
+        if (list[f].direction === 'inbound' && list[f].time_meta && list[f].time_meta.iso) { fb = list[f].time_meta.iso; break }
+      }
+      if (fb) for (var g = s; g < e; g++) {
+        list[g].segment_at = fb
+        list[g].raw_payload.segment_at = fb
+        list[g].raw_payload.segment_fallback = 'inbound-occurred'
+      }
+      s = e
+    }
+    return list
+  }
+
+  // csUI-MessageItem + csUI-MsgTimeGap 按文档顺序合并(queryAll 不保证跨选择器的文档序)
+  function _collectCsuiNodes() {
+    var items = Dom.queryAll('div[class*="csUI-MessageItem"]').filter(Dom.isVisible).map(function (el) { return { el: el, kind: 'item' } })
+    var gaps  = Dom.queryAll('div[class*="csUI-MsgTimeGap"]').filter(Dom.isVisible).map(function (el) { return { el: el, kind: 'gap' } })
+    var nodes = items.concat(gaps)
+    nodes.sort(function (a, b) {
+      if (a.el === b.el || !a.el.compareDocumentPosition) return 0
+      var pos = a.el.compareDocumentPosition(b.el)
+      if (pos & 4) return -1
+      if (pos & 2) return 1
+      return 0
+    })
+    return nodes
+  }
+
+  // csUI 文本: 优先 csUI-Text / csUI-TextLink_text; 卡片退而拼接可读 标题/要点/按钮(结构化不在本任务)
+  function _extractCsuiText(el) {
+    if (!el || !el.querySelector) return ''
+    var primary = el.querySelector('[class*="csUI-Text"]') || el.querySelector('[class*="csUI-TextLink_text"]')
+    var t = Dom.getText(primary)
+    if (t) return t
+    var parts = []
+    ;['csUI-LeadsCard_card_title', 'csUI-LeadsCard_card_points_point', 'csUI-LeadsCard_card_btn'].forEach(function (c) {
+      var ns = el.querySelectorAll ? el.querySelectorAll('[class*="' + c + '"]') : []
+      for (var i = 0; i < ns.length; i++) { var v = Dom.getText(ns[i]); if (v) parts.push(v) }
+    })
+    return parts.join(' ').trim()
+  }
+
+  // csUI 方向: csUI-NormalMessage_right=outbound(staff), _left=inbound(user)
+  function _isCsuiOutbound(el) {
+    if (!el || !el.querySelector) return false
+    if (el.querySelector('[class*="csUI-NormalMessage_right"]')) return true
+    if (el.querySelector('[class*="csUI-NormalMessage_left"]')) return false
+    return /_right/.test(String((el.querySelector('[class*="csUI-NormalMessage"]') || {}).className || ''))
   }
 
   function _collectBubbleNodes() {
