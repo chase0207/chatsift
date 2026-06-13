@@ -10,7 +10,7 @@
 
 - `VERSION` 是单一真源,三段 semver `MAJOR.MINOR.PATCH`。**chatsift 独立 v0.x 版本线。**
 - **W 大功能 → minor**(`0.x.0`);**补丁/小修复 → patch**(`0.x.y`)。
-- 当前:W16 = v0.3.1;**W17 = v0.4.0**。
+- 当前版本以 `PROJECT_STATUS.md` 为准。
 - `tools/dom-collector` 走独立版本线(1.0.0),不并入产品版本。
 
 ## 2. 版本号要同步哪些文件(第5条答案)

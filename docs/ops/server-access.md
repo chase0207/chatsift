@@ -57,6 +57,8 @@ CHATSIFT_SSH_KEY=/path/Ubuntu.pem bash scripts/release.sh --env test --version 0
 bash scripts/release.sh --env prod --version 0.6.6 --dry-run                            # prod 先看计划
 # 只读核验隔离矩阵(挂载/PLUGIN_DOWNLOAD_DIR/DB/JWT/metadata):
 CHATSIFT_SSH_KEY=/path/Ubuntu.pem bash scripts/check-env-isolation.sh
+# 本地文档新鲜度检查(版本号单一真源 + 文档头/changelog 一致性):
+bash scripts/check-doc-freshness.sh
 # 本地治理检查(文档新鲜度若未就位则跳过 + 任务单字段/状态一致性):
 bash scripts/check-governance.sh
 ```
@@ -90,7 +92,7 @@ nginx -t && nginx -s reload                 # nginx 已指 chatsift,通常不动
 ## 6. ★发版红线（务必遵守）
 1. **发版 = QA 身份**（AGENTS §6）:只有 QA/Chase 能发版、改 VERSION、写发版记录。
 2. **不可逆操作停最后一步**:清库 / `docker compose down` / DROP / 删 `data/` → prod-safety §4 三问 + 先备份(离机+验证可解压) + **Chase 在场答"go"才执行**。
-3. **发什么版要先明确**:prod VERSION=`0.5.0`(W17+W19 已发上线,2026-06-07)。发版范围由 Chase/QA 定,cc 不自决。
+3. **发什么版要先明确**:当前 prod 版本见 `PROJECT_STATUS.md`。发版范围由 Chase/QA 定,cc 不自决。
 4. **data/ 永不同步/覆盖/删除**;test 与 prod 数据库配置禁互换。
 
 ## 7. 凭据（安全,不入库）

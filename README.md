@@ -63,21 +63,7 @@ Chatsift 是 chat_rpa 项目的产品形态升级，**独立仓库，独立 git 
 
 ## 开发阶段
 
-| 阶段 | 周次 | 目标 | 状态 |
-|---|---|---|---|
-| W0 | 1 周 | 仓库初始化、迁移清单、架构定稿 | 🚧 进行中 |
-| W1 | 1 周 | 服务端 V2.0 schema + 基础路由骨架 | ⏳ 待启动 |
-| W2 | 1 周 | events 接口 + analyzer 串行 worker | ⏳ |
-| W3 | 1 周 | intent-engine（规则版）+ workorder-engine | ⏳ |
-| W4 | 1 周 | 扩展 Round 1：采集链路与 legacy 并存 | ⏳ |
-| W5 | 1 周 | 扩展 Round 2：切 flag，删除发送链路 | ⏳ |
-| W6 | 1 周 | admin 后台：会话 / 工单 2 页 | ⏳ |
-| W7 | 1 周 | completeness + lead engine | ⏳ |
-| W8 | 1 周 | LLM 额度管理 | ⏳ |
-| W9 | 1 周 | admin 后台：线索 / 分析 / 设置 3 页 | ⏳ |
-| W10 | 1 周 | 扩展 Round 3：legacy 收尾 + DOM scope 落地 | ⏳ |
-
-完整计划见 [`docs/prd/V2.0/runtime-disposition.md`](./docs/prd/V2.0/runtime-disposition.md)。
+当前版本与开发进度见根目录 `PROJECT_STATUS.md`。
 
 ---
 
