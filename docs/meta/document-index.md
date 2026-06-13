@@ -32,7 +32,7 @@
 |---|---|---|
 | 仓库根 | 五件套:AGENTS / CLAUDE / PROJECT_STATUS / CHANGELOG / README | 固定语义名 |
 | `docs/meta/` | 文档治理(本文 + document-governance)、技术债总纲(tech-debt-master-plan)、代码现状(PROJECT_REALITY)、文档↔代码差距(SPEC_GAP)、迁移说明(MIGRATED_FROM_CHAT_RPA) | 固定语义名 |
-| `docs/ops/` | 流程/生产规程:release / prod-safety / versioning / server-access / engineering-governance / deploy | 固定语义名 |
+| `docs/ops/` | 流程/生产规程:project-workflow / release / prod-safety / versioning / server-access / engineering-governance / deploy | 固定语义名 |
 | `docs/tasks/` | 单任务协作闭环:active 进行中,done 已完成;规范见 `docs/ops/task-doc-workflow.md` | `YYYY-MM-DD_vX.Y.Z_任务短语.md` |
 | `docs/prd/V1.0/` | 编码前设计:PRD_v1.0.0、v1-api-spec、v1-schema.sql、`W##_design/tasks`、dom-collector_stage1/2_tasks 等 | `W##_design.md` |
 | `docs/prd/V2.0/` | **转型前**旧"AI 客服"PRD(历史对照,勿当现行需求)、runtime-disposition | — |

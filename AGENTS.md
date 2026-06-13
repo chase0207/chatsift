@@ -125,6 +125,7 @@
 
 ## 接手清单(新 agent 上手)
 1. 读本文件 → 懂核心规矩。
+   读 `docs/ops/project-workflow.md` → 懂项目主流程怎么转。
 2. 读 PROJECT_STATUS.md → 懂当前版本/进度/遗留。
 3. 读当前迭代的 docs/prd 文档 → 懂手头任务。
 4. 做开工前置(身份/环境/文件边界/git status)。
