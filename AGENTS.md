@@ -4,7 +4,7 @@
 > 本文件是所有 AI agent 的协作入口,**只放每次都要遵守的核心规矩**(一屏内)。
 > 细节按需查附录:发版看 `docs/ops/release.md`、生产操作看 `docs/ops/prod-safety.md`、编号看 `docs/ops/versioning.md`。
 > 当前状态 / 进度 / 版本,以 `PROJECT_STATUS.md` 为准(唯一状态源)。
-> 版本:v1.4.0 / 2026-06-11
+> 版本:v1.6.0 / 2026-06-12
 
 ---
 
@@ -51,6 +51,9 @@
 ### 9. ★模型切换/上下文压缩后,重新确认环境★
 模型切换、上下文压缩、新会话后,agent 可能丢失环境记忆。关键操作前重新确认:`pwd`(对的目录?)、`hostname`(对的机器?)、`git status`(工作区状态?)。
 
+### 10. 多 agent 默认分工与自动流转
+默认主力使用 Claude Code 子 agent:PM agent 写任务单/定层级/排版本顺序,DEV agent 按任务单实现,QA agent 按验收矩阵验证和发版收口;Codex 默认作为 Review agent/用户助理,审任务单、实现边界和验收充分性。任务按 `docs/ops/task-doc-workflow.md` 的 `Status`、`Owner`、`Next Owner` 和“自动执行授权矩阵”流转:A 类本地修复、文档治理、本地/test 只读核实等可自动执行;prod、数据、schema、正式发版、权限/租户边界和破坏性操作必须用户批准。
+
 ---
 
 ## 产品提醒(非红线,但需注意)
@@ -69,7 +72,7 @@
 | **QA** | 唯一发版执行者:版本同步、CHANGELOG、tag、生产部署 | — |
 | **UI** | UI、样式、交互 | 改业务逻辑、发版 |
 
-> 当前实际:Claude = 架构/方案/review(对应 PM 偏架构);Claude Code / codex = DEV;发版由指定 agent 以 QA 身份做或用户亲自。
+> 当前默认:Claude Code 分 PM / DEV / QA 子 agent 承担主力执行;Codex = Review agent / 用户助理,负责把关任务层级、边界、风险和验收,不默认接管实现。发版由 QA agent 或用户亲自执行。
 
 ---
 
@@ -142,6 +145,8 @@
 ## 变更日志
 | 版本 | 日期 | 变更摘要 |
 |---|---|---|
+| v1.6.0 | 2026-06-12 | §10 指向任务单自动执行授权矩阵,明确 A 类/文档/只读核实可放权,prod/数据/schema/发版等必须用户批准 |
+| v1.5.0 | 2026-06-12 | 增加 Claude Code PM/DEV/QA 子 agent + Codex Review 默认分工,任务单自动流转但高风险不得自动批准 |
 | v1.4.0 | 2026-06-11 | 文档体系补 docs/tasks 任务单协作闭环 + task-doc-workflow 指针 |
 | v1.3.0 | 2026-06-07 | 文档体系补 docs/meta + docs/archive 行 + 指向 document-governance/index;DEPLOY 移入 docs/ops/deploy.md |
 | v1.2.0 | 2026-06-05 | 加 §4"重改动先出技术方案审了再写代码"(三层流程);后续规则顺延编号 |
