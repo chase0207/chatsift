@@ -1,6 +1,6 @@
 ---
 文档: chatsift 技术债收尾总纲 (tech-debt-master-plan)
-版本: v1.1.0
+版本: v1.2.0
 状态: Active(收尾执行总账)
 日期: 2026-06-04
 来源: 三方独立盘点(tech-debt-inventory-cc / -cc2 / -codex)交叉验证后汇总

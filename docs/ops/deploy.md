@@ -1,6 +1,6 @@
 ---
 文档: chatsift 部署与服务器重置方案 (DEPLOY)
-版本: v1.0.0
+版本: v1.2.0
 状态: 待确认(方案稿,确认后据此生成 deploy/scripts 配置)
 来源: 调研 chat_rpa deploy/ + git-workflow §9 + 事故复盘,按 chatsift 改编
 日期: 2026-06-02
