@@ -57,6 +57,8 @@ CHATSIFT_SSH_KEY=/path/Ubuntu.pem bash scripts/release.sh --env test --version 0
 bash scripts/release.sh --env prod --version 0.6.6 --dry-run                            # prod 先看计划
 # 只读核验隔离矩阵(挂载/PLUGIN_DOWNLOAD_DIR/DB/JWT/metadata):
 CHATSIFT_SSH_KEY=/path/Ubuntu.pem bash scripts/check-env-isolation.sh
+# 本地治理检查(文档新鲜度若未就位则跳过 + 任务单字段/状态一致性):
+bash scripts/check-governance.sh
 ```
 - **plugin-downloads 不再放进 admin/dist**:release.sh 把它 rsync 到各环境独立目录(`/opt/chatsift[-test]/plugin-downloads`),server 经 `PLUGIN_DOWNLOAD_DIR` 读取。
 - **test 发布只写 `/opt/chatsift-test/*`**;prod 只写 `/opt/chatsift/*`。禁止手工 rsync 插件产物到未声明目录。
