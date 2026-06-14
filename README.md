@@ -26,13 +26,12 @@ chatsift/
 ├── server/             Node + Express 服务端
 ├── admin/              Vue 3 + Element Plus 管理后台
 ├── deploy/             Docker Compose + Nginx 配置
-├── docs/               PRD / 架构 / ADR / 实施计划
-│   ├── prd/
-│   ├── architecture/
-│   └── decisions/
+├── docs/               PRD / 任务单 / 调研 / 报告 / 治理规范
 ├── scripts/            构建、部署、QA 脚本
-└── MIGRATED_FROM_CHAT_RPA.md   从 chat_rpa 迁移的代码清单
+└── docs/meta/MIGRATED_FROM_CHAT_RPA.md   从 chat_rpa 迁移的代码清单
 ```
+
+文档位置以 [`docs/meta/document-index.md`](./docs/meta/document-index.md) 为准。
 
 ---
 
@@ -40,22 +39,22 @@ chatsift/
 
 | 层 | 选型 | 理由 |
 |---|---|---|
-| 扩展 | Chrome MV3 + 原生 JS + 纯 concat 构建 | 沿用 chat_rpa 已验证方案，ADR-004 |
-| 服务端 | Node 18 + Express 4 + MySQL 8 | 沿用 chat_rpa 技术栈，无 ORM，手写 SQL |
+| 扩展 | Chrome MV3 + 原生 JS + 纯 concat 构建 | 沿用已验证方案，只读 DOM 采集 |
+| 服务端 | Node 20 + Express 4 + MySQL 8 | 无 ORM，手写 SQL |
 | 后台 | Vue 3.5 + Pinia + Element Plus + Vite | 沿用 chat_rpa 技术栈 |
 | 部署 | Docker Compose + Nginx + 单机 MySQL | MVP 阶段不上 K8s / Redis / MQ |
 | 鉴权 | JWT HS256 | 沿用 chat_rpa 方案 |
 
-**不引入**（直到 V2.1 验证用量后再评估）：Redis、消息队列、WebSocket、ORM、分库数据库、K8s。
+**不引入**（验证用量后再评估）：Redis、消息队列、WebSocket、ORM、分库数据库、K8s。
 
 ---
 
 ## 与 chat_rpa 的关系
 
-Chatsift 是 chat_rpa 项目的产品形态升级，**独立仓库，独立 git 历史，独立部署**。
+Chatsift 由 chat_rpa 的可复用代码迁移转型而来，**独立仓库，独立 git 历史，独立部署**。
 
-- chat_rpa 当前产品版本 V1.8.2，已确认下线，无真实用户
-- chatsift 从 chat_rpa 拷贝可复用代码，见 [`MIGRATED_FROM_CHAT_RPA.md`](./MIGRATED_FROM_CHAT_RPA.md)
+- chat_rpa 已停止作为现行产品使用
+- chatsift 从 chat_rpa 拷贝可复用代码，见 [`docs/meta/MIGRATED_FROM_CHAT_RPA.md`](./docs/meta/MIGRATED_FROM_CHAT_RPA.md)
 - 拷贝后独立维护，chat_rpa 后续不再同步更新
 - 鉴权、数据库、域名独立
 
@@ -89,10 +88,10 @@ cd plugin && node build.js && \
 
 ## 文档导航
 
-- `docs/prd/V2.0/PRD.md` — 产品需求文档
-- `docs/prd/V2.0/runtime-disposition.md` — V1.x 到 V2.0 的代码处置方案
-- `docs/meta/document-index.md` — 文档位置索引(各类文档在哪)
-- `docs/meta/MIGRATED_FROM_CHAT_RPA.md` — 从 chat_rpa 复用的代码清单
+- [`AGENTS.md`](./AGENTS.md) — agent 协作入口与核心规矩
+- [`PROJECT_STATUS.md`](./PROJECT_STATUS.md) — 当前版本、阶段、生产状态和遗留事项
+- [`docs/meta/document-index.md`](./docs/meta/document-index.md) — 文档位置索引
+- [`docs/meta/MIGRATED_FROM_CHAT_RPA.md`](./docs/meta/MIGRATED_FROM_CHAT_RPA.md) — 从 chat_rpa 复用的代码清单
 
 ---
 
