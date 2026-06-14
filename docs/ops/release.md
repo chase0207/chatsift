@@ -1,8 +1,8 @@
 # 发版流程(release.md)
 
 > chatsift 发版用"手动按 checklist + 版本脚本辅助",不用全自动发版脚本。目标:稳定、安全、可追溯。
-> 只有 **QA 身份(或用户亲自)** 能发版。
-> 版本:v1.1.0 / 2026-06-04
+> 发版权见 `AGENTS.md` §7;本文只保留发版流程 checklist。
+> 版本:v1.2.0 / 2026-06-14
 
 ---
 
@@ -92,5 +92,6 @@ plugin/manifest.json
 ## 变更日志
 | 版本 | 日期 | 变更摘要 |
 |---|---|---|
+| v1.2.0 | 2026-06-14 | 发版权正文改为指向 AGENTS §7,避免重复维护 |
 | v1.1.0 | 2026-06-12 | v0.6.6 发布隔离:新增 test/prod 统一发布入口 `release.sh --env` + `check-env-isolation.sh`;明确 admin 静态与 plugin-downloads 两套产物解耦、test 不得改 prod metadata/zip |
 | v1.0.0 | 2026-06-04 | 初版:手动发版流程 + 版本同步文件清单 + 硬规则 |

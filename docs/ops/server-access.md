@@ -1,6 +1,6 @@
 # 服务器接入与部署速查(server-access.md)
 
-> 版本: v1.0.0 / 2026-06-06
+> 版本: v1.3.0 / 2026-06-14
 > 给 DEV/QA 发版/部署时快速查连接与命令。**机密(私钥/密码)不在本文、不在仓库**,只在你本地/服务器。
 > 配套必读:`release.md`(发版 checklist)、`prod-safety.md`(生产铁律)。来源:DEPLOY.md §1/§6.1/§6.2 + 实际上线记录。
 
@@ -91,7 +91,7 @@ nginx -t && nginx -s reload                 # nginx 已指 chatsift,通常不动
 > ✅ **推代码口径 = rsync(2026-06-07 v0.5.0 发版确认)**:`/opt/chatsift` **不是 git 仓库**,`git pull` 不可用——E方案曾写的 git pull 作废,统一用上面的 rsync(无 --delete;.env/data/node_modules/.git/pem 全排除)。test 同法,目标 `/opt/chatsift-test`、compose `docker-compose.test.yml --env-file .env.test`、端口 3101。
 
 ## 6. ★发版红线（务必遵守）
-1. **发版 = QA 身份**（AGENTS §6）:只有 QA/Chase 能发版、改 VERSION、写发版记录。
+1. **发版 = QA 身份**（AGENTS §7）:只有 QA/Chase 能发版、改 VERSION、写发版记录。
 2. **不可逆操作停最后一步**:清库 / `docker compose down` / DROP / 删 `data/` → prod-safety §4 三问 + 先备份(离机+验证可解压) + **Chase 在场答"go"才执行**。
 3. **发什么版要先明确**:当前 prod 版本见 `PROJECT_STATUS.md`。发版范围由 Chase/QA 定,cc 不自决。
 4. **data/ 永不同步/覆盖/删除**;test 与 prod 数据库配置禁互换。
@@ -103,6 +103,7 @@ nginx -t && nginx -s reload                 # nginx 已指 chatsift,通常不动
 ## 变更日志
 | 版本 | 日期 | 摘要 |
 |---|---|---|
+| v1.3.0 | 2026-06-14 | 发版权指针由 AGENTS §6 修正为 §7 |
 | v1.0.0 | 2026-06-06 | 初版:SSH 接入 + prod/test 拓扑 + 部署序列 + 发版红线,汇总自 DEPLOY/release/prod-safety |
 | v1.1.0 | 2026-06-07 | 推代码口径定为 rsync(/opt/chatsift 非 git 仓库,git pull 作废);补 plugin-downloads cp 步 + 无空格 key + SSH 管道迁移;prod VERSION→0.5.0(W17+W19 v0.5.0 发版确认) |
 | v1.2.0 | 2026-06-12 | v0.6.6 发布隔离:新增统一入口 `release.sh --env test\|prod` + `check-env-isolation.sh`;plugin-downloads 独立于 admin/dist(PLUGIN_DOWNLOAD_DIR);test 全链路 `/opt/chatsift-test/{server,admin/dist,plugin-downloads}` 独立;旧手工序列降级为 legacy |
