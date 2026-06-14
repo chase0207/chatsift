@@ -53,6 +53,16 @@ has_any() {
   return 1
 }
 
+section_has_approved_review() {
+  local file="$1"
+
+  awk '
+    /^## 7\./ { in_section=1; next }
+    in_section && /^## [0-9]+\./ { exit }
+    in_section { print }
+  ' "$file" | grep -Eiq '^[[:space:]-]*(审核结论|结论)[[:space:]]*:[[:space:]]*approved[[:space:]]*$'
+}
+
 required_fields=()
 while IFS= read -r field; do
   required_fields+=("$field")
@@ -91,6 +101,9 @@ else
     status="$(awk -F ':' '/^Status:/ { sub(/^[[:space:]]+/, "", $2); print $2; exit }' "$file")"
 
     case "$status" in
+      approved)
+        warn "$rel 已完成/approved,应归档到 docs/tasks/done/"
+        ;;
       ready_for_review)
         missing_records=()
         has_any "$file" "commit[[:space:]]*:" "commit[[:space:]]*[0-9a-f]{7,}" || missing_records+=("commit")
@@ -116,13 +129,17 @@ else
         fi
         ;;
       done)
-        warn "$rel Status: done 仍位于 docs/tasks/active/"
+        warn "$rel 已完成/approved,应归档到 docs/tasks/done/"
         ;;
       "")
         warn "$rel 缺少 Status 字段"
         ;;
       *)
-        pass "$rel 状态无需额外记录检查: $status"
+        if section_has_approved_review "$file"; then
+          warn "$rel 已完成/approved,应归档到 docs/tasks/done/"
+        else
+          pass "$rel 状态无需额外记录检查: $status"
+        fi
         ;;
     esac
   done

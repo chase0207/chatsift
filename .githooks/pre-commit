@@ -1,2 +1,13 @@
 #!/usr/bin/env bash
 bash scripts/guard-main-commit.sh
+guard_status=$?
+if [[ "$guard_status" -ne 0 ]]; then
+  exit "$guard_status"
+fi
+
+echo "[GOVERNANCE][INFO] running check-governance.sh (warning-only)"
+if ! bash scripts/check-governance.sh; then
+  echo "[GOVERNANCE][WARNING] check-governance reported WARN/FAIL; commit is not blocked by governance check."
+fi
+
+exit 0
