@@ -2,7 +2,7 @@
 
 Owner: CC4
 Role: 文档治理
-Status: in_progress
+Status: ready_for_review
 Next Owner: Review agent（codex）→ Chase
 Branch: main（在 chatsift-gov 治理 worktree;纯文档,守卫放行;两条各一个 commit）
 Created: 2026-06-14
@@ -73,11 +73,11 @@ B4 移走的历史内容,要**完整搬进 `docs/archive/`** 并在原处/新处
 ---
 
 ## 4. 验收标准
-- [ ] README 技术栈、目录结构、内部矛盾、过期定位均已校准;结构改为指向 document-index;当前阶段/版本指向 PROJECT_STATUS,无写死。
-- [ ] deploy.md 一次性历史已**搬入 archive**(非删除),archive 文件头标注取代关系;现行事实保留在 deploy.md。
-- [ ] deploy.md 状态头已反映现状(非"待确认方案稿")。
-- [ ] 两条各一个 commit;被改文档头版本 == changelog 顶行;最终 `check-governance` `WARN 0`。
-- [ ] 未碰业务代码 / W23 PRD / project-workflow / 其他规则正文。
+- [x] README 技术栈、目录结构、内部矛盾、过期定位均已校准;结构改为指向 document-index;当前阶段/版本指向 PROJECT_STATUS,无写死。
+- [x] deploy.md 一次性历史已**搬入 archive**(非删除),archive 文件头标注取代关系;现行事实保留在 deploy.md。
+- [x] deploy.md 状态头已反映现状(非"待确认方案稿")。
+- [x] 两条各一个 commit;被改文档头版本 == changelog 顶行;最终 `check-governance` `WARN 0`。
+- [x] 未碰业务代码 / W23 PRD / project-workflow / 其他规则正文。
 
 > 给 Chase 看的:① README 改动摘要(扫一眼有没有把对的也删了);② deploy 的"历史/现行分类清单 + 搬去 archive 的内容"(确认是搬不是删、分类无误)。这两份都看摘要,不盲过。
 
@@ -86,21 +86,36 @@ B4 移走的历史内容,要**完整搬进 `docs/archive/`** 并在原处/新处
 ## 5. 执行记录(由 CC 填写)
 - 状态记录:
 - 2026-06-14 `pending` → `in_progress`:Codex 在 `/Users/caihongyang/vscode/chatsift-gov` 执行;工作区基线干净。
+- 2026-06-14 16:17 `in_progress` → `ready_for_review`:B3/B4 完成,最终 `check-governance` PASS 31 / WARN 0。
 - B3 README 改动摘要(逐项:改了什么/依据现状哪份):
   - 仓库结构:删除不存在的 `docs/architecture`、`docs/decisions` 和根 `MIGRATED_FROM_CHAT_RPA.md` 路径;改为指向 `docs/meta/document-index.md` 与 `docs/meta/MIGRATED_FROM_CHAT_RPA.md`。依据:`docs/meta/document-index.md`、实际目录。
   - 技术栈:服务端 Node 18 改为 Node 20;删除 ADR-004 过期指针。依据:`server/Dockerfile`、`CLAUDE.md`。
   - chat_rpa 关系:去掉写死的旧产品版本,改为已停止作为现行产品使用;迁移说明路径改到 `docs/meta/`。依据:`CLAUDE.md`、`docs/meta/document-index.md`。
   - 文档导航:删掉旧 V2.0 PRD 作为主入口的误导,改为 AGENTS / PROJECT_STATUS / document-index / MIGRATED 入口。依据:`docs/meta/document-index.md`。
+  - commit:`aace025 docs: README 校准到现状`。
 - B4 deploy 分类清单(历史→搬哪 / 现行→留)+ archive 新文件路径:
+  - 历史→搬到 `docs/archive/2026-06-14_deploy_reset_plan_archive.md`:早期"重置现服务器、只跑 chatsift"方案说明、`§1.1 是否保留 test 环境`、`§2 重置前安全`、`§3 重置 + 部署步骤`、`§6 待生成配置清单`。
+  - 现行→留在 `docs/ops/deploy.md`:v0.6.6 发布隔离口径、目标拓扑、运行要求、备份机制、实际上线记录 §4/§4.1、回滚口径。
+  - 修正:文档头状态由"待确认(方案稿)"改为"已上线运行(现行事实 + 历史归档指针)";旧章节号回滚指针改为 archive/prod-safety 指针。
+  - commit:本提交 `docs: deploy 拆分历史到 archive,保留现行事实`。
 - 各文档头版本 bump:
+  - B4:docs/ops/deploy.md v1.5.0;archive 新文件无版本头。
+- 最终检查命令:`bash scripts/check-governance.sh`
 - 最终 check-governance 输出:
-- 异常 / Stop Gate:
+  ```text
+  == Governance Summary ==
+  PASS 31 / WARN 0
+  ```
+- 异常 / Stop Gate:无。
 
 ## 6. 最终结果(由 CC 填写)
-- 状态:完成 / 阻塞
+- 状态:完成,待 Review / Chase 审核。
 - 产物(改动文件 + archive 新文件 + commit 号):
-- 是否触碰禁止项:
-- 未决项:
+  - `aace025 docs: README 校准到现状`
+  - 本提交 `docs: deploy 拆分历史到 archive,保留现行事实`
+  - archive:`docs/archive/2026-06-14_deploy_reset_plan_archive.md`
+- 是否触碰禁止项:否;未碰业务代码、W23 PRD、project-workflow、其他规则正文。
+- 未决项:等待 Chase 审核;未 push。
 
 ## 7. PM 审核(Review / Chase)
 - 结论:approved / rejected
