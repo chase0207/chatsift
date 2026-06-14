@@ -2,7 +2,7 @@
 
 Owner: CC4
 Role: 文档治理
-Status: ready_for_review
+Status: done
 Next Owner: Review agent（codex）→ Chase
 Branch: main（在 chatsift-gov 治理 worktree;纯文档,守卫放行;两条各一个 commit）
 Created: 2026-06-14
@@ -118,7 +118,7 @@ B4 移走的历史内容,要**完整搬进 `docs/archive/`** 并在原处/新处
 - 未决项:等待 Chase 审核;未 push。
 
 ## 7. PM 审核(Review / Chase)
-- 结论:approved / rejected
+- 审核结论: approved
 - 下一步:
 
 ## 8. 变更日志
