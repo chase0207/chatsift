@@ -1,7 +1,7 @@
 # 生产环境安全铁律(prod-safety.md)
 
 > 这些规则来自实战事故(数据丢失)的教训,任何生产操作前必读。稳定、安全是底线。
-> 版本:v1.0.0 / 2026-06-04
+> 版本:v1.1.0 / 2026-06-14
 
 ---
 
@@ -51,7 +51,7 @@ git status # 工作区状态?
 ```
 - 同步:admin/dist、server/src、server/sql、server/package*、deploy/
 - **排除**:.env / .env.production、data/、test compose
-- **禁止同步/覆盖/删除生产 data/ 目录**(数据库数据在里面)
+- **data/ 红线**:`deploy/data/` 永不同步/覆盖/删除;**禁止同步/覆盖/删除生产 data/ 目录**(数据库数据在里面);test 与 prod 数据库配置禁互换;任何清库操作走 §4 破坏性操作三问。
 - 新增 migration SQL 后,同步更新 prod/test compose 的 MySQL init 挂载列表
 
 ## 6. Compose 环境变量
@@ -76,4 +76,5 @@ test -L .env && test "$(readlink .env)" = ".env.production"
 ## 变更日志
 | 版本 | 日期 | 变更摘要 |
 |---|---|---|
+| v1.1.0 | 2026-06-14 | §5 补全 data/ 红线唯一正文,承接 server-access/deploy 副本归一 |
 | v1.0.0 | 2026-06-04 | 初版:唯一入口/环境确认/模型切换重确认/破坏性三问/同步链路/test |

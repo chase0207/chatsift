@@ -1,6 +1,6 @@
 ---
 文档: chatsift 部署与服务器重置方案 (DEPLOY)
-版本: v1.2.0
+版本: v1.3.0
 状态: 待确认(方案稿,确认后据此生成 deploy/scripts 配置)
 来源: 调研 chat_rpa deploy/ + git-workflow §9 + 事故复盘,按 chatsift 改编
 日期: 2026-06-02
@@ -10,6 +10,7 @@
 
 | 版本 | 日期 | 变更摘要 | 触发来源 |
 |---|---|---|---|
+| v1.3.0 | 2026-06-14 | data/ 红线正文改为指向 prod-safety §5 | 治理去重 B2-② |
 | v1.2.0 | 2026-06-12 | v0.6.6 发布隔离:admin 静态与插件下载产物拆为两套(plugin-downloads 独立目录 + PLUGIN_DOWNLOAD_DIR);test/prod 全链路目录隔离;统一发布入口 `release.sh --env test\|prod` | 发布隔离机制重建 |
 | v1.1.0 | 2026-06-02 | 域名改为复用 admin.kongyuekeji.com(老项目彻底废弃),不再启用新子域 | 用户决策 |
 | v1.0.0 | 2026-06-02 | 初版:重置服务器(只跑 chatsift)+ 部署拓扑 + 待生成配置清单 | 用户决策:重置 |
@@ -96,7 +97,7 @@ J. 稳定运行观察后,再清理 chat_rpa 旧目录与数据卷(最终弃用)
 ## 5. 备份机制(硬要求)
 - 每日凌晨 `mysqldump chatsift` → 压缩 → COS,保留 ≥30 天 + 每月归档。
 - 可选开启 MySQL binlog(保留 7 天),便于按时间点恢复。
-- `deploy/data/` 永不同步/覆盖/删除;任何清库操作走 OPS §3.1 三问。
+- data/ 红线见 `prod-safety.md` §5;清库操作三问见 `prod-safety.md` §4。
 
 ## 6. 待生成配置清单(本次只出方案,确认后我产出)
 - `VERSION`(`0.1.0`)、`CHANGELOG.md`、`PROJECT_STATUS.md`(发版记录骨架)
