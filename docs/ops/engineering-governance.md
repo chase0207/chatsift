@@ -2,7 +2,7 @@
 
 > 目标:清理 chatsift 工程中的死代码、废弃入口和历史包袱,同时避免误删仍被动态路由、插件构建、部署脚本或生产迁移依赖的代码。
 > 原则:先盘点、再分级、再小批量删除;不做全仓一刀切。
-> 版本:v1.0.0 / 2026-06-07
+> 版本:v1.1.0 / 2026-06-14
 
 ---
 
@@ -345,11 +345,23 @@ bash scripts/check-version.sh
 - `git status` 干净。
 - 未删除生产、迁移、权限、采集地基文件。
 
+## 10. 并行工作区隔离
+
+- 治理任务、文档治理、只读盘点若需要和进行中的业务线并行,使用独立 git worktree,例如 `../chatsift-gov`,不要在业务 worktree 里混提交。
+- 新建 worktree 后先确认分支、工作区和 hook:
+  ```bash
+  git status --short --branch
+  git config core.hooksPath .githooks
+  bash scripts/check-governance.sh
+  ```
+- 每个 worktree 都必须让 `.githooks/pre-commit` 生效。若 `core.hooksPath` 未指向 `.githooks`,先执行 `git config core.hooksPath .githooks` 并重新跑治理检查;未确认前不要提交。
+- 业务线 worktree 的进行中改动不作为治理任务的顺手处理项。治理任务只在治理 worktree 提交,业务代码仍按单 agent 单分支执行。
+
 ---
 
 ## 变更日志
 
 | 版本 | 日期 | 变更摘要 |
 |---|---|---|
+| v1.1.0 | 2026-06-14 | 增加并行工作区隔离规则:治理/业务并行用独立 worktree,每个 worktree 确认 hook 生效 |
 | v1.0.0 | 2026-06-07 | 初版:死代码清理的分区、分级、候选清单、删除流程和硬禁区 |
-

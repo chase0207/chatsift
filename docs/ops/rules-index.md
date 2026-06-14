@@ -65,6 +65,7 @@
 | main 不进业务码 | `scripts/guard-main-commit.sh` | 机器(A3:pre-commit 拦截 server/admin/plugin) | ✅ |
 | 统一治理检查门 | `.githooks/pre-commit` + `scripts/check-governance.sh` | 机器(D1:pre-commit warning-only 跑 A1/A2;A3 仍拦业务码) | ✅ |
 | 死代码清理流程 | `docs/ops/engineering-governance.md` | 人(先盘点、分级、用户确认后小批量删除) | ✅ |
+| worktree 并行隔离 | `docs/ops/engineering-governance.md` §10 | 人(新 worktree 前核对 hook;治理/业务 worktree 分离) | ✅ |
 | 新增/修改规则必须登记强制者 | `docs/meta/document-governance.md` §5 | 人(文档治理 review;后续可机器化) | ✅ |
 ## 3. 机器强制点索引
 
