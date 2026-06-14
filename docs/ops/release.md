@@ -2,7 +2,7 @@
 
 > chatsift 发版用"手动按 checklist + 版本脚本辅助",不用全自动发版脚本。目标:稳定、安全、可追溯。
 > 发版权见 `AGENTS.md` §7;本文只保留发版流程 checklist。
-> 版本:v1.2.0 / 2026-06-14
+> 版本:v1.3.0 / 2026-06-14
 
 ---
 
@@ -41,6 +41,7 @@ plugin/manifest.json
 - [ ] `bash scripts/check-version.sh`(校验一致,无报错)
 - [ ] CHANGELOG.md 已加本版记录(变更 + 复盘)
 - [ ] PROJECT_STATUS.md 发版记录表已加本版
+- [ ] (仅并线发版)已写并线声明:分支清单 + 合入顺序 + 最终版本号
 - [ ] (大改动)test 已用 main 重部署、冒烟通过
 - [ ] 数据契约/采集类改动:确认无意外行为
 
@@ -71,7 +72,19 @@ plugin/manifest.json
 - 从生产 tag 切 `hotfix/vX.X.X`,只修目标问题、不带无关改动,PATCH+1。
 - 可豁免 test 预发,但生产验证不可豁免。修完 merge 回 main。
 
-## 6. 现有脚本(已确认存在,可用)
+## 6. 并线发版声明(仅多分支并入时适用)
+
+单线发版无需执行本节,不增加日常发版负担。
+
+当同一次发版包含多条分支/多条已 tag 但未单独部署的内容时,QA 在合并和打 tag 前必须先写并线声明,并写入本版现有发版记录位置:PROJECT_STATUS 的发版记录表 + CHANGELOG 的本版条目/复盘。声明至少包含:
+- 分支清单或来源清单。
+- 合入顺序。
+- 最终版本号。
+- 确认人。
+
+并线未声明导致版本顺延、release abort 或回滚,按 `docs/ops/task-doc-workflow.md` §6.5.1 视为发版中止,必须复盘。
+
+## 7. 现有脚本(已确认存在,可用)
 - `scripts/sync-version.sh` — 同步版本号(以 VERSION 为准)
 - `scripts/check-version.sh` — 校验版本一致
 - `scripts/bump-version.sh` — 改版本号
@@ -81,7 +94,7 @@ plugin/manifest.json
 - `scripts/check-env-isolation.sh` — 只读核验 test/prod 隔离矩阵(挂载/PLUGIN_DOWNLOAD_DIR/DB/JWT/metadata)
 - `scripts/release-prod.sh` — prod 仓库侧版本准备(bump/打包/CHANGELOG/commit/tag),**prod 线专用、不可被 test 复用**;环境部署改用 `release.sh`
 
-## 6.1 test/prod 两套发布入口(v0.6.6 发布隔离)
+## 7.1 test/prod 两套发布入口(v0.6.6 发布隔离)
 - **admin 静态资源与插件下载产物是两套产物**:静态 = `admin/dist`,插件 = 独立 `plugin-downloads`(server 经 `PLUGIN_DOWNLOAD_DIR` 读)。
 - **发布命令不同**:`release.sh --env test` 写 `/opt/chatsift-test/*`;`--env prod` 写 `/opt/chatsift/*`,脚本 guard 禁止跨环境写入。
 - **禁止手工 rsync 插件产物到未声明目录**;插件 `metadata.json` 只允许更新到目标环境的 plugin-downloads,**test 预发不得改动 prod metadata/zip**。
@@ -92,6 +105,7 @@ plugin/manifest.json
 ## 变更日志
 | 版本 | 日期 | 变更摘要 |
 |---|---|---|
+| v1.3.0 | 2026-06-14 | 增加并线发版声明规则和发版前 checklist 项;单线发版不受影响 |
 | v1.2.0 | 2026-06-14 | 发版权正文改为指向 AGENTS §7,避免重复维护 |
 | v1.1.0 | 2026-06-12 | v0.6.6 发布隔离:新增 test/prod 统一发布入口 `release.sh --env` + `check-env-isolation.sh`;明确 admin 静态与 plugin-downloads 两套产物解耦、test 不得改 prod metadata/zip |
 | v1.0.0 | 2026-06-04 | 初版:手动发版流程 + 版本同步文件清单 + 硬规则 |
