@@ -59,11 +59,13 @@
 | 文档头版本 == changelog 顶行 | 各活文档文档头 + 变更日志 | 机器(A1:`scripts/check-doc-freshness.sh`) | ✅ |
 | 文档 SSOT / 归类 / 命名 | `docs/meta/document-governance.md` | 人(文档治理任务审查) + 机器(A1 部分新鲜度检查) | ✅ |
 | 根目录五件套不移动 | `docs/meta/document-governance.md` §2 | 人(文档治理审查;移动需另立 B 类任务) | ✅ |
+| 根目录五件套内容新鲜度 | `docs/meta/document-governance.md` §5 | 机器(A1:`scripts/check-doc-freshness.sh`) + 人(对应人工 review) | ✅ |
 | 不提交运行产物和机密 | `AGENTS.md` 文档体系规约 | 人(提交前检查;`.gitignore` 辅助) | ✅ |
 | 唯一状态源 | `PROJECT_STATUS.md` | 人(PM/QA 更新状态;A1 防部分写死版本漂移) | ✅ |
 | main 不进业务码 | `scripts/guard-main-commit.sh` | 机器(A3:pre-commit 拦截 server/admin/plugin) | ✅ |
 | 统一治理检查门 | `.githooks/pre-commit` + `scripts/check-governance.sh` | 机器(D1:pre-commit warning-only 跑 A1/A2;A3 仍拦业务码) | ✅ |
 | 死代码清理流程 | `docs/ops/engineering-governance.md` | 人(先盘点、分级、用户确认后小批量删除) | ✅ |
+| 新增/修改规则必须登记强制者 | `docs/meta/document-governance.md` §5 | 人(文档治理 review;后续可机器化) | ✅ |
 ## 3. 机器强制点索引
 
 | 编号 | 强制点 | 作用 | 当前行为 |

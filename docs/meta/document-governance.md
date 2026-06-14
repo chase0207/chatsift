@@ -1,6 +1,6 @@
 ---
 文档: chatsift 文档治理规范(document-governance)
-版本: v1.1.0
+版本: v1.2.0
 状态: 生效中(活文档)
 日期: 2026-06-07
 ---
@@ -9,6 +9,7 @@
 
 | 版本 | 日期 | 变更摘要 |
 |---|---|---|
+| v1.2.0 | 2026-06-14 | 增加规则维护规约:新增/修改规则须登记强制者;根五件套位置不动但内容新鲜度仍由检查守住 |
 | v1.1.0 | 2026-06-11 | 纳入 docs/tasks 任务单目录、命名、归档和 task-doc-workflow 指针 |
 | v1.0.0 | 2026-06-07 | 初版:目录口径 + 五条硬规则 + 命名 + 两阶段 + 去重三态。落地见 docs/reports/2026-06-07_文档治理盘点与整理方案.md |
 
@@ -61,3 +62,8 @@
 - `git mv` 保留历史;确认重复用 `git rm`(可从历史恢复)。
 - 整理产出落 `docs/reports/`(带日期),报 Chase 审,审过再动。
 - 任务单规范见 `docs/ops/task-doc-workflow.md`;任务单不得替代 PROJECT_STATUS、CHANGELOG、reports/research 证据文档。
+
+## 5. 规则维护规约
+
+- 新增或修改任何长期规则,必须同步登记到 `docs/ops/rules-index.md`,写明唯一的家和强制者;未登记视为治理漏洞。
+- 根目录五件套(`AGENTS.md`、`CLAUDE.md`、`PROJECT_STATUS.md`、`CHANGELOG.md`、`README.md`)位置不动,不等于内容冻结。涉及当前状态、版本口径、流程入口的新鲜度,由 `scripts/check-doc-freshness.sh` 和对应人工 review 守住。
